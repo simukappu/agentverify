@@ -1,0 +1,117 @@
+metadata:
+  agentverify_version: 0.1.0
+  recorded_at: '2025-07-15T06:00:00+00:00'
+  provider: openai
+  model: gpt-4
+interactions:
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    model: gpt-4
+    tools:
+    - name: list_issues
+      parameters:
+        type: object
+        properties:
+          owner:
+            type: string
+          repo:
+            type: string
+          state:
+            type: string
+    - name: get_issue
+      parameters:
+        type: object
+        properties:
+          owner:
+            type: string
+          repo:
+            type: string
+          issue_number:
+            type: integer
+    - name: list_labels
+      parameters:
+        type: object
+        properties:
+          owner:
+            type: string
+          repo:
+            type: string
+    - name: add_label
+      parameters:
+        type: object
+        properties:
+          owner:
+            type: string
+          repo:
+            type: string
+          issue_number:
+            type: integer
+          labels:
+            type: array
+            items:
+              type: string
+  response:
+    content: null
+    tool_calls:
+    - name: list_issues
+      arguments: '{"owner": "simukappu", "repo": "agentverify", "state": "open"}'
+    token_usage:
+      input_tokens: 350
+      output_tokens: 42
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: list_issues
+        arguments:
+          owner: simukappu
+          repo: agentverify
+          state: open
+    - role: tool
+      content: |
+        [{"number": 1, "title": "Add async support for cassette recorder", "state": "open", "labels": []}]
+    model: gpt-4
+  response:
+    content: null
+    tool_calls:
+    - name: get_issue
+      arguments: '{"owner": "simukappu", "repo": "agentverify", "issue_number": 1}'
+    token_usage:
+      input_tokens: 580
+      output_tokens: 45
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: get_issue
+        arguments:
+          owner: simukappu
+          repo: agentverify
+          issue_number: 1
+    - role: tool
+      content: |
+        {"number": 1, "title": "Add async support for cassette recorder",
+         "body": "The LLM_Cassette_Recorder currently only supports synchronous usage. Native async support would be great.",
+         "state": "open", "labels": [], "user": {"login": "contributor1"}}
+    model: gpt-4
+  response:
+    content: >
+      Issue Triage Results:
+
+      Issue #1: Add async support for cassette recorder
+      - Type: feature request (enhancement)
+      - Priority: medium
+      - Suggested labels: enhancement, priority:medium
+      - Suggestion: Add async/await support. Requires implementing __aenter__/__aexit__ in the cassette recorder.
+    tool_calls: null
+    token_usage:
+      input_tokens: 820
+      output_tokens: 250

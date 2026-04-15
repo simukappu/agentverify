@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langchain-issue-triage"
+version = "0.1.0"
+description = "LangChain GitHub Issue triage example for agentverify"
+requires-python = ">=3.10"
+dependencies = [
+    "langchain",
+    "langchain-openai",
+    "langchain-mcp-adapters",
+    "mcp",
+    "agentverify",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "hypothesis"]
+
+[tool.setuptools]
+py-modules = ["agent", "converter"]

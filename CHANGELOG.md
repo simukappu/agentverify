@@ -1,0 +1,21 @@
+# Changelog
+
+## 0.1.0 (2026-04-16)
+
+Initial release.
+
+### Features
+
+- **Tool call assertions**: `assert_tool_calls()` with ExactOrder, InOrder, and AnyOrder modes
+- **Cost/token budget assertions**: `assert_cost()` with max_tokens and max_cost_usd
+- **Safety guardrails**: `assert_no_tool_call()` for forbidden tool detection
+- **Final output assertions**: `assert_final_output()` with contains, equals, and regex matching
+- **Batch assertions**: `assert_all()` collects all failures without stopping at first
+- **ANY matcher**: Wildcard for non-deterministic argument values
+- **Partial argument matching**: Only check the keys you care about
+- **LLM Cassette Record & Replay**: VCR-style recording of LLM API calls for deterministic CI testing
+- **5 LLM provider adapters**: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, LiteLLM
+- **YAML and JSON cassette formats**: Auto-detected by file extension
+- **pytest plugin**: Auto-registers on install, provides `cassette` fixture and `@pytest.mark.agentverify` marker
+- **Structured error messages**: Clear diffs with mismatch position highlighting
+- **Input validation**: `ExecutionResult.from_dict()` validates tool call entries with clear error messages

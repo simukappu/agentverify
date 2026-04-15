@@ -1,0 +1,132 @@
+metadata:
+  agentverify_version: 0.1.0
+  recorded_at: '2025-07-15T06:00:00+00:00'
+  provider: openai
+  model: gpt-4
+interactions:
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    model: gpt-4
+    tools:
+    - name: list_issues
+      parameters:
+        type: object
+        properties:
+          repo:
+            type: string
+          state:
+            type: string
+    - name: get_issue
+      parameters:
+        type: object
+        properties:
+          repo:
+            type: string
+          issue_number:
+            type: integer
+    - name: list_labels
+      parameters:
+        type: object
+        properties:
+          repo:
+            type: string
+  response:
+    content: null
+    tool_calls:
+    - name: list_issues
+      arguments: '{"repo": "simukappu/agentverify", "state": "open"}'
+    token_usage:
+      input_tokens: 280
+      output_tokens: 35
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: list_issues
+        arguments:
+          repo: simukappu/agentverify
+          state: open
+    - role: tool
+      content: |
+        [{"number": 1, "title": "Add async support for cassette recorder", "state": "open", "labels": [{"name": "enhancement"}]},
+         {"number": 2, "title": "assert_tool_calls fails with partial_args and nested dicts", "state": "open", "labels": [{"name": "bug"}]},
+         {"number": 3, "title": "Question: How to test agents with streaming responses?", "state": "open", "labels": [{"name": "question"}]}]
+    model: gpt-4
+  response:
+    content: null
+    tool_calls:
+    - name: get_issue
+      arguments: '{"repo": "simukappu/agentverify", "issue_number": 2}'
+    token_usage:
+      input_tokens: 520
+      output_tokens: 40
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: get_issue
+        arguments:
+          repo: simukappu/agentverify
+          issue_number: 2
+    - role: tool
+      content: |
+        {"number": 2, "title": "assert_tool_calls fails with partial_args and nested dicts",
+         "body": "When using partial_args=True with nested dictionary arguments, the assertion incorrectly fails.",
+         "state": "open", "labels": [{"name": "bug"}], "user": {"login": "contributor2"}}
+    model: gpt-4
+  response:
+    content: null
+    tool_calls:
+    - name: list_labels
+      arguments: '{"repo": "simukappu/agentverify"}'
+    token_usage:
+      input_tokens: 750
+      output_tokens: 32
+- request:
+    messages:
+    - role: user
+      content: Triage the issues in simukappu/agentverify.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: list_labels
+        arguments:
+          repo: simukappu/agentverify
+    - role: tool
+      content: |
+        [{"name": "bug", "description": "Something isn't working"},
+         {"name": "enhancement", "description": "New feature or request"},
+         {"name": "question", "description": "Further information is requested"},
+         {"name": "priority:high", "description": "High priority"},
+         {"name": "priority:low", "description": "Low priority"}]
+    model: gpt-4
+  response:
+    content: >
+      Issue Triage Results:
+
+      Issue #1: Add async support for cassette recorder
+      - Label: enhancement
+      - Priority: priority:low
+      - Suggestion: Add to backlog as a feature request
+
+      Issue #2: assert_tool_calls fails with partial_args and nested dicts
+      - Label: bug, priority:high
+      - Priority: high (bug in existing functionality)
+      - Suggestion: Fix in the next sprint
+
+      Issue #3: Question: How to test agents with streaming responses?
+      - Label: question
+      - Priority: priority:low
+      - Suggestion: Address by adding documentation
+    tool_calls: null
+    token_usage:
+      input_tokens: 980
+      output_tokens: 320

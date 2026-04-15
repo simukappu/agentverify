@@ -1,0 +1,163 @@
+metadata:
+  agentverify_version: 0.1.0
+  recorded_at: '2025-07-15T06:00:00+00:00'
+  provider: bedrock
+  model: anthropic.claude-sonnet-4-20250514-v1:0
+interactions:
+- request:
+    messages:
+    - role: user
+      content: Analyze the file structure of the agentverify repository and suggest how to organize it.
+    model: anthropic.claude-sonnet-4-20250514-v1:0
+    tools:
+    - name: list_directory
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+    - name: read_file
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+    - name: search_files
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+          pattern:
+            type: string
+    - name: get_file_info
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+  response:
+    content: null
+    tool_calls:
+    - name: list_directory
+      arguments: '{"path": "/Users/dev/agentverify"}'
+    token_usage:
+      input_tokens: 320
+      output_tokens: 45
+- request:
+    messages:
+    - role: user
+      content: Analyze the file structure of the agentverify repository and suggest how to organize it.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: list_directory
+        arguments:
+          path: /Users/dev/agentverify
+    - role: tool
+      content: |
+        agentverify/
+        examples/
+        tests/
+        pyproject.toml
+        README.md
+        LICENSE
+        CHANGELOG.md
+        .gitignore
+    model: anthropic.claude-sonnet-4-20250514-v1:0
+  response:
+    content: null
+    tool_calls:
+    - name: list_directory
+      arguments: '{"path": "/Users/dev/agentverify/agentverify"}'
+    token_usage:
+      input_tokens: 480
+      output_tokens: 38
+- request:
+    messages:
+    - role: user
+      content: Analyze the file structure of the agentverify repository and suggest how to organize it.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: list_directory
+        arguments:
+          path: /Users/dev/agentverify/agentverify
+    - role: tool
+      content: |
+        __init__.py
+        models.py
+        assertions.py
+        matchers.py
+        errors.py
+        fixtures.py
+        plugin.py
+        cassette/
+    model: anthropic.claude-sonnet-4-20250514-v1:0
+  response:
+    content: null
+    tool_calls:
+    - name: read_file
+      arguments: '{"path": "/Users/dev/agentverify/pyproject.toml"}'
+    token_usage:
+      input_tokens: 620
+      output_tokens: 42
+- request:
+    messages:
+    - role: user
+      content: Analyze the file structure of the agentverify repository and suggest how to organize it.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: read_file
+        arguments:
+          path: /Users/dev/agentverify/pyproject.toml
+    - role: tool
+      content: |
+        [build-system]
+        requires = ["setuptools>=68.0", "wheel"]
+        build-backend = "setuptools.build_meta"
+        [project]
+        name = "agentverify"
+        version = "0.1.0"
+    model: anthropic.claude-sonnet-4-20250514-v1:0
+  response:
+    content: null
+    tool_calls:
+    - name: read_file
+      arguments: '{"path": "/Users/dev/agentverify/README.md"}'
+    token_usage:
+      input_tokens: 850
+      output_tokens: 40
+- request:
+    messages:
+    - role: user
+      content: Analyze the file structure of the agentverify repository and suggest how to organize it.
+    - role: assistant
+      content: null
+      tool_calls:
+      - name: read_file
+        arguments:
+          path: /Users/dev/agentverify/README.md
+    - role: tool
+      content: |
+        # agentverify
+        pytest for AI agents. Assert tool calls, not vibes.
+    model: anthropic.claude-sonnet-4-20250514-v1:0
+  response:
+    content: >
+      I analyzed the structure of the agentverify repository.
+
+      Current layout:
+      - agentverify/ — Main package (models, assertions, matchers, cassette, etc.)
+      - examples/ — Example implementations
+      - tests/ — Test suite
+
+      Suggestions:
+      1. Documentation files (README.md, CHANGELOG.md, LICENSE) are properly placed at the root
+      2. The package structure is well separated by functionality
+      3. Adapters are neatly organized under the cassette/ subpackage
+    tool_calls: null
+    token_usage:
+      input_tokens: 1100
+      output_tokens: 280
