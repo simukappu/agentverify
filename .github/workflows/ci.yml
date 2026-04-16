@@ -31,7 +31,7 @@ jobs:
           python -m pytest tests/ --cov=agentverify --cov-report=term-missing --cov-branch -p no:agentverify
 
       - name: Upload coverage to Coveralls
-        if: matrix.python-version == '3.13'
+        if: false  # TODO: enable after registering repo on coveralls.io
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
