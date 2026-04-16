@@ -1,7 +1,7 @@
 # agentverify
 
 [![PyPI](https://img.shields.io/pypi/v/agentverify)](https://pypi.org/project/agentverify/)
-[![Downloads](https://static.pepy.tech/badge/agentverify)](https://pepy.tech/projects/agentverify)
+[![Downloads](https://img.shields.io/pepy/dt/agentverify)](https://pepy.tech/projects/agentverify)
 [![CI](https://github.com/simukappu/agentverify/actions/workflows/ci.yml/badge.svg)](https://github.com/simukappu/agentverify/actions/workflows/ci.yml)
 [![Coverage](https://coveralls.io/repos/github/simukappu/agentverify/badge.svg?branch=main)](https://coveralls.io/github/simukappu/agentverify?branch=main)
 [![License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
