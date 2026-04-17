@@ -170,7 +170,7 @@ assert_final_output(result, contains="Tokyo")
 
 Record real LLM API calls once. Replay them in CI forever — zero cost, deterministic.
 
-**⚠️ Important: Cassette replay uses sequential matching** — responses are returned in recorded order without verifying request content. If your agent's prompts, tools, or model change, the cassette will still replay but may return stale/incorrect responses silently. **Delete and re-record cassettes after significant agent changes.** Request content matching is planned for a future release (see [Roadmap](#roadmap)).
+Cassette replay verifies request content by default — if your model or tools change, replay raises `CassetteRequestMismatchError` instead of silently returning stale responses. Re-record cassettes with `--cassette-mode=record` after significant agent changes. See [Request Matching](#request-matching-stale-cassette-detection) for details.
 
 The `cassette` fixture is a pytest fixture provided by the agentverify plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP — it patches the SDK's chat completion method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
 
@@ -221,6 +221,27 @@ pytest --cassette-mode=record
 
 # Replay cassettes (default behavior when cassette files exist)
 pytest
+```
+
+### Request Matching (Stale Cassette Detection)
+
+Cassette replay verifies request content by default. Each replay request is compared against the recorded request:
+- **Model name**: must match exactly (empty model in either side skips the check)
+- **Tool names**: the sorted list of tool names must match (empty tools in either side skips the check)
+
+A `CassetteRequestMismatchError` is raised on mismatch with a clear message indicating which field differs and suggesting re-recording.
+
+To disable matching (e.g., during migration):
+
+```bash
+# CLI: disable for all tests
+pytest --no-cassette-match-requests
+```
+
+```python
+# Per-test: disable in the cassette factory call
+with cassette("my_test.yaml", provider="openai", match_requests=False) as rec:
+    run_my_agent("What's the weather?")
 ```
 
 **Other limitations:**
@@ -470,7 +491,7 @@ See each example's README for agent execution instructions and recording mode de
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Tool mocking/stubbing — test agent routing logic without calling real tools
 - Async support — first-class `asyncio` testing for async agents and tools
-- Cassette request matching — verify request content during replay to detect stale cassettes
+- ~~Cassette request matching — verify request content during replay to detect stale cassettes~~ ✅ Shipped
 - Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
 - YAML/JSON test case definitions — declarative test cases for non-Python CI pipelines

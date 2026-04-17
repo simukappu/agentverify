@@ -21,12 +21,20 @@ def test_cassette_fixture_is_imported():
 
 
 def test_pytest_addoption_registers_cassette_mode():
-    """pytest_addoption registers the --cassette-mode option."""
+    """pytest_addoption registers the --cassette-mode and --cassette-match-requests options."""
     parser = MagicMock()
     pytest_addoption(parser)
-    parser.addoption.assert_called_once()
-    call_kwargs = parser.addoption.call_args
-    assert call_kwargs[0][0] == "--cassette-mode"
-    assert "record" in call_kwargs[1]["choices"]
-    assert "replay" in call_kwargs[1]["choices"]
-    assert "auto" in call_kwargs[1]["choices"]
+    assert parser.addoption.call_count == 2
+
+    # First call: --cassette-mode
+    first_call = parser.addoption.call_args_list[0]
+    assert first_call[0][0] == "--cassette-mode"
+    assert "record" in first_call[1]["choices"]
+    assert "replay" in first_call[1]["choices"]
+    assert "auto" in first_call[1]["choices"]
+
+    # Second call: --no-cassette-match-requests
+    second_call = parser.addoption.call_args_list[1]
+    assert second_call[0][0] == "--no-cassette-match-requests"
+    assert second_call[1]["action"] == "store_true"
+    assert second_call[1]["default"] is False

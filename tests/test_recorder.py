@@ -274,3 +274,182 @@ class TestRecorderContextManager:
         rec = LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.REPLAY)
         assert rec._patch_ctx is None
         rec.__exit__(None, None, None)  # should not raise
+
+
+class TestRequestMatching:
+    """Tests for cassette request matching (match_requests=True)."""
+
+    def _make_tools_openai(self, names: list[str]) -> list[dict]:
+        """Build OpenAI-format tool definitions."""
+        return [
+            {"type": "function", "function": {"name": n, "parameters": {}}}
+            for n in names
+        ]
+
+    def _make_tools_bedrock(self, names: list[str]) -> list[dict]:
+        """Build Bedrock-format tool definitions (top-level name)."""
+        return [{"name": n, "description": f"Tool {n}"} for n in names]
+
+    def test_matching_disabled_by_default(self, tmp_path):
+        """Without match_requests, mismatched model passes silently."""
+        path = tmp_path / "test.yaml"
+        req = NormalizedRequest(messages=[], model="gpt-4.1")
+        resp = NormalizedResponse(content="hello")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=False
+        )
+        different_req = NormalizedRequest(messages=[], model="gpt-3.5-turbo")
+        result = rec.lookup(different_req)
+        assert result.content == "hello"
+
+    def test_model_match_passes(self, tmp_path):
+        """Matching model name passes."""
+        path = tmp_path / "test.yaml"
+        req = NormalizedRequest(messages=[], model="gpt-4.1")
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        result = rec.lookup(NormalizedRequest(messages=[], model="gpt-4.1"))
+        assert result.content == "ok"
+
+    def test_model_mismatch_raises(self, tmp_path):
+        """Mismatched model name raises CassetteRequestMismatchError."""
+        from agentverify.errors import CassetteRequestMismatchError
+
+        path = tmp_path / "test.yaml"
+        req = NormalizedRequest(messages=[], model="gpt-4.1")
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        with pytest.raises(CassetteRequestMismatchError, match="model") as exc_info:
+            rec.lookup(NormalizedRequest(messages=[], model="gpt-3.5-turbo"))
+        assert exc_info.value.field == "model"
+        assert exc_info.value.recorded == "gpt-4.1"
+        assert exc_info.value.actual == "gpt-3.5-turbo"
+        assert exc_info.value.index == 0
+
+    def test_tools_match_passes(self, tmp_path):
+        """Matching tool names passes."""
+        path = tmp_path / "test.yaml"
+        tools = self._make_tools_openai(["search", "calc"])
+        req = NormalizedRequest(messages=[], model="m", tools=tools)
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        # Same tools, different order — should pass (sorted comparison)
+        actual_tools = self._make_tools_openai(["calc", "search"])
+        result = rec.lookup(NormalizedRequest(messages=[], model="m", tools=actual_tools))
+        assert result.content == "ok"
+
+    def test_tools_mismatch_raises(self, tmp_path):
+        """Mismatched tool names raises CassetteRequestMismatchError."""
+        from agentverify.errors import CassetteRequestMismatchError
+
+        path = tmp_path / "test.yaml"
+        tools = self._make_tools_openai(["search", "calc"])
+        req = NormalizedRequest(messages=[], model="m", tools=tools)
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        different_tools = self._make_tools_openai(["search", "delete_user"])
+        with pytest.raises(CassetteRequestMismatchError, match="tools"):
+            rec.lookup(NormalizedRequest(messages=[], model="m", tools=different_tools))
+
+    def test_bedrock_tool_format(self, tmp_path):
+        """Tool names extracted from Bedrock format (top-level name key)."""
+        path = tmp_path / "test.yaml"
+        tools = self._make_tools_bedrock(["read_file", "list_dir"])
+        req = NormalizedRequest(messages=[], model="m", tools=tools)
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="bedrock")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        same_tools = self._make_tools_bedrock(["list_dir", "read_file"])
+        result = rec.lookup(NormalizedRequest(messages=[], model="m", tools=same_tools))
+        assert result.content == "ok"
+
+    def test_empty_model_skips_check(self, tmp_path):
+        """Empty model in recorded or actual request skips model check."""
+        path = tmp_path / "test.yaml"
+        req = NormalizedRequest(messages=[], model="")
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        result = rec.lookup(NormalizedRequest(messages=[], model="gpt-4.1"))
+        assert result.content == "ok"
+
+    def test_empty_tools_skips_check(self, tmp_path):
+        """Empty tools in recorded or actual request skips tools check."""
+        path = tmp_path / "test.yaml"
+        req = NormalizedRequest(messages=[], model="m", tools=None)
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        actual_tools = self._make_tools_openai(["search"])
+        result = rec.lookup(NormalizedRequest(messages=[], model="m", tools=actual_tools))
+        assert result.content == "ok"
+
+    def test_second_interaction_mismatch(self, tmp_path):
+        """Mismatch at second interaction reports correct index."""
+        from agentverify.errors import CassetteRequestMismatchError
+
+        path = tmp_path / "test.yaml"
+        req1 = NormalizedRequest(messages=[], model="gpt-4.1")
+        resp1 = NormalizedResponse(content="first")
+        req2 = NormalizedRequest(messages=[], model="gpt-4.1")
+        resp2 = NormalizedResponse(content="second")
+        save_cassette(path, [(req1, resp1), (req2, resp2)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        # First lookup passes
+        rec.lookup(NormalizedRequest(messages=[], model="gpt-4.1"))
+        # Second lookup fails
+        with pytest.raises(CassetteRequestMismatchError) as exc_info:
+            rec.lookup(NormalizedRequest(messages=[], model="claude-3"))
+        assert exc_info.value.index == 1
+
+    def test_tool_without_name_ignored(self, tmp_path):
+        """Tools without a name are ignored in matching."""
+        path = tmp_path / "test.yaml"
+        # Tool with no name in either format
+        tools_with_nameless = [
+            {"type": "function", "function": {"parameters": {}}},
+            {"type": "function", "function": {"name": "search", "parameters": {}}},
+        ]
+        req = NormalizedRequest(messages=[], model="m", tools=tools_with_nameless)
+        resp = NormalizedResponse(content="ok")
+        save_cassette(path, [(req, resp)], provider="openai")
+
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.REPLAY, match_requests=True
+        )
+        actual_tools = [
+            {"type": "function", "function": {}},
+            {"type": "function", "function": {"name": "search", "parameters": {}}},
+        ]
+        result = rec.lookup(NormalizedRequest(messages=[], model="m", tools=actual_tools))
+        assert result.content == "ok"

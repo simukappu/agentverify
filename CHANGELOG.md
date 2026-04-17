@@ -9,6 +9,9 @@
   - `from agentverify.frameworks.langchain import from_langchain` — LangChain `AgentExecutor` output adapter
   - `from agentverify.frameworks.langgraph import from_langgraph` — LangGraph `create_react_agent` result adapter
   - `from agentverify.frameworks.openai_agents import from_openai_agents` — OpenAI Agents SDK `RunResult` adapter
+- **Cassette request matching**: Detect stale cassettes by verifying model name and tool names during replay
+  - Enable with `--cassette-match-requests` CLI option or `match_requests=True` parameter
+  - Raises `CassetteRequestMismatchError` with clear diff on mismatch
 
 ## 0.1.0 (2026-04-16)
 

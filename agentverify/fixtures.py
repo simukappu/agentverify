@@ -45,6 +45,7 @@ def cassette(request):
         provider: str = "openai",
         cassette_dir: Union[str, Path, None] = None,
         on_missing: Union[str, OnMissingRequest] = OnMissingRequest.ERROR,
+        match_requests: Union[bool, None] = None,
     ) -> LLMCassetteRecorder:
         # Resolve mode: explicit arg > CLI option > default AUTO
         if mode is _MODE_NOT_SET:
@@ -58,6 +59,13 @@ def cassette(request):
 
         if isinstance(on_missing, str):
             on_missing = OnMissingRequest(on_missing)
+
+        # Resolve match_requests: explicit arg > CLI option > default True
+        if match_requests is None:
+            no_match = request.config.getoption(
+                "--no-cassette-match-requests", default=False
+            )
+            match_requests = not no_match
 
         if cassette_dir is None:
             # Resolve relative to the test file location
@@ -74,6 +82,7 @@ def cassette(request):
             mode=mode,
             provider=provider,
             on_missing=on_missing,
+            match_requests=match_requests,
         )
 
     return _cassette

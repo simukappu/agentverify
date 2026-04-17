@@ -17,6 +17,7 @@ from agentverify.cassette.adapters.base import (
     NormalizedResponse,
 )
 from agentverify.cassette.io import load_cassette, save_cassette
+from agentverify.errors import CassetteRequestMismatchError
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall
 
 
@@ -106,10 +107,12 @@ class LLMCassetteRecorder:
         mode: CassetteMode = CassetteMode.AUTO,
         on_missing: OnMissingRequest = OnMissingRequest.ERROR,
         provider: str | LLMProviderAdapter = "openai",
+        match_requests: bool = True,
     ) -> None:
         self.cassette_path = Path(cassette_path)
         self._requested_mode = mode
         self.on_missing = on_missing
+        self.match_requests = match_requests
         self._adapter = _resolve_provider(provider)
 
         # Resolve AUTO mode based on file existence.
@@ -168,29 +171,74 @@ class LLMCassetteRecorder:
     def lookup(self, request: NormalizedRequest) -> NormalizedResponse | None:
         """Return the next unplayed interaction response.
 
-        v1 uses sequential matching — interactions are consumed in recorded
-        order.  The *request* parameter is accepted for API compatibility
-        but is not used for matching.
+        When ``match_requests`` is enabled, the recorded request's model
+        and tool names are compared against the incoming request.  A
+        :class:`CassetteRequestMismatchError` is raised on mismatch,
+        signalling that the cassette is stale.
 
-        .. note::
-
-            Because request content is not verified, a stale cassette will
-            still replay successfully even if the prompt or model has changed.
-            Delete and re-record cassettes after significant agent changes.
+        When ``match_requests`` is disabled (default), interactions are
+        consumed in recorded order without verifying request content
+        (v1 sequential matching).
 
         Returns:
             The next :class:`NormalizedResponse`, or ``None`` if all
-            interactions have been consumed.  When ``on_missing`` is
-            :attr:`OnMissingRequest.FALLBACK`, the caller (adapter) should
-            invoke the real API and record the result.
+            interactions have been consumed.
         """
         if self._replay_index < len(self._interactions):
-            _, response = self._interactions[self._replay_index]
+            recorded_req, response = self._interactions[self._replay_index]
+
+            if self.match_requests:
+                self._verify_request(self._replay_index, recorded_req, request)
+
             self._replay_index += 1
             return response
 
         # No more recorded interactions.
         return None
+
+    @staticmethod
+    def _extract_tool_names(req: NormalizedRequest) -> list[str]:
+        """Extract sorted tool names from a NormalizedRequest."""
+        if not req.tools:
+            return []
+        names: list[str] = []
+        for tool in req.tools:
+            # OpenAI format: {"type": "function", "function": {"name": ...}}
+            func = tool.get("function", {}) if isinstance(tool, dict) else {}
+            name = func.get("name", "") if isinstance(func, dict) else ""
+            if not name:
+                # Fallback: top-level "name" key (Bedrock, Anthropic, etc.)
+                name = tool.get("name", "") if isinstance(tool, dict) else ""
+            if name:
+                names.append(name)
+        return sorted(names)
+
+    def _verify_request(
+        self,
+        index: int,
+        recorded: NormalizedRequest,
+        actual: NormalizedRequest,
+    ) -> None:
+        """Compare recorded and actual requests, raising on mismatch."""
+        # Check model name
+        if recorded.model and actual.model and recorded.model != actual.model:
+            raise CassetteRequestMismatchError(
+                index=index,
+                field="model",
+                recorded=recorded.model,
+                actual=actual.model,
+            )
+
+        # Check tool names (sorted for order-independent comparison)
+        recorded_tools = self._extract_tool_names(recorded)
+        actual_tools = self._extract_tool_names(actual)
+        if recorded_tools and actual_tools and recorded_tools != actual_tools:
+            raise CassetteRequestMismatchError(
+                index=index,
+                field="tools",
+                recorded=recorded_tools,
+                actual=actual_tools,
+            )
 
     def record(
         self, request: NormalizedRequest, response: NormalizedResponse

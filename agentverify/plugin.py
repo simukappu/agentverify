@@ -9,12 +9,18 @@ from agentverify.fixtures import cassette  # noqa: F401 — auto-register fixtur
 
 
 def pytest_addoption(parser):  # type: ignore[no-untyped-def]
-    """Add the ``--cassette-mode`` command-line option."""
+    """Add the ``--cassette-mode`` and ``--cassette-match-requests`` command-line options."""
     parser.addoption(
         "--cassette-mode",
         default=None,
         choices=["auto", "record", "replay"],
         help="Override cassette mode for all tests (auto, record, replay).",
+    )
+    parser.addoption(
+        "--no-cassette-match-requests",
+        action="store_true",
+        default=False,
+        help="Disable request matching during cassette replay.",
     )
 
 

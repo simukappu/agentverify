@@ -171,3 +171,47 @@ class TestFinalOutputError:
     def test_message(self):
         err = FinalOutputError("final_output is None")
         assert "final_output is None" in str(err)
+
+
+class TestCassetteRequestMismatchError:
+    def test_inherits_agent_verify_error(self):
+        from agentverify.errors import CassetteRequestMismatchError
+
+        assert issubclass(CassetteRequestMismatchError, AgentVerifyError)
+
+    def test_message_model_mismatch(self):
+        from agentverify.errors import CassetteRequestMismatchError
+
+        err = CassetteRequestMismatchError(
+            index=0, field="model", recorded="gpt-4.1", actual="gpt-3.5-turbo"
+        )
+        msg = str(err)
+        assert "interaction 0" in msg
+        assert "model" in msg
+        assert "gpt-4.1" in msg
+        assert "gpt-3.5-turbo" in msg
+        assert "re-record" in msg.lower()
+
+    def test_message_tools_mismatch(self):
+        from agentverify.errors import CassetteRequestMismatchError
+
+        err = CassetteRequestMismatchError(
+            index=2,
+            field="tools",
+            recorded=["calc", "search"],
+            actual=["calc", "delete_user"],
+        )
+        msg = str(err)
+        assert "interaction 2" in msg
+        assert "tools" in msg
+
+    def test_attributes(self):
+        from agentverify.errors import CassetteRequestMismatchError
+
+        err = CassetteRequestMismatchError(
+            index=1, field="model", recorded="a", actual="b"
+        )
+        assert err.index == 1
+        assert err.field == "model"
+        assert err.recorded == "a"
+        assert err.actual == "b"

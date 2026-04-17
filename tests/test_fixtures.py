@@ -65,3 +65,44 @@ class TestCassetteFixtureCLIOption:
             assert rec.mode == CassetteMode.RECORD
         finally:
             request.config.getoption = original
+
+
+class TestCassetteFixtureMatchRequests:
+    """Test the cassette fixture match_requests parameter."""
+
+    def test_match_requests_default_false(self, cassette, tmp_path):
+        """Default match_requests is True."""
+        rec = cassette("test.yaml", mode=CassetteMode.RECORD, cassette_dir=tmp_path)
+        assert rec.match_requests is True
+
+    def test_match_requests_explicit_true(self, cassette, tmp_path):
+        """Explicit match_requests=True is passed through."""
+        rec = cassette(
+            "test.yaml", mode=CassetteMode.RECORD, cassette_dir=tmp_path,
+            match_requests=True,
+        )
+        assert rec.match_requests is True
+
+    def test_match_requests_explicit_false(self, cassette, tmp_path):
+        """Explicit match_requests=False overrides CLI."""
+        rec = cassette(
+            "test.yaml", mode=CassetteMode.RECORD, cassette_dir=tmp_path,
+            match_requests=False,
+        )
+        assert rec.match_requests is False
+
+    def test_match_requests_cli_override(self, cassette, tmp_path, request):
+        """When --no-cassette-match-requests is set, it disables matching."""
+        original = request.config.getoption
+
+        def mock_getoption(key, default=None):
+            if key == "--no-cassette-match-requests":
+                return True
+            return original(key, default=default)
+
+        request.config.getoption = mock_getoption
+        try:
+            rec = cassette("test.yaml", mode=CassetteMode.RECORD, cassette_dir=tmp_path)
+            assert rec.match_requests is False
+        finally:
+            request.config.getoption = original

@@ -147,3 +147,34 @@ class CassetteMissingRequestError(AgentVerifyError):
     """Raised when a cassette does not have a matching request for replay."""
 
     pass
+
+
+class CassetteRequestMismatchError(AgentVerifyError):
+    """Raised when a replay request does not match the recorded request.
+
+    This indicates the cassette is stale and should be re-recorded.
+    """
+
+    def __init__(
+        self,
+        index: int,
+        field: str,
+        recorded: Any,
+        actual: Any,
+    ) -> None:
+        self.index = index
+        self.field = field
+        self.recorded = recorded
+        self.actual = actual
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        return (
+            f"Cassette request mismatch at interaction {self.index}\n"
+            f"\n"
+            f"  Field:    {self.field}\n"
+            f"  Recorded: {self.recorded!r}\n"
+            f"  Actual:   {self.actual!r}\n"
+            f"\n"
+            f"  The cassette may be stale. Re-record with --cassette-mode=record."
+        )
