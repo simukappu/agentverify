@@ -19,8 +19,10 @@ from typing import Any
 from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
 from agentverify.models import TokenUsage
 
+from importlib.metadata import version as _pkg_version
+
 #: Library version stamped into cassette metadata.
-_AGENTVERIFY_VERSION = "0.1.0"
+_AGENTVERIFY_VERSION = _pkg_version("agentverify")
 
 _YAML_EXTENSIONS = {".yaml", ".yml"}
 _JSON_EXTENSIONS = {".json"}

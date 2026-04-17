@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-04-18)
 
 ### Features
 
@@ -16,6 +16,12 @@
   - Enabled by default with built-in patterns for OpenAI, Anthropic, AWS, and Bearer tokens
   - Customizable via `sanitize` parameter with `SanitizePattern` objects
   - Disable with `sanitize=False` when needed
+- **Strands Weather Forecaster example**: End-to-end example testing the official Strands Weather Forecaster sample with pre-recorded Bedrock cassette
+
+### Internal
+
+- Cassette version stamp now derived dynamically from `importlib.metadata` (single version source in `pyproject.toml`)
+- CI now runs on all branches (not just `main`)
 
 ## 0.1.0 (2026-04-16)
 
