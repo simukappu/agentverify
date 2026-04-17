@@ -86,6 +86,17 @@ To re-record cassettes with real LLM and GitHub API calls:
 
 ## Conversion Helper
 
+> **Recommended**: Use the built-in adapter instead of the manual converter:
+>
+> ```python
+> from agentverify.frameworks.langchain import from_langchain
+>
+> result = agent_executor.invoke({"input": "Triage the issues"})
+> execution_result = from_langchain(result, messages=memory.chat_memory.messages)
+> ```
+>
+> The built-in adapter performs the same conversion as `converter.py` below. The manual converter is kept as a reference for customization.
+
 `converter.py` provides `langchain_result_to_execution_result()` which converts a LangChain `AgentExecutor` output into an agentverify `ExecutionResult`. See the inline comments for the full mapping:
 
 | LangChain AgentExecutor Output | ExecutionResult |

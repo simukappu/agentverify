@@ -63,7 +63,7 @@ def test_output():
     assert_final_output(result, contains="Tokyo")
 ```
 
-> **Using a real agent framework?** You don't need to build dicts by hand — write a small converter function instead. See [Building from Your Framework](#building-from-your-framework) below.
+> **Using a real agent framework?** You don't need to build dicts by hand — use a built-in adapter instead. See [Framework Integration](#framework-integration) below.
 
 ```
 $ pytest test_agent.py -v
@@ -106,7 +106,16 @@ You can also use `ExecutionResult.from_json(json_string)` to parse from a JSON s
 
 #### Building from Your Framework
 
-Every agent framework has its own output format. To use agentverify, you need a small converter function (~20–50 lines) that maps your framework's output to the dict schema above. Here's the general pattern:
+For frameworks with built-in adapter support (Strands Agents, LangChain), use the adapter directly:
+
+```python
+from agentverify.frameworks.strands import from_strands
+
+result = agent("Analyze the files")
+execution_result = from_strands(result)
+```
+
+For other frameworks, write a small converter function (~20–50 lines) that maps your framework's output to the dict schema above. Here's the general pattern:
 
 ```python
 from agentverify import ExecutionResult, ToolCall, TokenUsage
@@ -133,7 +142,7 @@ def my_framework_to_execution_result(agent_output) -> ExecutionResult:
     )
 ```
 
-See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for complete, production-ready converters. Built-in framework adapters are planned for a future release (see [Roadmap](#roadmap)).
+See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for complete, production-ready converters.
 
 ### Step 2: Assert
 
@@ -280,14 +289,45 @@ assert_final_output(result, matches=r"\d+°C")
 
 ## Framework Integration
 
-agentverify is framework-agnostic. Build an `ExecutionResult` from any agent framework's output using a converter function. The [`examples/`](examples/) directory includes ready-to-use converters:
+### Built-in Adapters
+
+agentverify ships with built-in adapters for popular agent frameworks. No converter function needed — just import and call:
+
+```python
+# Strands Agents
+from agentverify.frameworks.strands import from_strands
+
+result = agent("Analyze the files")
+execution_result = from_strands(result)
+
+# LangChain
+from agentverify.frameworks.langchain import from_langchain
+
+result = agent_executor.invoke({"input": "Triage the issues"})
+execution_result = from_langchain(result)
+```
+
+| Framework | Adapter | Input |
+|---|---|---|
+| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
+| [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | `AgentExecutor.invoke()` dict |
+
+For LangChain, pass the conversation history `messages` list as a second argument to capture token usage:
+
+```python
+execution_result = from_langchain(result, messages=memory.chat_memory.messages)
+```
+
+### Custom Converters
+
+For other frameworks, agentverify is framework-agnostic. Build an `ExecutionResult` from any agent framework's output using a converter function. The [`examples/`](examples/) directory includes reference converters:
 
 | Framework | Converter | Description |
 |---|---|---|
 | [Strands Agents](https://github.com/strands-agents/sdk-python) | [`strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) | Converts `AgentResult` → `ExecutionResult` |
 | [LangChain](https://github.com/langchain-ai/langchain) | [`langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) | Converts `AgentExecutor` output → `ExecutionResult` |
 
-These converters are small (~50 lines) and easy to adapt for your own framework. Built-in framework adapters are planned for a future release (see [Roadmap](#roadmap)).
+These converters are small (~50 lines) and easy to adapt for your own framework.
 
 ## Supported LLM Providers
 
@@ -411,7 +451,8 @@ See each example's README for agent execution instructions and recording mode de
 
 ## Roadmap
 
-- Agent framework adapters — extract `ExecutionResult` directly from Strands Agents, LangChain, and others without writing a converter
+- ~~Agent framework adapters — extract `ExecutionResult` directly from Strands Agents, LangChain, and others without writing a converter~~ ✅ Shipped
+- Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
 - Tool mocking/stubbing — test agent routing logic without calling real tools
 - Async support — first-class `asyncio` testing for async agents and tools
 - Cassette request matching — verify request content during replay to detect stale cassettes

@@ -72,6 +72,17 @@ To re-record the cassette with real LLM calls:
 
 ## Conversion Helper
 
+> **Recommended**: Use the built-in adapter instead of the manual converter:
+>
+> ```python
+> from agentverify.frameworks.strands import from_strands
+>
+> result = agent("Analyze the file structure")
+> execution_result = from_strands(result)
+> ```
+>
+> The built-in adapter performs the same conversion as `converter.py` below. The manual converter is kept as a reference for customization.
+
 `converter.py` provides `strands_result_to_execution_result()` which converts a Strands `AgentResult` into an agentverify `ExecutionResult`. See the inline comments for the full mapping:
 
 | Strands AgentResult | ExecutionResult |

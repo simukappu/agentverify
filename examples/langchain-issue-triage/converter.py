@@ -1,5 +1,14 @@
 """LangChain AgentExecutor output to agentverify ExecutionResult conversion helper.
 
+.. note::
+
+    A built-in adapter is now available::
+
+        from agentverify.frameworks.langchain import from_langchain
+        execution_result = from_langchain(result, messages=messages)
+
+    This manual converter is kept as a reference for customization.
+
 Provides a conversion function that builds an agentverify ExecutionResult
 from the dictionary output of a LangChain AgentExecutor.
 

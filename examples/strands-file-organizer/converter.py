@@ -1,5 +1,14 @@
 """Strands Agents AgentResult to agentverify ExecutionResult conversion helper.
 
+.. note::
+
+    A built-in adapter is now available::
+
+        from agentverify.frameworks.strands import from_strands
+        execution_result = from_strands(agent_result)
+
+    This manual converter is kept as a reference for customization.
+
 Provides a conversion function that builds an agentverify ExecutionResult
 from a Strands Agents SDK AgentResult object.
 

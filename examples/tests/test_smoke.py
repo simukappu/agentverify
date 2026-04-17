@@ -114,3 +114,17 @@ class TestMainReadmeExamplesLink:
         assert readme_path.is_file(), "Main README.md not found"
         content = readme_path.read_text()
         assert "examples/" in content, "Main README.md does not contain 'examples/' reference"
+
+
+class TestBuiltinAdapters:
+    """Verify built-in framework adapters are importable."""
+
+    def test_strands_adapter_importable(self):
+        from agentverify.frameworks.strands import from_strands
+
+        assert callable(from_strands)
+
+    def test_langchain_adapter_importable(self):
+        from agentverify.frameworks.langchain import from_langchain
+
+        assert callable(from_langchain)

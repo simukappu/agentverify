@@ -9,6 +9,11 @@ Public API re-exports for convenient access::
         assert_final_output, assert_all,
         LLMCassetteRecorder, CassetteMode,
     )
+
+Framework adapters (no converter needed)::
+
+    from agentverify.frameworks.strands import from_strands
+    from agentverify.frameworks.langchain import from_langchain
 """
 
 from agentverify.assertions import (
