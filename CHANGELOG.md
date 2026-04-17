@@ -12,6 +12,10 @@
 - **Cassette request matching**: Detect stale cassettes by verifying model name and tool names during replay
   - Enable with `--cassette-match-requests` CLI option or `match_requests=True` parameter
   - Raises `CassetteRequestMismatchError` with clear diff on mismatch
+- **Cassette sanitization**: Automatic redaction of API keys and sensitive data when recording cassettes
+  - Enabled by default with built-in patterns for OpenAI, Anthropic, AWS, and Bearer tokens
+  - Customizable via `sanitize` parameter with `SanitizePattern` objects
+  - Disable with `sanitize=False` when needed
 
 ## 0.1.0 (2026-04-16)
 

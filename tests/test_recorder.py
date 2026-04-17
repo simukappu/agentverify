@@ -453,3 +453,70 @@ class TestRequestMatching:
         ]
         result = rec.lookup(NormalizedRequest(messages=[], model="m", tools=actual_tools))
         assert result.content == "ok"
+
+
+class TestRecorderSanitize:
+    """Tests for cassette sanitization on save."""
+
+    def test_sanitize_on_record(self, tmp_path):
+        """Sensitive data is redacted when saving cassette."""
+        path = tmp_path / "sanitized.yaml"
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.RECORD, sanitize=True
+        )
+        req = NormalizedRequest(
+            messages=[{"content": "Key: sk-proj-abcdefghijklmnopqrstuvwxyz1234"}],
+            model="gpt-4.1",
+        )
+        resp = NormalizedResponse(content="ok")
+        rec.record(req, resp)
+        rec.__exit__(None, None, None)
+
+        content = path.read_text()
+        assert "sk-proj-abcdefghijklmnopqrstuvwxyz1234" not in content
+        assert "sk-***REDACTED***" in content
+
+    def test_sanitize_disabled(self, tmp_path):
+        """Sensitive data is preserved when sanitize=False."""
+        path = tmp_path / "raw.yaml"
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.RECORD, sanitize=False
+        )
+        req = NormalizedRequest(
+            messages=[{"content": "Key: sk-proj-abcdefghijklmnopqrstuvwxyz1234"}],
+            model="gpt-4.1",
+        )
+        resp = NormalizedResponse(content="ok")
+        rec.record(req, resp)
+        rec.__exit__(None, None, None)
+
+        content = path.read_text()
+        assert "sk-proj-abcdefghijklmnopqrstuvwxyz1234" in content
+
+    def test_sanitize_custom_patterns(self, tmp_path):
+        """Custom sanitize patterns are applied."""
+        from agentverify.cassette.sanitize import SanitizePattern
+
+        path = tmp_path / "custom.yaml"
+        custom = [SanitizePattern(name="custom", pattern=r"secret-\d+", replacement="***")]
+        rec = LLMCassetteRecorder(
+            cassette_path=path, mode=CassetteMode.RECORD, sanitize=custom
+        )
+        req = NormalizedRequest(
+            messages=[{"content": "value: secret-42"}],
+            model="m",
+        )
+        resp = NormalizedResponse(content="ok")
+        rec.record(req, resp)
+        rec.__exit__(None, None, None)
+
+        content = path.read_text()
+        assert "secret-42" not in content
+        assert "***" in content
+
+    def test_sanitize_default_is_true(self, tmp_path):
+        """Default sanitize is True (DEFAULT_PATTERNS applied)."""
+        path = tmp_path / "default.yaml"
+        rec = LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.RECORD)
+        assert rec._sanitize_patterns is not None
+        assert len(rec._sanitize_patterns) > 0

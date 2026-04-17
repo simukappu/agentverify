@@ -244,10 +244,40 @@ with cassette("my_test.yaml", provider="openai", match_requests=False) as rec:
     run_my_agent("What's the weather?")
 ```
 
+### Cassette Sanitization
+
+Cassette files are sanitized by default when recording. API keys, tokens, and other sensitive data are automatically redacted before saving to disk.
+
+Built-in patterns cover:
+- OpenAI API keys (`sk-...`)
+- Anthropic API keys (`sk-ant-...`)
+- AWS access keys (`AKIA...`)
+- Bearer tokens (`Bearer ...`)
+
+Add custom patterns:
+
+```python
+from agentverify import SanitizePattern
+
+custom_patterns = [
+    SanitizePattern(name="internal_token", pattern=r"tok-[a-f0-9]{32}", replacement="tok-***REDACTED***"),
+]
+
+with cassette("test.yaml", provider="openai", sanitize=custom_patterns) as rec:
+    run_my_agent("Do something")
+```
+
+Disable sanitization (not recommended):
+
+```python
+with cassette("test.yaml", provider="openai", sanitize=False) as rec:
+    run_my_agent("Do something")
+```
+
 **Other limitations:**
 
 - `total_cost_usd` is not populated from cassettes. Use `assert_cost(max_tokens=...)` for cassette-based budget checks, or set `total_cost_usd` manually in your `ExecutionResult`.
-- Be mindful not to include sensitive data (API keys, PII, confidential prompts) in cassette files checked into version control.
+- Be mindful not to include sensitive data (API keys, PII, confidential prompts) in cassette files checked into version control. Cassette sanitization is enabled by default — see [Cassette Sanitization](#cassette-sanitization) below.
 
 ## Assertion Modes
 
@@ -492,7 +522,7 @@ See each example's README for agent execution instructions and recording mode de
 - Tool mocking/stubbing — test agent routing logic without calling real tools
 - Async support — first-class `asyncio` testing for async agents and tools
 - ~~Cassette request matching — verify request content during replay to detect stale cassettes~~ ✅ Shipped
-- Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes
+- ~~Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes~~ ✅ Shipped
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
 - YAML/JSON test case definitions — declarative test cases for non-Python CI pipelines
 - CLI test runner — run agent tests without pytest

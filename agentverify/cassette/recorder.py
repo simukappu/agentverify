@@ -17,6 +17,7 @@ from agentverify.cassette.adapters.base import (
     NormalizedResponse,
 )
 from agentverify.cassette.io import load_cassette, save_cassette
+from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern, sanitize_interactions
 from agentverify.errors import CassetteRequestMismatchError
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall
 
@@ -108,12 +109,21 @@ class LLMCassetteRecorder:
         on_missing: OnMissingRequest = OnMissingRequest.ERROR,
         provider: str | LLMProviderAdapter = "openai",
         match_requests: bool = True,
+        sanitize: bool | list[SanitizePattern] = True,
     ) -> None:
         self.cassette_path = Path(cassette_path)
         self._requested_mode = mode
         self.on_missing = on_missing
         self.match_requests = match_requests
         self._adapter = _resolve_provider(provider)
+
+        # Resolve sanitize patterns.
+        if sanitize is True:
+            self._sanitize_patterns: list[SanitizePattern] | None = DEFAULT_PATTERNS
+        elif sanitize is False:
+            self._sanitize_patterns = None
+        else:
+            self._sanitize_patterns = sanitize
 
         # Resolve AUTO mode based on file existence.
         if mode == CassetteMode.AUTO:
@@ -158,9 +168,12 @@ class LLMCassetteRecorder:
             self._patch_ctx = None
 
         if self.mode == CassetteMode.RECORD:
+            interactions = self._interactions
+            if self._sanitize_patterns:
+                interactions = sanitize_interactions(interactions, self._sanitize_patterns)
             save_cassette(
                 self.cassette_path,
-                self._interactions,
+                interactions,
                 provider=self._adapter.name,
             )
         # AUTO with no cassette file (passthrough): interactions are

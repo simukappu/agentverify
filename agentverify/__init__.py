@@ -26,6 +26,7 @@ from agentverify.assertions import (
     assert_tool_calls,
 )
 from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
+from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.errors import CassetteRequestMismatchError
 from agentverify.matchers import ANY, OrderMode
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall
@@ -48,4 +49,6 @@ __all__ = [
     "LLMCassetteRecorder",
     "CassetteMode",
     "CassetteRequestMismatchError",
+    "SanitizePattern",
+    "DEFAULT_PATTERNS",
 ]
