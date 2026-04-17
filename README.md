@@ -305,12 +305,26 @@ from agentverify.frameworks.langchain import from_langchain
 
 result = agent_executor.invoke({"input": "Triage the issues"})
 execution_result = from_langchain(result)
+
+# LangGraph
+from agentverify.frameworks.langgraph import from_langgraph
+
+result = agent.invoke({"messages": [{"role": "user", "content": "Hello"}]})
+execution_result = from_langgraph(result)
+
+# OpenAI Agents SDK
+from agentverify.frameworks.openai_agents import from_openai_agents
+
+result = await Runner.run(agent, "What's the weather?")
+execution_result = from_openai_agents(result)
 ```
 
 | Framework | Adapter | Input |
 |---|---|---|
 | [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
 | [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | `AgentExecutor.invoke()` dict |
+| [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` result dict |
+| [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
 
 For LangChain, pass the conversation history `messages` list as a second argument to capture token usage:
 
@@ -453,6 +467,7 @@ See each example's README for agent execution instructions and recording mode de
 
 - ~~Agent framework adapters — extract `ExecutionResult` directly from Strands Agents, LangChain, and others without writing a converter~~ ✅ Shipped
 - Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
+- Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Tool mocking/stubbing — test agent routing logic without calling real tools
 - Async support — first-class `asyncio` testing for async agents and tools
 - Cassette request matching — verify request content during replay to detect stale cassettes

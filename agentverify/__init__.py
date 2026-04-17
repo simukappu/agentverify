@@ -14,6 +14,8 @@ Framework adapters (no converter needed)::
 
     from agentverify.frameworks.strands import from_strands
     from agentverify.frameworks.langchain import from_langchain
+    from agentverify.frameworks.langgraph import from_langgraph
+    from agentverify.frameworks.openai_agents import from_openai_agents
 """
 
 from agentverify.assertions import (

@@ -7,6 +7,8 @@
 - **Built-in framework adapters**: Extract `ExecutionResult` directly from agent framework outputs without writing a custom converter
   - `from agentverify.frameworks.strands import from_strands` — Strands Agents `AgentResult` adapter
   - `from agentverify.frameworks.langchain import from_langchain` — LangChain `AgentExecutor` output adapter
+  - `from agentverify.frameworks.langgraph import from_langgraph` — LangGraph `create_react_agent` result adapter
+  - `from agentverify.frameworks.openai_agents import from_openai_agents` — OpenAI Agents SDK `RunResult` adapter
 
 ## 0.1.0 (2026-04-16)
 

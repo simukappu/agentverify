@@ -128,3 +128,13 @@ class TestBuiltinAdapters:
         from agentverify.frameworks.langchain import from_langchain
 
         assert callable(from_langchain)
+
+    def test_langgraph_adapter_importable(self):
+        from agentverify.frameworks.langgraph import from_langgraph
+
+        assert callable(from_langgraph)
+
+    def test_openai_agents_adapter_importable(self):
+        from agentverify.frameworks.openai_agents import from_openai_agents
+
+        assert callable(from_openai_agents)
