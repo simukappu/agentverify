@@ -1,0 +1,1098 @@
+metadata:
+  agentverify_version: 0.1.0
+  recorded_at: '2026-04-17T15:23:49.387706+00:00'
+  provider: bedrock
+  model: us.anthropic.claude-sonnet-4-20250514-v1:0
+interactions:
+- request:
+    messages:
+    - role: user
+      content: What's the weather in Seattle?
+    model: us.anthropic.claude-sonnet-4-20250514-v1:0
+    tools:
+    - name: http_request
+      parameters:
+        type: object
+        properties:
+          method:
+            type: string
+            description: HTTP method (GET, POST, PUT, DELETE, etc.)
+          url:
+            type: string
+            description: The URL to send the request to
+          auth_type:
+            type: string
+            enum:
+            - Bearer
+            - token
+            - basic
+            - digest
+            - jwt
+            - aws_sig_v4
+            - kerberos
+            - custom
+            - api_key
+            description: Authentication type to use
+          auth_token:
+            type: string
+            description: Authentication token (if not provided, will check auth_env_var
+              if configured)
+          auth_env_var:
+            type: string
+            description: Name of an environment variable containing the auth token.
+              The variable must be listed in HTTP_REQUEST_TOKEN_CONFIG with an allowed
+              domain that matches the request URL.
+          headers:
+            type: object
+            description: HTTP headers as key-value pairs
+          body:
+            type: string
+            description: Request body (for POST, PUT, etc.)
+          verify_ssl:
+            type: boolean
+            description: Whether to verify SSL certificates. Disabling may be restricted.
+          cookie:
+            type: string
+            description: Path to cookie file to use for the request
+          cookie_jar:
+            type: string
+            description: Path to cookie jar file to save cookies to
+          session_config:
+            type: object
+            description: Session configuration (cookies, keep-alive, etc)
+            properties:
+              keep_alive:
+                type: boolean
+                description: Property keep_alive
+              max_retries:
+                type: integer
+                description: Property max_retries
+              pool_size:
+                type: integer
+                description: Property pool_size
+              cookie_persistence:
+                type: boolean
+                description: Property cookie_persistence
+            required: []
+          metrics:
+            type: boolean
+            description: Whether to collect request metrics
+          streaming:
+            type: boolean
+            description: Enable streaming response handling
+          allow_redirects:
+            type: boolean
+            description: 'Whether to follow redirects (default: True)'
+          max_redirects:
+            type: integer
+            description: 'Maximum number of redirects to follow (default: 30)'
+          convert_to_markdown:
+            type: boolean
+            description: 'Convert HTML responses to markdown format (default: False).'
+          aws_auth:
+            type: object
+            description: AWS auth configuration for SigV4
+            properties:
+              service:
+                type: string
+                description: Property service
+              region:
+                type: string
+                description: Property region
+              access_key:
+                type: string
+                description: Property access_key
+              secret_key:
+                type: string
+                description: Property secret_key
+              session_token:
+                type: string
+                description: Property session_token
+              refresh_credentials:
+                type: boolean
+                description: Property refresh_credentials
+            required: []
+          basic_auth:
+            type: object
+            description: Basic auth credentials
+            properties:
+              username:
+                type: string
+                description: Property username
+              password:
+                type: string
+                description: Property password
+            required:
+            - username
+            - password
+          digest_auth:
+            type: object
+            description: Digest auth credentials
+            properties:
+              username:
+                type: string
+                description: Property username
+              password:
+                type: string
+                description: Property password
+              realm:
+                type: string
+                description: Property realm
+            required: []
+          jwt_config:
+            type: object
+            description: JWT configuration
+            properties:
+              secret:
+                type: string
+                description: Property secret
+              algorithm:
+                type: string
+                description: Property algorithm
+              expiry:
+                type: integer
+                description: Property expiry
+            required: []
+          proxies:
+            type: object
+            description: Dictionary mapping protocol or protocol and hostname to the
+              URL of the proxy.
+            properties:
+              http:
+                type: string
+                description: Property http
+              https:
+                type: string
+                description: Property https
+              ftp:
+                type: string
+                description: Property ftp
+            required: []
+        required:
+        - method
+        - url
+    parameters:
+      system:
+      - text: 'You are a weather assistant with HTTP capabilities. You can:
+
+          1. Make HTTP requests to the National Weather Service API
+
+          2. Process and display weather forecast data
+
+          3. Provide weather information for locations in the United States
+
+
+          When retrieving weather information:
+
+          1. First get the coordinates or grid information using https://api.weather.gov/points/{latitude},{longitude}
+
+          2. Then use the returned forecast URL to get the actual forecast
+
+
+          When displaying responses:
+
+          - Format weather data in a human-readable way
+
+          - Highlight important information like temperature, precipitation, and alerts
+
+          - Handle errors appropriately
+
+          - Convert technical terms to user-friendly language
+
+
+          Always explain the weather conditions clearly and provide context for the
+          forecast.'
+      inferenceConfig: {}
+  response:
+    content: I'll help you get the weather forecast for Seattle. Let me start by getting
+      the grid information for Seattle's coordinates and then fetch the current forecast.
+    tool_calls:
+    - name: http_request
+      arguments: '{"method": "GET", "url": "https://api.weather.gov/points/47.6062,-122.3321"}'
+    token_usage:
+      input_tokens: 1607
+      output_tokens: 119
+- request:
+    messages:
+    - role: user
+      content: What's the weather in Seattle?
+    - role: assistant
+      content:
+      - text: I'll help you get the weather forecast for Seattle. Let me start by
+          getting the grid information for Seattle's coordinates and then fetch the
+          current forecast.
+      - toolUse:
+          input:
+            method: GET
+            url: https://api.weather.gov/points/47.6062,-122.3321
+          name: http_request
+          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+    - role: user
+      content:
+      - toolResult:
+          content:
+          - text: 'Status Code: 200'
+          - text: 'Headers: {''Server'': ''nginx/1.20.1'', ''Content-Type'': ''application/geo+json'',
+              ''Content-Length'': ''1026'', ''Date'': ''Fri, 17 Apr 2026 15:23:33
+              GMT''}'
+          - text: "Body: {\n    \"@context\": [\n        \"https://geojson.org/geojson-ld/geojson-context.jsonld\"\
+              ,\n        {\n            \"@version\": \"1.1\",\n            \"wx\"\
+              : \"https://api.weather.gov/ontology#\",\n            \"s\": \"https://schema.org/\"\
+              ,\n            \"geo\": \"http://www.opengis.net/ont/geosparql#\",\n\
+              \            \"unit\": \"http://codes.wmo.int/common/unit/\",\n    \
+              \        \"@vocab\": \"https://api.weather.gov/ontology#\",\n      \
+              \      \"geometry\": {\n                \"@id\": \"s:GeoCoordinates\"\
+              ,\n                \"@type\": \"geo:wktLiteral\"\n            },\n \
+              \           \"city\": \"s:addressLocality\",\n            \"state\"\
+              : \"s:addressRegion\",\n            \"distance\": {\n              \
+              \  \"@id\": \"s:Distance\",\n                \"@type\": \"s:QuantitativeValue\"\
+              \n            },\n            \"bearing\": {\n                \"@type\"\
+              : \"s:QuantitativeValue\"\n            },\n            \"value\": {\n\
+              \                \"@id\": \"s:value\"\n            },\n            \"\
+              unitCode\": {\n                \"@id\": \"s:unitCode\",\n          \
+              \      \"@type\": \"@id\"\n            },\n            \"forecastOffice\"\
+              : {\n                \"@type\": \"@id\"\n            },\n          \
+              \  \"forecastGridData\": {\n                \"@type\": \"@id\"\n   \
+              \         },\n            \"publicZone\": {\n                \"@type\"\
+              : \"@id\"\n            },\n            \"county\": {\n             \
+              \   \"@type\": \"@id\"\n            }\n        }\n    ],\n    \"id\"\
+              : \"https://api.weather.gov/points/47.6062,-122.3321\",\n    \"type\"\
+              : \"Feature\",\n    \"geometry\": {\n        \"type\": \"Point\",\n\
+              \        \"coordinates\": [\n            -122.3321,\n            47.6062\n\
+              \        ]\n    },\n    \"properties\": {\n        \"@id\": \"https://api.weather.gov/points/47.6062,-122.3321\"\
+              ,\n        \"@type\": \"wx:Point\",\n        \"cwa\": \"SEW\",\n   \
+              \     \"type\": \"land\",\n        \"forecastOffice\": \"https://api.weather.gov/offices/SEW\"\
+              ,\n        \"gridId\": \"SEW\",\n        \"gridX\": 125,\n        \"\
+              gridY\": 68,\n        \"forecast\": \"https://api.weather.gov/gridpoints/SEW/125,68/forecast\"\
+              ,\n        \"forecastHourly\": \"https://api.weather.gov/gridpoints/SEW/125,68/forecast/hourly\"\
+              ,\n        \"forecastGridData\": \"https://api.weather.gov/gridpoints/SEW/125,68\"\
+              ,\n        \"observationStations\": \"https://api.weather.gov/gridpoints/SEW/125,68/stations\"\
+              ,\n        \"relativeLocation\": {\n            \"type\": \"Feature\"\
+              ,\n            \"geometry\": {\n                \"type\": \"Point\"\
+              ,\n                \"coordinates\": [\n                    -122.350876,\n\
+              \                    47.620499\n                ]\n            },\n\
+              \            \"properties\": {\n                \"city\": \"Seattle\"\
+              ,\n                \"state\": \"WA\",\n                \"distance\"\
+              : {\n                    \"unitCode\": \"wmoUnit:m\",\n            \
+              \        \"value\": 2123.4271655845\n                },\n          \
+              \      \"bearing\": {\n                    \"unitCode\": \"wmoUnit:degree_(angle)\"\
+              ,\n                    \"value\": 138\n                }\n         \
+              \   }\n        },\n        \"forecastZone\": \"https://api.weather.gov/zones/forecast/WAZ315\"\
+              ,\n        \"county\": \"https://api.weather.gov/zones/county/WAC033\"\
+              ,\n        \"fireWeatherZone\": \"https://api.weather.gov/zones/fire/WAZ654\"\
+              ,\n        \"timeZone\": \"America/Los_Angeles\",\n        \"radarStation\"\
+              : \"KATX\",\n        \"astronomicalData\": {\n            \"sunrise\"\
+              : \"2026-04-16T06:16:06-07:00\",\n            \"sunset\": \"2026-04-16T20:01:59-07:00\"\
+              ,\n            \"transit\": \"2026-04-16T13:09:02-07:00\",\n       \
+              \     \"civilTwilightBegin\": \"2026-04-16T05:45:13-07:00\",\n     \
+              \       \"civilTwilightEnd\": \"2026-04-16T20:32:52-07:00\",\n     \
+              \       \"nauticalTwilightBegin\": \"2026-04-16T05:05:27-07:00\",\n\
+              \            \"nauticalTwilightEnd\": \"2026-04-16T21:12:38-07:00\"\
+              ,\n            \"astronomicalTwilightBegin\": \"2026-04-16T04:22:01-07:00\"\
+              ,\n            \"astronomicalTwilightEnd\": \"2026-04-16T21:56:04-07:00\"\
+              \n        },\n        \"nwr\": {\n            \"transmitter\": \"KHB60\"\
+              ,\n            \"sameCode\": \"053033\",\n            \"areaBroadcast\"\
+              : \"https://api.weather.gov/radio/KHB60/broadcast\",\n            \"\
+              pointBroadcast\": \"https://api.weather.gov/points/47.6062,-122.3321/radio\"\
+              \n        }\n    }\n}"
+          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+          status: success
+    model: us.anthropic.claude-sonnet-4-20250514-v1:0
+    tools:
+    - name: http_request
+      parameters:
+        type: object
+        properties:
+          method:
+            type: string
+            description: HTTP method (GET, POST, PUT, DELETE, etc.)
+          url:
+            type: string
+            description: The URL to send the request to
+          auth_type:
+            type: string
+            enum:
+            - Bearer
+            - token
+            - basic
+            - digest
+            - jwt
+            - aws_sig_v4
+            - kerberos
+            - custom
+            - api_key
+            description: Authentication type to use
+          auth_token:
+            type: string
+            description: Authentication token (if not provided, will check auth_env_var
+              if configured)
+          auth_env_var:
+            type: string
+            description: Name of an environment variable containing the auth token.
+              The variable must be listed in HTTP_REQUEST_TOKEN_CONFIG with an allowed
+              domain that matches the request URL.
+          headers:
+            type: object
+            description: HTTP headers as key-value pairs
+          body:
+            type: string
+            description: Request body (for POST, PUT, etc.)
+          verify_ssl:
+            type: boolean
+            description: Whether to verify SSL certificates. Disabling may be restricted.
+          cookie:
+            type: string
+            description: Path to cookie file to use for the request
+          cookie_jar:
+            type: string
+            description: Path to cookie jar file to save cookies to
+          session_config:
+            type: object
+            description: Session configuration (cookies, keep-alive, etc)
+            properties:
+              keep_alive:
+                type: boolean
+                description: Property keep_alive
+              max_retries:
+                type: integer
+                description: Property max_retries
+              pool_size:
+                type: integer
+                description: Property pool_size
+              cookie_persistence:
+                type: boolean
+                description: Property cookie_persistence
+            required: []
+          metrics:
+            type: boolean
+            description: Whether to collect request metrics
+          streaming:
+            type: boolean
+            description: Enable streaming response handling
+          allow_redirects:
+            type: boolean
+            description: 'Whether to follow redirects (default: True)'
+          max_redirects:
+            type: integer
+            description: 'Maximum number of redirects to follow (default: 30)'
+          convert_to_markdown:
+            type: boolean
+            description: 'Convert HTML responses to markdown format (default: False).'
+          aws_auth:
+            type: object
+            description: AWS auth configuration for SigV4
+            properties:
+              service:
+                type: string
+                description: Property service
+              region:
+                type: string
+                description: Property region
+              access_key:
+                type: string
+                description: Property access_key
+              secret_key:
+                type: string
+                description: Property secret_key
+              session_token:
+                type: string
+                description: Property session_token
+              refresh_credentials:
+                type: boolean
+                description: Property refresh_credentials
+            required: []
+          basic_auth:
+            type: object
+            description: Basic auth credentials
+            properties:
+              username:
+                type: string
+                description: Property username
+              password:
+                type: string
+                description: Property password
+            required:
+            - username
+            - password
+          digest_auth:
+            type: object
+            description: Digest auth credentials
+            properties:
+              username:
+                type: string
+                description: Property username
+              password:
+                type: string
+                description: Property password
+              realm:
+                type: string
+                description: Property realm
+            required: []
+          jwt_config:
+            type: object
+            description: JWT configuration
+            properties:
+              secret:
+                type: string
+                description: Property secret
+              algorithm:
+                type: string
+                description: Property algorithm
+              expiry:
+                type: integer
+                description: Property expiry
+            required: []
+          proxies:
+            type: object
+            description: Dictionary mapping protocol or protocol and hostname to the
+              URL of the proxy.
+            properties:
+              http:
+                type: string
+                description: Property http
+              https:
+                type: string
+                description: Property https
+              ftp:
+                type: string
+                description: Property ftp
+            required: []
+        required:
+        - method
+        - url
+    parameters:
+      system:
+      - text: 'You are a weather assistant with HTTP capabilities. You can:
+
+          1. Make HTTP requests to the National Weather Service API
+
+          2. Process and display weather forecast data
+
+          3. Provide weather information for locations in the United States
+
+
+          When retrieving weather information:
+
+          1. First get the coordinates or grid information using https://api.weather.gov/points/{latitude},{longitude}
+
+          2. Then use the returned forecast URL to get the actual forecast
+
+
+          When displaying responses:
+
+          - Format weather data in a human-readable way
+
+          - Highlight important information like temperature, precipitation, and alerts
+
+          - Handle errors appropriately
+
+          - Convert technical terms to user-friendly language
+
+
+          Always explain the weather conditions clearly and provide context for the
+          forecast.'
+      inferenceConfig: {}
+  response:
+    content: Great! Now let me get the detailed weather forecast for Seattle using
+      the forecast URL from the grid information.
+    tool_calls:
+    - name: http_request
+      arguments: '{"method": "GET", "url": "https://api.weather.gov/gridpoints/SEW/125,68/forecast"}'
+    token_usage:
+      input_tokens: 3102
+      output_tokens: 110
+- request:
+    messages:
+    - role: user
+      content: What's the weather in Seattle?
+    - role: assistant
+      content:
+      - text: I'll help you get the weather forecast for Seattle. Let me start by
+          getting the grid information for Seattle's coordinates and then fetch the
+          current forecast.
+      - toolUse:
+          input:
+            method: GET
+            url: https://api.weather.gov/points/47.6062,-122.3321
+          name: http_request
+          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+    - role: user
+      content:
+      - toolResult:
+          content:
+          - text: 'Status Code: 200'
+          - text: 'Headers: {''Server'': ''nginx/1.20.1'', ''Content-Type'': ''application/geo+json'',
+              ''Content-Length'': ''1026'', ''Date'': ''Fri, 17 Apr 2026 15:23:33
+              GMT''}'
+          - text: "Body: {\n    \"@context\": [\n        \"https://geojson.org/geojson-ld/geojson-context.jsonld\"\
+              ,\n        {\n            \"@version\": \"1.1\",\n            \"wx\"\
+              : \"https://api.weather.gov/ontology#\",\n            \"s\": \"https://schema.org/\"\
+              ,\n            \"geo\": \"http://www.opengis.net/ont/geosparql#\",\n\
+              \            \"unit\": \"http://codes.wmo.int/common/unit/\",\n    \
+              \        \"@vocab\": \"https://api.weather.gov/ontology#\",\n      \
+              \      \"geometry\": {\n                \"@id\": \"s:GeoCoordinates\"\
+              ,\n                \"@type\": \"geo:wktLiteral\"\n            },\n \
+              \           \"city\": \"s:addressLocality\",\n            \"state\"\
+              : \"s:addressRegion\",\n            \"distance\": {\n              \
+              \  \"@id\": \"s:Distance\",\n                \"@type\": \"s:QuantitativeValue\"\
+              \n            },\n            \"bearing\": {\n                \"@type\"\
+              : \"s:QuantitativeValue\"\n            },\n            \"value\": {\n\
+              \                \"@id\": \"s:value\"\n            },\n            \"\
+              unitCode\": {\n                \"@id\": \"s:unitCode\",\n          \
+              \      \"@type\": \"@id\"\n            },\n            \"forecastOffice\"\
+              : {\n                \"@type\": \"@id\"\n            },\n          \
+              \  \"forecastGridData\": {\n                \"@type\": \"@id\"\n   \
+              \         },\n            \"publicZone\": {\n                \"@type\"\
+              : \"@id\"\n            },\n            \"county\": {\n             \
+              \   \"@type\": \"@id\"\n            }\n        }\n    ],\n    \"id\"\
+              : \"https://api.weather.gov/points/47.6062,-122.3321\",\n    \"type\"\
+              : \"Feature\",\n    \"geometry\": {\n        \"type\": \"Point\",\n\
+              \        \"coordinates\": [\n            -122.3321,\n            47.6062\n\
+              \        ]\n    },\n    \"properties\": {\n        \"@id\": \"https://api.weather.gov/points/47.6062,-122.3321\"\
+              ,\n        \"@type\": \"wx:Point\",\n        \"cwa\": \"SEW\",\n   \
+              \     \"type\": \"land\",\n        \"forecastOffice\": \"https://api.weather.gov/offices/SEW\"\
+              ,\n        \"gridId\": \"SEW\",\n        \"gridX\": 125,\n        \"\
+              gridY\": 68,\n        \"forecast\": \"https://api.weather.gov/gridpoints/SEW/125,68/forecast\"\
+              ,\n        \"forecastHourly\": \"https://api.weather.gov/gridpoints/SEW/125,68/forecast/hourly\"\
+              ,\n        \"forecastGridData\": \"https://api.weather.gov/gridpoints/SEW/125,68\"\
+              ,\n        \"observationStations\": \"https://api.weather.gov/gridpoints/SEW/125,68/stations\"\
+              ,\n        \"relativeLocation\": {\n            \"type\": \"Feature\"\
+              ,\n            \"geometry\": {\n                \"type\": \"Point\"\
+              ,\n                \"coordinates\": [\n                    -122.350876,\n\
+              \                    47.620499\n                ]\n            },\n\
+              \            \"properties\": {\n                \"city\": \"Seattle\"\
+              ,\n                \"state\": \"WA\",\n                \"distance\"\
+              : {\n                    \"unitCode\": \"wmoUnit:m\",\n            \
+              \        \"value\": 2123.4271655845\n                },\n          \
+              \      \"bearing\": {\n                    \"unitCode\": \"wmoUnit:degree_(angle)\"\
+              ,\n                    \"value\": 138\n                }\n         \
+              \   }\n        },\n        \"forecastZone\": \"https://api.weather.gov/zones/forecast/WAZ315\"\
+              ,\n        \"county\": \"https://api.weather.gov/zones/county/WAC033\"\
+              ,\n        \"fireWeatherZone\": \"https://api.weather.gov/zones/fire/WAZ654\"\
+              ,\n        \"timeZone\": \"America/Los_Angeles\",\n        \"radarStation\"\
+              : \"KATX\",\n        \"astronomicalData\": {\n            \"sunrise\"\
+              : \"2026-04-16T06:16:06-07:00\",\n            \"sunset\": \"2026-04-16T20:01:59-07:00\"\
+              ,\n            \"transit\": \"2026-04-16T13:09:02-07:00\",\n       \
+              \     \"civilTwilightBegin\": \"2026-04-16T05:45:13-07:00\",\n     \
+              \       \"civilTwilightEnd\": \"2026-04-16T20:32:52-07:00\",\n     \
+              \       \"nauticalTwilightBegin\": \"2026-04-16T05:05:27-07:00\",\n\
+              \            \"nauticalTwilightEnd\": \"2026-04-16T21:12:38-07:00\"\
+              ,\n            \"astronomicalTwilightBegin\": \"2026-04-16T04:22:01-07:00\"\
+              ,\n            \"astronomicalTwilightEnd\": \"2026-04-16T21:56:04-07:00\"\
+              \n        },\n        \"nwr\": {\n            \"transmitter\": \"KHB60\"\
+              ,\n            \"sameCode\": \"053033\",\n            \"areaBroadcast\"\
+              : \"https://api.weather.gov/radio/KHB60/broadcast\",\n            \"\
+              pointBroadcast\": \"https://api.weather.gov/points/47.6062,-122.3321/radio\"\
+              \n        }\n    }\n}"
+          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+          status: success
+    - role: assistant
+      content:
+      - text: Great! Now let me get the detailed weather forecast for Seattle using
+          the forecast URL from the grid information.
+      - toolUse:
+          input:
+            method: GET
+            url: https://api.weather.gov/gridpoints/SEW/125,68/forecast
+          name: http_request
+          toolUseId: tooluse_BKUOkLSUcyUmLxiSnHNJOz
+    - role: user
+      content:
+      - toolResult:
+          content:
+          - text: 'Status Code: 200'
+          - text: 'Headers: {''Server'': ''nginx/1.20.1'', ''Content-Type'': ''application/geo+json'',
+              ''Content-Length'': ''1436'', ''Date'': ''Fri, 17 Apr 2026 15:23:38
+              GMT''}'
+          - text: "Body: {\n    \"@context\": [\n        \"https://geojson.org/geojson-ld/geojson-context.jsonld\"\
+              ,\n        {\n            \"@version\": \"1.1\",\n            \"wx\"\
+              : \"https://api.weather.gov/ontology#\",\n            \"geo\": \"http://www.opengis.net/ont/geosparql#\"\
+              ,\n            \"unit\": \"http://codes.wmo.int/common/unit/\",\n  \
+              \          \"@vocab\": \"https://api.weather.gov/ontology#\"\n     \
+              \   }\n    ],\n    \"type\": \"Feature\",\n    \"geometry\": {\n   \
+              \     \"type\": \"Polygon\",\n        \"coordinates\": [\n         \
+              \   [\n                [\n                    -122.3017,\n         \
+              \           47.5996\n                ],\n                [\n       \
+              \             -122.3079,\n                    47.6202\n            \
+              \    ],\n                [\n                    -122.3383,\n       \
+              \             47.616\n                ],\n                [\n      \
+              \              -122.3321,\n                    47.5954\n           \
+              \     ],\n                [\n                    -122.3017,\n      \
+              \              47.5996\n                ]\n            ]\n        ]\n\
+              \    },\n    \"properties\": {\n        \"units\": \"us\",\n       \
+              \ \"forecastGenerator\": \"BaselineForecastGenerator\",\n        \"\
+              generatedAt\": \"2026-04-17T13:09:26+00:00\",\n        \"updateTime\"\
+              : \"2026-04-17T08:31:00+00:00\",\n        \"validTimes\": \"2026-04-17T02:00:00+00:00/P7DT23H\"\
+              ,\n        \"elevation\": {\n            \"unitCode\": \"wmoUnit:m\"\
+              ,\n            \"value\": 73.152\n        },\n        \"periods\": [\n\
+              \            {\n                \"number\": 1,\n                \"name\"\
+              : \"Today\",\n                \"startTime\": \"2026-04-17T06:00:00-07:00\"\
+              ,\n                \"endTime\": \"2026-04-17T18:00:00-07:00\",\n   \
+              \             \"isDaytime\": true,\n                \"temperature\"\
+              : 56,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 0\n                },\n                \"\
+              windSpeed\": \"3 mph\",\n                \"windDirection\": \"ENE\"\
+              ,\n                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 56. East\
+              \ northeast wind around 3 mph.\"\n            },\n            {\n  \
+              \              \"number\": 2,\n                \"name\": \"Tonight\"\
+              ,\n                \"startTime\": \"2026-04-17T18:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-04-18T06:00:00-07:00\",\n      \
+              \          \"isDaytime\": false,\n                \"temperature\": 42,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 1\n                },\n                \"windSpeed\"\
+              : \"3 mph\",\n                \"windDirection\": \"N\",\n          \
+              \      \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Mostly cloudy. Low around 42, with temperatures\
+              \ rising to around 44 overnight. North wind around 3 mph.\"\n      \
+              \      },\n            {\n                \"number\": 3,\n         \
+              \       \"name\": \"Saturday\",\n                \"startTime\": \"2026-04-18T06:00:00-07:00\"\
+              ,\n                \"endTime\": \"2026-04-18T18:00:00-07:00\",\n   \
+              \             \"isDaytime\": true,\n                \"temperature\"\
+              : 66,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 7\n                },\n                \"\
+              windSpeed\": \"3 mph\",\n                \"windDirection\": \"WSW\"\
+              ,\n                \"icon\": \"https://api.weather.gov/icons/land/day/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Sunny\",\n          \
+              \      \"detailedForecast\": \"Partly sunny, with a high near 66. West\
+              \ southwest wind around 3 mph.\"\n            },\n            {\n  \
+              \              \"number\": 4,\n                \"name\": \"Saturday\
+              \ Night\",\n                \"startTime\": \"2026-04-18T18:00:00-07:00\"\
+              ,\n                \"endTime\": \"2026-04-19T06:00:00-07:00\",\n   \
+              \             \"isDaytime\": false,\n                \"temperature\"\
+              : 50,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 13\n                },\n                \"\
+              windSpeed\": \"3 mph\",\n                \"windDirection\": \"ESE\"\
+              ,\n                \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Mostly cloudy, with a low around 50.\
+              \ East southeast wind around 3 mph.\"\n            },\n            {\n\
+              \                \"number\": 5,\n                \"name\": \"Sunday\"\
+              ,\n                \"startTime\": \"2026-04-19T06:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-04-19T18:00:00-07:00\",\n      \
+              \          \"isDaytime\": true,\n                \"temperature\": 68,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 11\n                },\n                \"windSpeed\"\
+              : \"2 to 7 mph\",\n                \"windDirection\": \"NNE\",\n   \
+              \             \"icon\": \"https://api.weather.gov/icons/land/day/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Mostly cloudy, with a high near 68.\
+              \ North northeast wind 2 to 7 mph.\"\n            },\n            {\n\
+              \                \"number\": 6,\n                \"name\": \"Sunday\
+              \ Night\",\n                \"startTime\": \"2026-04-19T18:00:00-07:00\"\
+              ,\n                \"endTime\": \"2026-04-20T06:00:00-07:00\",\n   \
+              \             \"isDaytime\": false,\n                \"temperature\"\
+              : 50,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 8\n                },\n                \"\
+              windSpeed\": \"7 mph\",\n                \"windDirection\": \"N\",\n\
+              \                \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Mostly cloudy, with a low around 50.\"\
+              \n            },\n            {\n                \"number\": 7,\n  \
+              \              \"name\": \"Monday\",\n                \"startTime\"\
+              : \"2026-04-20T06:00:00-07:00\",\n                \"endTime\": \"2026-04-20T18:00:00-07:00\"\
+              ,\n                \"isDaytime\": true,\n                \"temperature\"\
+              : 69,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 15\n                },\n                \"\
+              windSpeed\": \"7 mph\",\n                \"windDirection\": \"N\",\n\
+              \                \"icon\": \"https://api.weather.gov/icons/land/day/bkn/rain,20?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Sunny then Slight Chance\
+              \ Light Rain\",\n                \"detailedForecast\": \"A slight chance\
+              \ of rain after 5pm. Partly sunny, with a high near 69.\"\n        \
+              \    },\n            {\n                \"number\": 8,\n           \
+              \     \"name\": \"Monday Night\",\n                \"startTime\": \"\
+              2026-04-20T18:00:00-07:00\",\n                \"endTime\": \"2026-04-21T06:00:00-07:00\"\
+              ,\n                \"isDaytime\": false,\n                \"temperature\"\
+              : 50,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 30\n                },\n                \"\
+              windSpeed\": \"7 mph\",\n                \"windDirection\": \"WSW\"\
+              ,\n                \"icon\": \"https://api.weather.gov/icons/land/night/rain,20/rain,30?size=medium\"\
+              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
+              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
+              \ with a low around 50.\"\n            },\n            {\n         \
+              \       \"number\": 9,\n                \"name\": \"Tuesday\",\n   \
+              \             \"startTime\": \"2026-04-21T06:00:00-07:00\",\n      \
+              \          \"endTime\": \"2026-04-21T18:00:00-07:00\",\n           \
+              \     \"isDaytime\": true,\n                \"temperature\": 63,\n \
+              \               \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 40\n                },\n                \"windSpeed\"\
+              : \"8 mph\",\n                \"windDirection\": \"SSW\",\n        \
+              \        \"icon\": \"https://api.weather.gov/icons/land/day/rain,40?size=medium\"\
+              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
+              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
+              \ with a high near 63.\"\n            },\n            {\n          \
+              \      \"number\": 10,\n                \"name\": \"Tuesday Night\"\
+              ,\n                \"startTime\": \"2026-04-21T18:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-04-22T06:00:00-07:00\",\n      \
+              \          \"isDaytime\": false,\n                \"temperature\": 49,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 40\n                },\n                \"windSpeed\"\
+              : \"8 mph\",\n                \"windDirection\": \"SSW\",\n        \
+              \        \"icon\": \"https://api.weather.gov/icons/land/night/rain,40/rain,30?size=medium\"\
+              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
+              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
+              \ with a low around 49.\"\n            },\n            {\n         \
+              \       \"number\": 11,\n                \"name\": \"Wednesday\",\n\
+              \                \"startTime\": \"2026-04-22T06:00:00-07:00\",\n   \
+              \             \"endTime\": \"2026-04-22T18:00:00-07:00\",\n        \
+              \        \"isDaytime\": true,\n                \"temperature\": 59,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 33\n                },\n                \"windSpeed\"\
+              : \"8 mph\",\n                \"windDirection\": \"SSW\",\n        \
+              \        \"icon\": \"https://api.weather.gov/icons/land/day/rain,30?size=medium\"\
+              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
+              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
+              \ with a high near 59.\"\n            },\n            {\n          \
+              \      \"number\": 12,\n                \"name\": \"Wednesday Night\"\
+              ,\n                \"startTime\": \"2026-04-22T18:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-04-23T06:00:00-07:00\",\n      \
+              \          \"isDaytime\": false,\n                \"temperature\": 45,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 19\n                },\n                \"windSpeed\"\
+              : \"5 to 8 mph\",\n                \"windDirection\": \"SSW\",\n   \
+              \             \"icon\": \"https://api.weather.gov/icons/land/night/rain,20/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Slight Chance Light Rain then\
+              \ Mostly Cloudy\",\n                \"detailedForecast\": \"A slight\
+              \ chance of rain before 11pm. Mostly cloudy, with a low around 45.\"\
+              \n            },\n            {\n                \"number\": 13,\n \
+              \               \"name\": \"Thursday\",\n                \"startTime\"\
+              : \"2026-04-23T06:00:00-07:00\",\n                \"endTime\": \"2026-04-23T18:00:00-07:00\"\
+              ,\n                \"isDaytime\": true,\n                \"temperature\"\
+              : 58,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 10\n                },\n                \"\
+              windSpeed\": \"7 mph\",\n                \"windDirection\": \"NW\",\n\
+              \                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 58.\"\n\
+              \            },\n            {\n                \"number\": 14,\n  \
+              \              \"name\": \"Thursday Night\",\n                \"startTime\"\
+              : \"2026-04-23T18:00:00-07:00\",\n                \"endTime\": \"2026-04-24T06:00:00-07:00\"\
+              ,\n                \"isDaytime\": false,\n                \"temperature\"\
+              : 43,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 3\n                },\n                \"\
+              windSpeed\": \"2 to 7 mph\",\n                \"windDirection\": \"\
+              ENE\",\n                \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Partly cloudy, with a low around 43.\"\
+              \n            }\n        ]\n    }\n}"
+          toolUseId: tooluse_BKUOkLSUcyUmLxiSnHNJOz
+          status: success
+    model: us.anthropic.claude-sonnet-4-20250514-v1:0
+    tools:
+    - name: http_request
+      parameters:
+        type: object
+        properties:
+          method:
+            type: string
+            description: HTTP method (GET, POST, PUT, DELETE, etc.)
+          url:
+            type: string
+            description: The URL to send the request to
+          auth_type:
+            type: string
+            enum:
+            - Bearer
+            - token
+            - basic
+            - digest
+            - jwt
+            - aws_sig_v4
+            - kerberos
+            - custom
+            - api_key
+            description: Authentication type to use
+          auth_token:
+            type: string
+            description: Authentication token (if not provided, will check auth_env_var
+              if configured)
+          auth_env_var:
+            type: string
+            description: Name of an environment variable containing the auth token.
+              The variable must be listed in HTTP_REQUEST_TOKEN_CONFIG with an allowed
+              domain that matches the request URL.
+          headers:
+            type: object
+            description: HTTP headers as key-value pairs
+          body:
+            type: string
+            description: Request body (for POST, PUT, etc.)
+          verify_ssl:
+            type: boolean
+            description: Whether to verify SSL certificates. Disabling may be restricted.
+          cookie:
+            type: string
+            description: Path to cookie file to use for the request
+          cookie_jar:
+            type: string
+            description: Path to cookie jar file to save cookies to
+          session_config:
+            type: object
+            description: Session configuration (cookies, keep-alive, etc)
+            properties:
+              keep_alive:
+                type: boolean
+                description: Property keep_alive
+              max_retries:
+                type: integer
+                description: Property max_retries
+              pool_size:
+                type: integer
+                description: Property pool_size
+              cookie_persistence:
+                type: boolean
+                description: Property cookie_persistence
+            required: []
+          metrics:
+            type: boolean
+            description: Whether to collect request metrics
+          streaming:
+            type: boolean
+            description: Enable streaming response handling
+          allow_redirects:
+            type: boolean
+            description: 'Whether to follow redirects (default: True)'
+          max_redirects:
+            type: integer
+            description: 'Maximum number of redirects to follow (default: 30)'
+          convert_to_markdown:
+            type: boolean
+            description: 'Convert HTML responses to markdown format (default: False).'
+          aws_auth:
+            type: object
+            description: AWS auth configuration for SigV4
+            properties:
+              service:
+                type: string
+                description: Property service
+              region:
+                type: string
+                description: Property region
+              access_key:
+                type: string
+                description: Property access_key
+              secret_key:
+                type: string
+                description: Property secret_key
+              session_token:
+                type: string
+                description: Property session_token
+              refresh_credentials:
+                type: boolean
+                description: Property refresh_credentials
+            required: []
+          basic_auth:
+            type: object
+            description: Basic auth credentials
+            properties:
+              username:
+                type: string
+                description: Property username
+              password:
+                type: string
+                description: Property password
+            required:
+            - username
+            - password
+          digest_auth:
+            type: object
+            description: Digest auth credentials
+            properties:
+              username:
+                type: string
+                description: Property username
+              password:
+                type: string
+                description: Property password
+              realm:
+                type: string
+                description: Property realm
+            required: []
+          jwt_config:
+            type: object
+            description: JWT configuration
+            properties:
+              secret:
+                type: string
+                description: Property secret
+              algorithm:
+                type: string
+                description: Property algorithm
+              expiry:
+                type: integer
+                description: Property expiry
+            required: []
+          proxies:
+            type: object
+            description: Dictionary mapping protocol or protocol and hostname to the
+              URL of the proxy.
+            properties:
+              http:
+                type: string
+                description: Property http
+              https:
+                type: string
+                description: Property https
+              ftp:
+                type: string
+                description: Property ftp
+            required: []
+        required:
+        - method
+        - url
+    parameters:
+      system:
+      - text: 'You are a weather assistant with HTTP capabilities. You can:
+
+          1. Make HTTP requests to the National Weather Service API
+
+          2. Process and display weather forecast data
+
+          3. Provide weather information for locations in the United States
+
+
+          When retrieving weather information:
+
+          1. First get the coordinates or grid information using https://api.weather.gov/points/{latitude},{longitude}
+
+          2. Then use the returned forecast URL to get the actual forecast
+
+
+          When displaying responses:
+
+          - Format weather data in a human-readable way
+
+          - Highlight important information like temperature, precipitation, and alerts
+
+          - Handle errors appropriately
+
+          - Convert technical terms to user-friendly language
+
+
+          Always explain the weather conditions clearly and provide context for the
+          forecast.'
+      inferenceConfig: {}
+  response:
+    content: '# 🌤️ Seattle Weather Forecast
+
+
+      Here''s the current weather forecast for Seattle, WA:
+
+
+      ## **Today (Friday, April 17th)**
+
+      **Mostly Sunny** ☀️
+
+      - **High:** 56°F
+
+      - **Wind:** East northeast at 3 mph
+
+      - **Precipitation:** 0% chance
+
+      - **Conditions:** Mostly sunny skies with light winds
+
+
+      ## **Tonight**
+
+      **Mostly Cloudy** ☁️
+
+      - **Low:** 42°F (rising to 44°F overnight)
+
+      - **Wind:** North at 3 mph
+
+      - **Precipitation:** 1% chance
+
+
+      ---
+
+
+      ## **Extended Forecast:**
+
+
+      **Saturday** - Partly Sunny
+
+      - High: 66°F | Low: 50°F
+
+      - Light winds, 7% chance of rain
+
+
+      **Sunday** - Mostly Cloudy
+
+      - High: 68°F | Low: 50°F
+
+      - Light northeast winds, 11% chance of rain
+
+
+      **Monday** - Partly Sunny then Chance of Light Rain
+
+      - High: 69°F | Low: 50°F
+
+      - 15% chance of rain during the day, increasing to 30% at night
+
+
+      **Tuesday** - Chance of Light Rain
+
+      - High: 63°F | Low: 49°F
+
+      - 40% chance of rain throughout the day
+
+
+      **Wednesday** - Chance of Light Rain
+
+      - High: 59°F | Low: 45°F
+
+      - 33% chance of rain, decreasing through the day
+
+
+      **Thursday** - Mostly Sunny
+
+      - High: 58°F | Low: 43°F
+
+      - Nice clearing conditions with only 10% chance of rain
+
+
+      ---
+
+
+      **Summary:** Today looks pleasant with mostly sunny skies and mild temperatures
+      in the mid-50s. The weekend will be nice with warmer temperatures reaching the
+      upper 60s. Rain chances increase early next week, which is typical spring weather
+      for Seattle. Overall, it''s a fairly typical Pacific Northwest spring forecast
+      with mild temperatures and some scattered rain chances.
+
+
+      *Forecast provided by the National Weather Service - Seattle Office*'
+    tool_calls: null
+    token_usage:
+      input_tokens: 7106
+      output_tokens: 482
