@@ -73,11 +73,95 @@ test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
 
+## Real-World Example — Testing the Strands Weather Forecaster
+
+Here's how you'd test the [Strands Weather Forecaster](https://strandsagents.com/docs/examples/python/weather_forecaster/) — an official Strands Agents sample that uses the `http_request` tool to fetch weather data from the National Weather Service API.
+
+```python
+import pytest
+from agentverify import (
+    assert_tool_calls, assert_cost, assert_no_tool_call,
+    assert_final_output, assert_all, ToolCall, ANY, OrderMode,
+)
+
+# Import the weather agent from the Strands sample
+# (see https://strandsagents.com/docs/examples/python/weather_forecaster/)
+from weather_agent import weather_agent
+
+
+@pytest.mark.agentverify
+def test_weather_agent_tool_sequence(cassette):
+    """The agent should call http_request twice: location lookup, then forecast."""
+    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
+        weather_agent("What's the weather in Seattle?")
+
+    result = rec.to_execution_result()
+    assert_tool_calls(
+        result,
+        expected=[
+            ToolCall("http_request", {"method": "GET", "url": ANY}),
+            ToolCall("http_request", {"method": "GET", "url": ANY}),
+        ],
+        order=OrderMode.IN_ORDER,
+        partial_args=True,
+    )
+
+
+@pytest.mark.agentverify
+def test_weather_agent_safety(cassette):
+    """The agent should only read data — no writes, no dangerous tools."""
+    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
+        weather_agent("What's the weather in Seattle?")
+
+    result = rec.to_execution_result()
+    assert_no_tool_call(
+        result,
+        forbidden_tools=["write_file", "execute_command", "delete_file"],
+    )
+
+
+@pytest.mark.agentverify
+def test_weather_agent_all(cassette):
+    """Run all assertions at once — collect all failures."""
+    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
+        weather_agent("What's the weather in Seattle?")
+
+    result = rec.to_execution_result()
+    assert_all(
+        result,
+        lambda r: assert_tool_calls(r, expected=[
+            ToolCall("http_request", {"method": "GET", "url": ANY}),
+        ], order=OrderMode.IN_ORDER, partial_args=True),
+        lambda r: assert_cost(r, max_tokens=15000),
+        lambda r: assert_no_tool_call(r, forbidden_tools=["write_file"]),
+        lambda r: assert_final_output(r, contains="Seattle"),
+    )
+```
+
+Or skip cassettes entirely and use the built-in adapter with a live agent:
+
+```python
+from agentverify.frameworks.strands import from_strands
+def test_weather_agent_live():
+    """Test with a live LLM call (requires API credentials)."""
+    result = weather_agent("What's the weather in Seattle?")
+    er = from_strands(result)
+
+    assert_tool_calls(er, expected=[
+        ToolCall("http_request", {"method": "GET", "url": ANY}),
+        ToolCall("http_request", {"method": "GET", "url": ANY}),
+    ], order=OrderMode.IN_ORDER, partial_args=True)
+
+    assert_cost(er, max_tokens=15000)
+    assert_no_tool_call(er, forbidden_tools=["write_file", "execute_command"])
+    assert_final_output(er, contains="Seattle")
+```
+
 ## 3 Steps to Test Your Agent
 
 ### Step 1: Build an ExecutionResult
 
-Build an `ExecutionResult` from your agent's output. You can construct one from a dict, or use a framework-specific converter (see [examples/](examples/) for Strands Agents and LangChain converters).
+Build an `ExecutionResult` from your agent's output. You can construct one from a dict, use a [built-in adapter](#framework-integration), or write a small converter for your framework.
 
 ```python
 from agentverify import ExecutionResult
@@ -106,7 +190,7 @@ You can also use `ExecutionResult.from_json(json_string)` to parse from a JSON s
 
 #### Building from Your Framework
 
-For frameworks with built-in adapter support (Strands Agents, LangChain), use the adapter directly:
+For frameworks with built-in adapter support (Strands Agents, LangChain, LangGraph, OpenAI Agents SDK), use the adapter directly:
 
 ```python
 from agentverify.frameworks.strands import from_strands
@@ -115,7 +199,7 @@ result = agent("Analyze the files")
 execution_result = from_strands(result)
 ```
 
-For other frameworks, write a small converter function (~20–50 lines) that maps your framework's output to the dict schema above. Here's the general pattern:
+For other frameworks, write a small converter function (~20–50 lines) that maps your framework's output to the dict schema above. See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for reference implementations. Here's the general pattern:
 
 ```python
 from agentverify import ExecutionResult, ToolCall, TokenUsage
@@ -141,8 +225,6 @@ def my_framework_to_execution_result(agent_output) -> ExecutionResult:
         final_output=agent_output.response_text,
     )
 ```
-
-See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for complete, production-ready converters.
 
 ### Step 2: Assert
 
@@ -277,7 +359,7 @@ with cassette("test.yaml", provider="openai", sanitize=False) as rec:
 **Other limitations:**
 
 - `total_cost_usd` is not populated from cassettes. Use `assert_cost(max_tokens=...)` for cassette-based budget checks, or set `total_cost_usd` manually in your `ExecutionResult`.
-- Be mindful not to include sensitive data (API keys, PII, confidential prompts) in cassette files checked into version control. Cassette sanitization is enabled by default — see [Cassette Sanitization](#cassette-sanitization) below.
+- Cassette sanitization covers common API key patterns by default. Add custom `SanitizePattern` objects for application-specific secrets (internal tokens, database credentials, etc.).
 
 ## Assertion Modes
 
@@ -478,6 +560,7 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 
 | Example | Framework | Description |
 |---|---|---|
+| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Fetches weather via HTTP, verifies tool sequence and safety. Matches the [Real-World Example](#real-world-example--testing-the-strands-weather-forecaster) in this README |
 | [`strands-file-organizer`](examples/strands-file-organizer/) | Strands Agents + Bedrock | Scans a directory via Filesystem MCP, suggests organization. Read-only safety verified |
 | [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP. Label and priority suggestions |
 | [`mcp-server`](examples/mcp-server/) | — | Mock GitHub MCP server for token-free testing |

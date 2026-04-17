@@ -10,7 +10,7 @@
   - `from agentverify.frameworks.langgraph import from_langgraph` — LangGraph `create_react_agent` result adapter
   - `from agentverify.frameworks.openai_agents import from_openai_agents` — OpenAI Agents SDK `RunResult` adapter
 - **Cassette request matching**: Detect stale cassettes by verifying model name and tool names during replay
-  - Enable with `--cassette-match-requests` CLI option or `match_requests=True` parameter
+  - Enabled by default; disable with `--no-cassette-match-requests` CLI option or `match_requests=False` parameter
   - Raises `CassetteRequestMismatchError` with clear diff on mismatch
 - **Cassette sanitization**: Automatic redaction of API keys and sensitive data when recording cassettes
   - Enabled by default with built-in patterns for OpenAI, Anthropic, AWS, and Bearer tokens
