@@ -33,7 +33,8 @@ Copy this into `test_agent.py` and run `pytest`. No API keys, no cassettes — j
 ```python
 from agentverify import (
     ExecutionResult, ToolCall, ANY,
-    assert_tool_calls, assert_cost, assert_no_tool_call, assert_final_output,
+    assert_tool_calls, assert_cost, assert_latency,
+    assert_no_tool_call, assert_final_output,
 )
 
 # Build an ExecutionResult from your agent's output (or a dict)
@@ -44,6 +45,7 @@ result = ExecutionResult.from_dict({
     ],
     "token_usage": {"input_tokens": 50, "output_tokens": 30},
     "total_cost_usd": 0.002,
+    "duration_ms": 1850.0,
     "final_output": "The weather in Tokyo is sunny, 22°C.",
 })
 
@@ -55,6 +57,9 @@ def test_tool_sequence():
 
 def test_budget():
     assert_cost(result, max_tokens=500, max_cost_usd=0.01)
+
+def test_latency():
+    assert_latency(result, max_ms=3000)
 
 def test_safety():
     assert_no_tool_call(result, forbidden_tools=["delete_user", "drop_table"])
@@ -69,6 +74,7 @@ def test_output():
 $ pytest test_agent.py -v
 test_agent.py::test_tool_sequence PASSED
 test_agent.py::test_budget PASSED
+test_agent.py::test_latency PASSED
 test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
@@ -128,8 +134,8 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 | `tool_calls` | `list[dict]` | Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional — stored for reference; not used in assertions) |
 | `token_usage` | `dict` or `None` | `{"input_tokens": int, "output_tokens": int}` |
 | `total_cost_usd` | `float` or `None` | Total cost in USD (must be set manually — not auto-calculated from tokens or populated from cassettes) |
-| `final_output` | `str` or `None` | The agent's final text response |
 | `duration_ms` | `float` or `None` | Wall-clock duration in milliseconds (auto-populated by the `cassette` fixture and `MockLLM`) |
+| `final_output` | `str` or `None` | The agent's final text response |
 
 `ExecutionResult.from_json(json_string)` and `to_dict()` / `to_json()` are also available for serialization.
 
@@ -239,11 +245,6 @@ with cassette("test.yaml", provider="openai", sanitize=False) as rec:
     run_my_agent("Do something")
 ```
 
-**Other limitations:**
-
-- `total_cost_usd` is not populated from cassettes. Use `assert_cost(max_tokens=...)` for cassette-based budget checks, or set `total_cost_usd` manually in your `ExecutionResult`.
-- Cassette sanitization covers common API key patterns by default. Add custom `SanitizePattern` objects for application-specific secrets (internal tokens, database credentials, etc.).
-
 ## Assertion Modes
 
 ```python
@@ -281,21 +282,10 @@ assert_all(
     result,
     lambda r: assert_tool_calls(r, expected=[...]),
     lambda r: assert_cost(r, max_tokens=1000),
+    lambda r: assert_latency(r, max_ms=3000),
     lambda r: assert_no_tool_call(r, forbidden_tools=["delete_user"]),
     lambda r: assert_final_output(r, contains="Tokyo"),
 )
-```
-
-### Strict Cost Assertions
-
-By default, `assert_cost()` silently passes when `token_usage` or `total_cost_usd` is `None` (e.g., during cassette replay where cost data may be unavailable). Use `strict=True` to require that the data is present:
-
-```python
-# Fails if token_usage is None, even if the budget would pass
-assert_cost(result, max_tokens=500, strict=True)
-
-# Fails if total_cost_usd is None
-assert_cost(result, max_cost_usd=0.01, strict=True)
 ```
 
 ### Latency Assertions
@@ -325,12 +315,6 @@ result = ExecutionResult.from_dict({
 assert_latency(result, max_ms=3000)
 ```
 
-Like `assert_cost()`, `assert_latency()` silently passes when `duration_ms` is `None`. Use `strict=True` to require the data:
-
-```python
-assert_latency(result, max_ms=3000, strict=True)
-```
-
 ### Final Output Assertions
 
 `assert_final_output()` verifies the agent's final text response. Use `contains` for substring checks, `equals` for exact match, or `matches` for regex:
@@ -346,6 +330,18 @@ assert_final_output(result, equals="The weather in Tokyo is sunny, 22°C.")
 
 # Regex match
 assert_final_output(result, matches=r"\d+°C")
+```
+
+### Strict Mode
+
+`assert_cost()` and `assert_latency()` silently pass when the underlying data (`token_usage`, `total_cost_usd`, `duration_ms`) is `None` — useful during cassette replay where some data may be unavailable. Pass `strict=True` to require the data to be present:
+
+```python
+# Fails if token_usage or total_cost_usd is None
+assert_cost(result, max_tokens=500, max_cost_usd=0.01, strict=True)
+
+# Fails if duration_ms is None
+assert_latency(result, max_ms=3000, strict=True)
 ```
 
 ## Framework Integration
@@ -501,6 +497,14 @@ CostBudgetError: Token budget exceeded
   Actual:  1,250 tokens
   Limit:   1,000 tokens
   Exceeded by: 250 tokens (25.0%)
+```
+
+```
+LatencyBudgetError: Latency budget exceeded
+
+  Actual:  3,450.0 ms
+  Limit:   3,000.0 ms
+  Exceeded by: 450.0 ms (15.0%)
 ```
 
 ```
