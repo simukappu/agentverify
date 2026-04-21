@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Latency assertion**: `assert_latency(result, max_ms=3000)` to enforce response time SLAs on agent executions
+  - New `duration_ms` field on `ExecutionResult` for wall-clock execution time
+  - Wall-clock duration is captured automatically by the `cassette` fixture on context exit
+  - New `LatencyBudgetError` with formatted diff output
+  - Supports `strict=True` to require that `duration_ms` is present
+
 ## 0.2.0 (2026-04-18)
 
 ### Features

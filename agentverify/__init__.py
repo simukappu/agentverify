@@ -22,6 +22,7 @@ from agentverify.assertions import (
     assert_all,
     assert_cost,
     assert_final_output,
+    assert_latency,
     assert_no_tool_call,
     assert_tool_calls,
 )
@@ -42,6 +43,7 @@ __all__ = [
     # Assertions
     "assert_tool_calls",
     "assert_cost",
+    "assert_latency",
     "assert_no_tool_call",
     "assert_final_output",
     "assert_all",

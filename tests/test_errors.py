@@ -7,6 +7,7 @@ from agentverify.errors import (
     CassetteMissingRequestError,
     CostBudgetError,
     FinalOutputError,
+    LatencyBudgetError,
     MultipleAssertionError,
     SafetyRuleViolationError,
     ToolCallSequenceError,
@@ -162,6 +163,32 @@ class TestCassetteMissingRequestError:
     def test_message(self):
         err = CassetteMissingRequestError("no match found")
         assert "no match found" in str(err)
+
+
+class TestLatencyBudgetError:
+    def test_message(self):
+        err = LatencyBudgetError(actual_ms=3500.0, limit_ms=3000.0, exceeded_by_ms=500.0)
+        msg = str(err)
+        assert "Latency budget exceeded" in msg
+        assert "3,500.0 ms" in msg
+        assert "3,000.0 ms" in msg
+        assert "500.0 ms" in msg
+
+    def test_attributes(self):
+        err = LatencyBudgetError(actual_ms=100.0, limit_ms=50.0, exceeded_by_ms=50.0)
+        assert err.actual_ms == 100.0
+        assert err.limit_ms == 50.0
+        assert err.exceeded_by_ms == 50.0
+
+    def test_zero_limit_no_division_error(self):
+        err = LatencyBudgetError(actual_ms=10.0, limit_ms=0.0, exceeded_by_ms=10.0)
+        assert "Latency budget exceeded" in str(err)
+
+    def test_custom_message(self):
+        err = LatencyBudgetError(
+            actual_ms=0.0, limit_ms=100.0, exceeded_by_ms=0.0, message="custom latency error"
+        )
+        assert str(err) == "custom latency error"
 
 
 class TestFinalOutputError:

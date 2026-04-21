@@ -403,6 +403,39 @@ assert_cost(result, max_tokens=500, strict=True)
 assert_cost(result, max_cost_usd=0.01, strict=True)
 ```
 
+### Latency Assertions
+
+`assert_latency()` enforces a response time SLA on your agent. When you use the `cassette` fixture, wall-clock duration is captured automatically on context exit and exposed as `ExecutionResult.duration_ms`:
+
+```python
+from agentverify import assert_latency
+
+@pytest.mark.agentverify
+def test_weather_agent_latency(cassette):
+    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
+        weather_agent("What's the weather in Seattle?")
+
+    result = rec.to_execution_result()
+    # Fail if the whole agent run took more than 3 seconds
+    assert_latency(result, max_ms=3000)
+```
+
+During cassette **replay**, the measured duration reflects replay time (typically milliseconds), not the original call time. Capture latency data during **record** mode and persist it alongside the cassette if you want to assert against real LLM response times, or set `duration_ms` manually on your `ExecutionResult`:
+
+```python
+result = ExecutionResult.from_dict({
+    "tool_calls": [...],
+    "duration_ms": 2450.0,
+})
+assert_latency(result, max_ms=3000)
+```
+
+Like `assert_cost()`, `assert_latency()` silently passes when `duration_ms` is `None`. Use `strict=True` to require the data:
+
+```python
+assert_latency(result, max_ms=3000, strict=True)
+```
+
 ### Final Output Assertions
 
 `assert_final_output()` verifies the agent's final text response. Use `contains` for substring checks, `equals` for exact match, or `matches` for regex:
@@ -602,8 +635,8 @@ See each example's README for agent execution instructions and recording mode de
 - ~~Agent framework adapters — extract `ExecutionResult` directly from Strands Agents, LangChain, and others without writing a converter~~ ✅ Shipped
 - ~~Cassette request matching — verify request content during replay to detect stale cassettes~~ ✅ Shipped
 - ~~Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes~~ ✅ Shipped
+- ~~Latency assertion — `assert_latency()` for response time SLAs in production agents~~ ✅ Shipped
 - Tool mocking/stubbing — test agent routing logic without calling real tools
-- Latency assertion — `assert_latency()` for response time SLAs in production agents
 - Async support — first-class `asyncio` testing for async agents and tools
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Step-level assertions — structured multi-step execution testing with `assert_step()` and intermediate output verification

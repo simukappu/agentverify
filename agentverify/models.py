@@ -40,6 +40,7 @@ class ExecutionResult:
     token_usage: Optional[TokenUsage] = None
     total_cost_usd: Optional[float] = None
     final_output: Optional[str] = None
+    duration_ms: Optional[float] = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ExecutionResult:
@@ -71,6 +72,7 @@ class ExecutionResult:
             token_usage=token_usage,
             total_cost_usd=data.get("total_cost_usd"),
             final_output=data.get("final_output"),
+            duration_ms=data.get("duration_ms"),
         )
 
     @classmethod
@@ -101,6 +103,7 @@ class ExecutionResult:
 
         result["total_cost_usd"] = self.total_cost_usd
         result["final_output"] = self.final_output
+        result["duration_ms"] = self.duration_ms
 
         return result
 

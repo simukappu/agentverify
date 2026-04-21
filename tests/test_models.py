@@ -52,6 +52,7 @@ class TestExecutionResult:
         assert r.token_usage is None
         assert r.total_cost_usd is None
         assert r.final_output is None
+        assert r.duration_ms is None
 
     def test_from_dict_full(self):
         data = {
@@ -61,6 +62,7 @@ class TestExecutionResult:
             "token_usage": {"input_tokens": 10, "output_tokens": 5},
             "total_cost_usd": 0.01,
             "final_output": "done",
+            "duration_ms": 1234.5,
         }
         r = ExecutionResult.from_dict(data)
         assert len(r.tool_calls) == 1
@@ -71,6 +73,7 @@ class TestExecutionResult:
         assert r.token_usage.output_tokens == 5
         assert r.total_cost_usd == 0.01
         assert r.final_output == "done"
+        assert r.duration_ms == 1234.5
 
     def test_from_dict_minimal(self):
         r = ExecutionResult.from_dict({})
@@ -103,17 +106,20 @@ class TestExecutionResult:
             token_usage=TokenUsage(input_tokens=10, output_tokens=5),
             total_cost_usd=0.02,
             final_output="out",
+            duration_ms=42.0,
         )
         d = r.to_dict()
         assert d["tool_calls"] == [{"name": "x", "arguments": {"k": "v"}, "result": "r"}]
         assert d["token_usage"] == {"input_tokens": 10, "output_tokens": 5}
         assert d["total_cost_usd"] == 0.02
         assert d["final_output"] == "out"
+        assert d["duration_ms"] == 42.0
 
     def test_to_dict_no_token_usage(self):
         r = ExecutionResult()
         d = r.to_dict()
         assert d["token_usage"] is None
+        assert d["duration_ms"] is None
 
     def test_to_json(self):
         r = ExecutionResult(final_output="hello")

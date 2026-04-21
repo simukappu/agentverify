@@ -6,12 +6,14 @@ from agentverify.assertions import (
     assert_all,
     assert_cost,
     assert_final_output,
+    assert_latency,
     assert_no_tool_call,
     assert_tool_calls,
 )
 from agentverify.errors import (
     CostBudgetError,
     FinalOutputError,
+    LatencyBudgetError,
     MultipleAssertionError,
     SafetyRuleViolationError,
     ToolCallSequenceError,
@@ -234,6 +236,42 @@ class TestAssertCost:
             total_cost_usd=0.05,
         )
         assert_cost(result, max_tokens=100, max_cost_usd=0.10, strict=True)
+
+
+# ---------------------------------------------------------------------------
+# assert_latency
+# ---------------------------------------------------------------------------
+
+
+class TestAssertLatency:
+    def test_within_budget(self):
+        result = ExecutionResult(duration_ms=1500.0)
+        assert_latency(result, max_ms=3000)
+
+    def test_exceeds_budget(self):
+        result = ExecutionResult(duration_ms=3500.0)
+        with pytest.raises(LatencyBudgetError) as exc_info:
+            assert_latency(result, max_ms=3000)
+        assert exc_info.value.exceeded_by_ms == 500.0
+        assert exc_info.value.actual_ms == 3500.0
+        assert exc_info.value.limit_ms == 3000
+
+    def test_equal_to_budget_passes(self):
+        result = ExecutionResult(duration_ms=3000.0)
+        assert_latency(result, max_ms=3000)
+
+    def test_no_duration_silent_pass(self):
+        result = ExecutionResult()
+        assert_latency(result, max_ms=3000)
+
+    def test_strict_mode_missing_duration(self):
+        result = ExecutionResult()
+        with pytest.raises(LatencyBudgetError, match="strict mode"):
+            assert_latency(result, max_ms=3000, strict=True)
+
+    def test_strict_mode_with_data_present(self):
+        result = ExecutionResult(duration_ms=1500.0)
+        assert_latency(result, max_ms=3000, strict=True)
 
 
 # ---------------------------------------------------------------------------

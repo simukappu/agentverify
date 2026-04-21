@@ -7,6 +7,7 @@ and replays them for deterministic testing.
 
 from __future__ import annotations
 
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -153,16 +154,24 @@ class LLMCassetteRecorder:
         # Track whether the patch context manager is active.
         self._patch_ctx: Any = None
 
+        # Timing for latency assertion.
+        self._start_time: float | None = None
+        self._duration_ms: float | None = None
+
     # -- Context manager -----------------------------------------------------
 
     def __enter__(self) -> LLMCassetteRecorder:
         """Apply the adapter's monkey-patch."""
         self._patch_ctx = self._adapter.patch(self)
         self._patch_ctx.__enter__()
+        self._start_time = time.monotonic()
         return self
 
     def __exit__(self, *args: Any) -> None:
         """Remove the monkey-patch and save the cassette if recording."""
+        if self._start_time is not None:
+            self._duration_ms = (time.monotonic() - self._start_time) * 1000
+            self._start_time = None
         if self._patch_ctx is not None:
             self._patch_ctx.__exit__(*args)
             self._patch_ctx = None
@@ -311,4 +320,5 @@ class LLMCassetteRecorder:
             tool_calls=tool_calls,
             token_usage=token_usage,
             final_output=final_output,
+            duration_ms=self._duration_ms,
         )

@@ -149,6 +149,35 @@ class CassetteMissingRequestError(AgentVerifyError):
     pass
 
 
+class LatencyBudgetError(AgentVerifyError):
+    """Raised when execution latency exceeds the allowed threshold."""
+
+    def __init__(
+        self,
+        actual_ms: float,
+        limit_ms: float,
+        exceeded_by_ms: float,
+        message: str | None = None,
+    ) -> None:
+        self.actual_ms = actual_ms
+        self.limit_ms = limit_ms
+        self.exceeded_by_ms = exceeded_by_ms
+        self._custom_message = message
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        if self._custom_message:
+            return self._custom_message
+        pct = (self.exceeded_by_ms / self.limit_ms * 100) if self.limit_ms else 0
+        return (
+            "Latency budget exceeded\n"
+            "\n"
+            f"  Actual:  {self.actual_ms:,.1f} ms\n"
+            f"  Limit:   {self.limit_ms:,.1f} ms\n"
+            f"  Exceeded by: {self.exceeded_by_ms:,.1f} ms ({pct:.1f}%)"
+        )
+
+
 class CassetteRequestMismatchError(AgentVerifyError):
     """Raised when a replay request does not match the recorded request.
 

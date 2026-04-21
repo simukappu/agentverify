@@ -12,6 +12,7 @@ from agentverify.errors import (
     AgentVerifyError,
     CostBudgetError,
     FinalOutputError,
+    LatencyBudgetError,
     MultipleAssertionError,
     SafetyRuleViolationError,
     ToolCallSequenceError,
@@ -204,6 +205,39 @@ def assert_cost(
                 exceeded_by=0.0,
                 message="total_cost_usd is None but strict mode requires it",
             )
+
+
+def assert_latency(
+    result: ExecutionResult,
+    max_ms: float,
+    strict: bool = False,
+) -> None:
+    """Verify that execution latency is within the allowed threshold.
+
+    Args:
+        result: The ExecutionResult to verify.
+        max_ms: Maximum allowed latency in milliseconds.
+        strict: When True, raise LatencyBudgetError if duration_ms is None.
+            Default False silently passes when data is unavailable.
+
+    Raises:
+        LatencyBudgetError: When latency exceeds the threshold or when
+            strict=True and duration_ms is None.
+    """
+    if result.duration_ms is not None:
+        if result.duration_ms > max_ms:
+            raise LatencyBudgetError(
+                actual_ms=result.duration_ms,
+                limit_ms=max_ms,
+                exceeded_by_ms=result.duration_ms - max_ms,
+            )
+    elif strict:
+        raise LatencyBudgetError(
+            actual_ms=0.0,
+            limit_ms=max_ms,
+            exceeded_by_ms=0.0,
+            message="duration_ms is None but strict mode requires it",
+        )
 
 
 def assert_no_tool_call(

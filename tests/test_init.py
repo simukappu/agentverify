@@ -11,6 +11,7 @@ from agentverify import (
     assert_all,
     assert_cost,
     assert_final_output,
+    assert_latency,
     assert_no_tool_call,
     assert_tool_calls,
 )
@@ -31,6 +32,7 @@ def test_public_api_types():
     assert OrderMode is not None
     assert callable(assert_tool_calls)
     assert callable(assert_cost)
+    assert callable(assert_latency)
     assert callable(assert_no_tool_call)
     assert callable(assert_final_output)
     assert callable(assert_all)

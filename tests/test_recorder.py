@@ -175,6 +175,15 @@ class TestRecorderToExecutionResult:
         assert result.tool_calls == []
         assert result.token_usage is None
         assert result.final_output is None
+        assert result.duration_ms is None
+
+    def test_duration_ms_propagated(self, tmp_path):
+        """duration_ms captured in __exit__ is reflected in ExecutionResult."""
+        path = tmp_path / "duration.yaml"
+        rec = LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.RECORD)
+        rec._duration_ms = 123.45
+        result = rec.to_execution_result()
+        assert result.duration_ms == 123.45
 
     def test_tool_call_with_dict_arguments(self, tmp_path):
         path = tmp_path / "test.yaml"
@@ -266,6 +275,9 @@ class TestRecorderContextManager:
         mock_cm.__exit__.assert_called_once()
         # File should be saved since mode is RECORD
         assert path.exists()
+        # Duration should have been captured on exit.
+        assert rec._duration_ms is not None
+        assert rec._duration_ms >= 0
 
     def test_exit_without_enter(self, tmp_path):
         """__exit__ when _patch_ctx is None should not error."""
