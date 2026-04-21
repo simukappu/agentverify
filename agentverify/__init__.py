@@ -30,6 +30,7 @@ from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.errors import CassetteRequestMismatchError
 from agentverify.matchers import ANY, OrderMode
+from agentverify.mocking import MockLLM, mock_response
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall
 
 __all__ = [
@@ -53,4 +54,7 @@ __all__ = [
     "CassetteRequestMismatchError",
     "SanitizePattern",
     "DEFAULT_PATTERNS",
+    # Mocking
+    "MockLLM",
+    "mock_response",
 ]

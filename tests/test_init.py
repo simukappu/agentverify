@@ -5,6 +5,7 @@ from agentverify import (
     CassetteMode,
     ExecutionResult,
     LLMCassetteRecorder,
+    MockLLM,
     OrderMode,
     TokenUsage,
     ToolCall,
@@ -14,6 +15,7 @@ from agentverify import (
     assert_latency,
     assert_no_tool_call,
     assert_tool_calls,
+    mock_response,
 )
 
 
@@ -38,3 +40,5 @@ def test_public_api_types():
     assert callable(assert_all)
     assert LLMCassetteRecorder is not None
     assert CassetteMode is not None
+    assert MockLLM is not None
+    assert callable(mock_response)

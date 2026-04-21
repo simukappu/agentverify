@@ -520,6 +520,46 @@ These converters are small (~50 lines) and easy to adapt for your own framework.
 | LiteLLM | `pip install agentverify[litellm]` |
 | All providers | `pip install agentverify[all]` |
 
+## Tool Mocking — Test Routing Without an LLM
+
+`MockLLM` replays a list of predefined LLM responses that you define in code. No cassette file, no real API call. Useful when you want to test your agent's routing logic — does it call the right tools, in the right order, given a specific LLM response — without recording a cassette first.
+
+```python
+import pytest
+from agentverify import (
+    MockLLM, mock_response, ToolCall,
+    assert_tool_calls, assert_no_tool_call,
+)
+
+def test_agent_routes_to_weather_tool():
+    with MockLLM([
+        mock_response(tool_calls=[("get_weather", {"city": "Tokyo"})]),
+        mock_response(content="Tokyo is sunny, 22°C."),
+    ], provider="openai") as rec:
+        my_agent("What's the weather in Tokyo?")
+
+    result = rec.to_execution_result()
+    assert_tool_calls(result, expected=[ToolCall("get_weather", {"city": "Tokyo"})])
+    assert_no_tool_call(result, forbidden_tools=["delete_user"])
+```
+
+`mock_response()` accepts:
+
+- `content` — the final text message the LLM should return.
+- `tool_calls` — a list of `(name, arguments)` tuples or `{"name": ..., "arguments": ...}` dicts.
+- `input_tokens` / `output_tokens` — optional token usage to report.
+
+Provide one `mock_response(...)` per LLM call your agent is expected to make. If your agent makes more calls than you've queued, `MockLLM` raises `CassetteMissingRequestError` so under-specified tests fail loudly.
+
+### When to use MockLLM vs cassettes
+
+| Use MockLLM when | Use cassettes when |
+|---|---|
+| You haven't recorded a cassette yet | You want fidelity with real LLM output |
+| You want to test hypothetical scenarios (errors, edge cases) | You want to catch prompt-regression bugs |
+| You're doing behavior-driven tests of routing | You're regression-testing full agent runs |
+| You want zero dependency on any API key | You've already got recordings to replay |
+
 ## CI Integration
 
 agentverify is designed for CI pipelines. Commit your cassette files to git and replay them in CI with zero LLM cost.
@@ -636,7 +676,7 @@ See each example's README for agent execution instructions and recording mode de
 - ~~Cassette request matching — verify request content during replay to detect stale cassettes~~ ✅ Shipped
 - ~~Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes~~ ✅ Shipped
 - ~~Latency assertion — `assert_latency()` for response time SLAs in production agents~~ ✅ Shipped
-- Tool mocking/stubbing — test agent routing logic without calling real tools
+- ~~Tool mocking/stubbing — test agent routing logic without calling real tools~~ ✅ Shipped
 - Async support — first-class `asyncio` testing for async agents and tools
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Step-level assertions — structured multi-step execution testing with `assert_step()` and intermediate output verification
