@@ -600,15 +600,15 @@ See each example's README for agent execution instructions and recording mode de
 ## Roadmap
 
 - ~~Agent framework adapters — extract `ExecutionResult` directly from Strands Agents, LangChain, and others without writing a converter~~ ✅ Shipped
-- Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
-- Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
-- Tool mocking/stubbing — test agent routing logic without calling real tools
-- Async support — first-class `asyncio` testing for async agents and tools
 - ~~Cassette request matching — verify request content during replay to detect stale cassettes~~ ✅ Shipped
 - ~~Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes~~ ✅ Shipped
+- Tool mocking/stubbing — test agent routing logic without calling real tools
+- Latency assertion — `assert_latency()` for response time SLAs in production agents
+- Async support — first-class `asyncio` testing for async agents and tools
+- Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
+- Step-level assertions — structured multi-step execution testing with `assert_step()` and intermediate output verification
+- Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
-- YAML/JSON test case definitions — declarative test cases for non-Python CI pipelines
-- CLI test runner — run agent tests without pytest
 
 ## Changelog
 
