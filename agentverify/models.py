@@ -39,8 +39,8 @@ class ExecutionResult:
     tool_calls: list[ToolCall] = field(default_factory=list)
     token_usage: Optional[TokenUsage] = None
     total_cost_usd: Optional[float] = None
-    final_output: Optional[str] = None
     duration_ms: Optional[float] = None
+    final_output: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ExecutionResult:
@@ -102,8 +102,8 @@ class ExecutionResult:
             result["token_usage"] = None
 
         result["total_cost_usd"] = self.total_cost_usd
-        result["final_output"] = self.final_output
         result["duration_ms"] = self.duration_ms
+        result["final_output"] = self.final_output
 
         return result
 
