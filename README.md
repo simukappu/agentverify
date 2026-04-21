@@ -247,7 +247,7 @@ with cassette("test.yaml", provider="openai", sanitize=False) as rec:
 ## Assertion Modes
 
 ```python
-from agentverify import assert_tool_calls, OrderMode, ToolCall, ANY
+from agentverify import assert_tool_calls, OrderMode, ToolCall, ANY, MATCHES
 
 # Exact match — same tools, same order, same count (default)
 assert_tool_calls(result, expected=[...])
@@ -262,6 +262,18 @@ assert_tool_calls(result, expected=[...], order=OrderMode.ANY_ORDER)
 assert_tool_calls(result, expected=[
     ToolCall("search", {"query": "Tokyo"}),
 ], partial_args=True)
+
+# ANY wildcard — ignore a specific argument value
+assert_tool_calls(result, expected=[
+    ToolCall("get_weather", {"lat": ANY, "lon": ANY}),
+])
+
+# MATCHES regex — verify a string argument follows a pattern
+# (re.search semantics — use ^/$ anchors for full match)
+assert_tool_calls(result, expected=[
+    ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/points/")}),
+    ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/forecast")}),
+])
 
 # Collect all failures at once (doesn't stop at first)
 from agentverify import assert_all

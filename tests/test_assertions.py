@@ -18,7 +18,7 @@ from agentverify.errors import (
     SafetyRuleViolationError,
     ToolCallSequenceError,
 )
-from agentverify.matchers import ANY, OrderMode
+from agentverify.matchers import ANY, MATCHES, OrderMode
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall
 
 
@@ -66,6 +66,32 @@ class TestAssertToolCallsExact:
         assert_tool_calls(
             result, [ToolCall(name="search", arguments={"q": ANY})]
         )
+
+    def test_exact_with_matches_regex(self):
+        """MATCHES matcher verifies regex substring match on a string arg."""
+        result = ExecutionResult(
+            tool_calls=[
+                ToolCall(name="http_request", arguments={"url": "https://api.weather.gov/points/47,122"}),
+                ToolCall(name="http_request", arguments={"url": "https://api.weather.gov/forecast/SEW"}),
+            ]
+        )
+        assert_tool_calls(
+            result,
+            [
+                ToolCall(name="http_request", arguments={"url": MATCHES(r"/points/")}),
+                ToolCall(name="http_request", arguments={"url": MATCHES(r"/forecast")}),
+            ],
+        )
+
+    def test_exact_with_matches_regex_fails(self):
+        result = ExecutionResult(
+            tool_calls=[ToolCall(name="http_request", arguments={"url": "https://example.com/"})]
+        )
+        with pytest.raises(ToolCallSequenceError):
+            assert_tool_calls(
+                result,
+                [ToolCall(name="http_request", arguments={"url": MATCHES(r"/points/")})],
+            )
 
     def test_exact_with_partial_args(self):
         result = ExecutionResult(

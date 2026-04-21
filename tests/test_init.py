@@ -5,6 +5,7 @@ from agentverify import (
     CassetteMode,
     ExecutionResult,
     LLMCassetteRecorder,
+    MATCHES,
     MockLLM,
     OrderMode,
     TokenUsage,
@@ -31,6 +32,7 @@ def test_public_api_types():
     assert ExecutionResult is not None
     assert TokenUsage is not None
     assert ANY is not None
+    assert MATCHES is not None
     assert OrderMode is not None
     assert callable(assert_tool_calls)
     assert callable(assert_cost)

@@ -4,6 +4,10 @@
 
 ### Features
 
+- **Regex argument matcher**: New `MATCHES(pattern)` matcher for verifying string tool call arguments against a regex
+  - Works like `ANY` but constrained to a `re.search(pattern, value)` match
+  - Accepts raw pattern strings or pre-compiled `re.Pattern` objects
+  - Non-string values never match
 - **Tool mocking**: In-memory LLM response replay for testing agent routing without a cassette or a real LLM call
   - New `MockLLM(responses, provider=...)` context manager
   - New `mock_response(content=..., tool_calls=..., input_tokens=..., output_tokens=...)` builder
