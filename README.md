@@ -14,11 +14,7 @@ agentverify is a pytest plugin for deterministic testing of AI agent behavior. R
 
 Most AI testing tools evaluate what an LLM *says*. agentverify tests what an agent *does*.
 
-When agents move from prototype to production, the questions change: did the agent call the right tools in the right order? Did it stay within budget? Did it avoid dangerous operations? These are deterministic properties you can assert in CI, the same way you test any other code.
-
-Unlike HTTP-level recorders that capture raw network traffic, agentverify records at the LLM SDK level — capturing tool calls, token usage, and model responses as first-class objects you can assert against. And unlike eval frameworks that score output quality with LLM-as-judge, agentverify asserts deterministic properties: routing correctness, cost control, and safety boundaries.
-
-agentverify brings that discipline to agent development. It works with any framework — [Strands Agents](https://github.com/strands-agents/sdk-python), [LangChain](https://github.com/langchain-ai/langchain), [CrewAI](https://github.com/crewAIInc/crewAI), or plain Python — and any LLM provider. Just build an `ExecutionResult` from your agent's output and write pytest assertions.
+When agents move from prototype to production, the questions change: did the agent call the right tools in the right order? Did it stay within budget? Did it avoid dangerous operations? These are deterministic properties you can assert in CI, the same way you test any other code. Unlike HTTP-level recorders that capture raw network traffic, agentverify records at the LLM SDK level — capturing tool calls, token usage, and model responses as first-class objects you can assert against.
 
 ## Install
 
@@ -33,8 +29,7 @@ Copy this into `test_agent.py` and run `pytest`. No API keys, no cassettes — j
 ```python
 from agentverify import (
     ExecutionResult, ToolCall, ANY,
-    assert_tool_calls, assert_cost, assert_latency,
-    assert_no_tool_call, assert_final_output,
+    assert_tool_calls, assert_cost, assert_no_tool_call, assert_final_output,
 )
 
 # Build an ExecutionResult from your agent's output (or a dict)
@@ -45,7 +40,6 @@ result = ExecutionResult.from_dict({
     ],
     "token_usage": {"input_tokens": 50, "output_tokens": 30},
     "total_cost_usd": 0.002,
-    "duration_ms": 1850.0,
     "final_output": "The weather in Tokyo is sunny, 22°C.",
 })
 
@@ -57,9 +51,6 @@ def test_tool_sequence():
 
 def test_budget():
     assert_cost(result, max_tokens=500, max_cost_usd=0.01)
-
-def test_latency():
-    assert_latency(result, max_ms=3000)
 
 def test_safety():
     assert_no_tool_call(result, forbidden_tools=["delete_user", "drop_table"])
@@ -74,7 +65,6 @@ def test_output():
 $ pytest test_agent.py -v
 test_agent.py::test_tool_sequence PASSED
 test_agent.py::test_budget PASSED
-test_agent.py::test_latency PASSED
 test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
@@ -117,7 +107,7 @@ def test_weather_agent(cassette):
     )
 ```
 
-Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration).
+Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration). `MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`.
 
 ## Build an ExecutionResult
 
@@ -143,8 +133,6 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 
 Record real LLM API calls once. Replay them in CI forever — zero cost, deterministic.
 
-The `cassette` fixture is provided by the agentverify pytest plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP — it patches the SDK's chat completion method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
-
 ```python
 import pytest
 from agentverify import assert_tool_calls, ToolCall, ANY
@@ -163,6 +151,8 @@ def test_weather_agent(cassette):
         ToolCall("get_weather", {"lat": ANY, "lon": ANY}),
     ])
 ```
+
+The `cassette` fixture is provided by the agentverify pytest plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP — it patches the SDK's chat completion method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
 
 Record the cassette once, then replay it forever:
 
@@ -183,16 +173,6 @@ Cassettes are human-readable YAML (or JSON). Commit them to git, review in PRs.
 | `AUTO` (default) | If cassette file exists → REPLAY. Otherwise → call real LLM API but don't save (no cassette file is created). |
 | `RECORD` | Always call real LLM API and save to cassette file. |
 | `REPLAY` | Always replay from cassette file. Raises error if file is missing. |
-
-To create a cassette, use `mode=CassetteMode.RECORD` explicitly or pass `--cassette-mode=record` on the command line. To re-record, simply run with `RECORD` again — the existing file is overwritten.
-
-```bash
-# Record cassettes for all tests
-pytest --cassette-mode=record
-
-# Replay cassettes (default behavior when cassette files exist)
-pytest
-```
 
 ### Request Matching (Stale Cassette Detection)
 
@@ -238,12 +218,7 @@ with cassette("test.yaml", provider="openai", sanitize=custom_patterns) as rec:
     run_my_agent("Do something")
 ```
 
-Disable sanitization (not recommended):
-
-```python
-with cassette("test.yaml", provider="openai", sanitize=False) as rec:
-    run_my_agent("Do something")
-```
+Pass `sanitize=False` to disable sanitization entirely (not recommended).
 
 ## Assertion Modes
 
@@ -275,8 +250,11 @@ assert_tool_calls(result, expected=[
     ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/points/")}),
     ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/forecast")}),
 ])
+```
 
-# Collect all failures at once (doesn't stop at first)
+Collect all failures at once instead of stopping at the first:
+
+```python
 from agentverify import assert_all
 assert_all(
     result,
@@ -305,15 +283,7 @@ def test_weather_agent_latency(cassette):
     assert_latency(result, max_ms=3000)
 ```
 
-During cassette **replay**, the measured duration reflects replay time (typically milliseconds), not the original call time. Capture latency data during **record** mode and persist it alongside the cassette if you want to assert against real LLM response times, or set `duration_ms` manually on your `ExecutionResult`:
-
-```python
-result = ExecutionResult.from_dict({
-    "tool_calls": [...],
-    "duration_ms": 2450.0,
-})
-assert_latency(result, max_ms=3000)
-```
+During cassette **replay**, the measured duration reflects replay time (typically milliseconds), not the original call time. Capture latency data during **record** mode, or set `duration_ms` manually via [`ExecutionResult.from_dict()`](#build-an-executionresult).
 
 ### Final Output Assertions
 
@@ -350,32 +320,6 @@ assert_latency(result, max_ms=3000, strict=True)
 
 agentverify ships with built-in adapters for popular agent frameworks. No converter function needed — just import and call:
 
-```python
-# Strands Agents
-from agentverify.frameworks.strands import from_strands
-
-result = agent("Analyze the files")
-execution_result = from_strands(result)
-
-# LangChain
-from agentverify.frameworks.langchain import from_langchain
-
-result = agent_executor.invoke({"input": "Triage the issues"})
-execution_result = from_langchain(result)
-
-# LangGraph
-from agentverify.frameworks.langgraph import from_langgraph
-
-result = agent.invoke({"messages": [{"role": "user", "content": "Hello"}]})
-execution_result = from_langgraph(result)
-
-# OpenAI Agents SDK
-from agentverify.frameworks.openai_agents import from_openai_agents
-
-result = await Runner.run(agent, "What's the weather?")
-execution_result = from_openai_agents(result)
-```
-
 | Framework | Adapter | Input |
 |---|---|---|
 | [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
@@ -383,22 +327,24 @@ execution_result = from_openai_agents(result)
 | [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` result dict |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
 
+```python
+from agentverify.frameworks.strands import from_strands
+
+result = agent("Analyze the files")
+execution_result = from_strands(result)
+```
+
 For LangChain, pass the conversation history `messages` list as a second argument to capture token usage:
 
 ```python
+from agentverify.frameworks.langchain import from_langchain
+
 execution_result = from_langchain(result, messages=memory.chat_memory.messages)
 ```
 
 ### Custom Converters
 
-For other frameworks, agentverify is framework-agnostic. Build an `ExecutionResult` from any agent framework's output using a converter function. The [`examples/`](examples/) directory includes reference converters:
-
-| Framework | Converter | Description |
-|---|---|---|
-| [Strands Agents](https://github.com/strands-agents/sdk-python) | [`strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) | Converts `AgentResult` → `ExecutionResult` |
-| [LangChain](https://github.com/langchain-ai/langchain) | [`langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) | Converts `AgentExecutor` output → `ExecutionResult` |
-
-These converters are small (~50 lines) and easy to adapt for your own framework.
+For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for ~50-line reference implementations.
 
 ## Supported LLM Providers
 
@@ -492,14 +438,6 @@ Actual:
 ```
 
 ```
-CostBudgetError: Token budget exceeded
-
-  Actual:  1,250 tokens
-  Limit:   1,000 tokens
-  Exceeded by: 250 tokens (25.0%)
-```
-
-```
 LatencyBudgetError: Latency budget exceeded
 
   Actual:  3,450.0 ms
@@ -507,19 +445,7 @@ LatencyBudgetError: Latency budget exceeded
   Exceeded by: 450.0 ms (15.0%)
 ```
 
-```
-SafetyRuleViolationError: 2 forbidden tool calls detected
-
-  [1] delete_database(table="users") at position 3
-  [2] drop_table(name="orders") at position 5
-```
-
-```
-FinalOutputError: final_output does not contain expected substring
-
-  Substring: 'Berlin'
-  Actual:    'The weather in Tokyo is sunny, 22°C.'
-```
+Other error types follow the same pattern: `CostBudgetError`, `SafetyRuleViolationError`, `FinalOutputError`.
 
 ## Requirements
 
@@ -532,50 +458,15 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 
 | Example | Framework | Description |
 |---|---|---|
-| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Fetches weather via HTTP, verifies tool sequence and safety. Matches the [Real-World Example](#real-world-example--testing-the-strands-weather-forecaster) in this README |
-| [`strands-file-organizer`](examples/strands-file-organizer/) | Strands Agents + Bedrock | Scans a directory via Filesystem MCP, suggests organization. Read-only safety verified |
-| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP. Label and priority suggestions |
+| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Fetches weather via HTTP, verifies tool sequence and safety |
+| [`strands-file-organizer`](examples/strands-file-organizer/) | Strands Agents + Bedrock | Scans a directory via Filesystem MCP, suggests organization |
+| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP |
 | [`mcp-server`](examples/mcp-server/) | — | Mock GitHub MCP server for token-free testing |
 
-Try it:
-
-```bash
-git clone https://github.com/simukappu/agentverify.git
-cd agentverify
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-
-# Strands File Organizer
-pip install -e "examples/strands-file-organizer/.[dev]"
-pytest examples/strands-file-organizer/tests -v
-```
-
-```
-tests/test_file_organizer.py::test_tool_call_sequence PASSED
-tests/test_file_organizer.py::test_token_budget PASSED
-tests/test_file_organizer.py::test_safety_read_only PASSED
-```
-
-```bash
-# LangChain Issue Triage
-pip install -e "examples/langchain-issue-triage/.[dev]"
-pytest examples/langchain-issue-triage/tests -v
-```
-
-```
-tests/test_issue_triage.py::TestIssueTriage_MockMCP::test_tool_call_sequence PASSED
-tests/test_issue_triage.py::TestIssueTriage_MockMCP::test_safety_read_and_label_only PASSED
-```
-
-See each example's README for agent execution instructions and recording mode details.
+See each example's README for setup and recording mode details.
 
 ## Roadmap
 
-- ~~Agent framework adapters — extract `ExecutionResult` directly from Strands Agents, LangChain, and others without writing a converter~~ ✅ Shipped
-- ~~Cassette request matching — verify request content during replay to detect stale cassettes~~ ✅ Shipped
-- ~~Cassette sanitization — automatic masking of API keys and sensitive data in recorded cassettes~~ ✅ Shipped
-- ~~Latency assertion — `assert_latency()` for response time SLAs in production agents~~ ✅ Shipped
-- ~~Tool mocking/stubbing — test agent routing logic without calling real tools~~ ✅ Shipped
 - Async support — first-class `asyncio` testing for async agents and tools
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Step-level assertions — structured multi-step execution testing with `assert_step()` and intermediate output verification
