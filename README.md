@@ -80,8 +80,9 @@ Here's how you'd test the [Strands Weather Forecaster](https://strandsagents.com
 ```python
 import pytest
 from agentverify import (
-    assert_tool_calls, assert_cost, assert_no_tool_call,
-    assert_final_output, assert_all, ToolCall, ANY, OrderMode,
+    assert_tool_calls, assert_cost, assert_latency,
+    assert_no_tool_call, assert_final_output, assert_all,
+    ToolCall, MATCHES,
 )
 
 # Import the weather agent from the Strands sample
@@ -90,171 +91,53 @@ from weather_agent import weather_agent
 
 
 @pytest.mark.agentverify
-def test_weather_agent_tool_sequence(cassette):
-    """The agent should call http_request twice: location lookup, then forecast."""
-    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        weather_agent("What's the weather in Seattle?")
-
-    result = rec.to_execution_result()
-    assert_tool_calls(
-        result,
-        expected=[
-            ToolCall("http_request", {"method": "GET", "url": ANY}),
-            ToolCall("http_request", {"method": "GET", "url": ANY}),
-        ],
-        order=OrderMode.IN_ORDER,
-        partial_args=True,
-    )
-
-
-@pytest.mark.agentverify
-def test_weather_agent_safety(cassette):
-    """The agent should only read data — no writes, no dangerous tools."""
-    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        weather_agent("What's the weather in Seattle?")
-
-    result = rec.to_execution_result()
-    assert_no_tool_call(
-        result,
-        forbidden_tools=["write_file", "execute_command", "delete_file"],
-    )
-
-
-@pytest.mark.agentverify
-def test_weather_agent_all(cassette):
-    """Run all assertions at once — collect all failures."""
+def test_weather_agent(cassette):
+    """Verify tool sequence, budget, latency, safety, and final output in one go."""
     with cassette("weather_seattle.yaml", provider="bedrock") as rec:
         weather_agent("What's the weather in Seattle?")
 
     result = rec.to_execution_result()
     assert_all(
         result,
+        # Two http_request calls with distinct URL shapes — location lookup then forecast
         lambda r: assert_tool_calls(r, expected=[
-            ToolCall("http_request", {"method": "GET", "url": ANY}),
-        ], order=OrderMode.IN_ORDER, partial_args=True),
+            ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/points/")}),
+            ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/forecast")}),
+        ]),
         lambda r: assert_cost(r, max_tokens=15000),
-        lambda r: assert_no_tool_call(r, forbidden_tools=["write_file"]),
+        lambda r: assert_latency(r, max_ms=10_000),
+        lambda r: assert_no_tool_call(r, forbidden_tools=["write_file", "execute_command"]),
         lambda r: assert_final_output(r, contains="Seattle"),
     )
 ```
 
-Or skip cassettes entirely and use the built-in adapter with a live agent:
+Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration).
 
-```python
-from agentverify.frameworks.strands import from_strands
-def test_weather_agent_live():
-    """Test with a live LLM call (requires API credentials)."""
-    result = weather_agent("What's the weather in Seattle?")
-    er = from_strands(result)
+## Build an ExecutionResult
 
-    assert_tool_calls(er, expected=[
-        ToolCall("http_request", {"method": "GET", "url": ANY}),
-        ToolCall("http_request", {"method": "GET", "url": ANY}),
-    ], order=OrderMode.IN_ORDER, partial_args=True)
+Every agentverify assertion takes an `ExecutionResult`. You can build one three ways:
 
-    assert_cost(er, max_tokens=15000)
-    assert_no_tool_call(er, forbidden_tools=["write_file", "execute_command"])
-    assert_final_output(er, contains="Seattle")
-```
+1. **From a dict** — convenient for quick tests and fixtures, as in the [Quick Start](#quick-start--no-llm-required).
+2. **From a built-in adapter** — one-liner for Strands Agents, LangChain, LangGraph, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
+3. **From a custom converter** — for other frameworks, map your output to the schema below. See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for ~50-line reference implementations.
 
-## 3 Steps to Test Your Agent
-
-### Step 1: Build an ExecutionResult
-
-Build an `ExecutionResult` from your agent's output. You can construct one from a dict, use a [built-in adapter](#framework-integration), or write a small converter for your framework.
-
-```python
-from agentverify import ExecutionResult
-
-result = ExecutionResult.from_dict({
-    "tool_calls": [
-        {"name": "get_location", "arguments": {"city": "Tokyo"}},
-        {"name": "get_weather", "arguments": {"lat": 35.6, "lon": 139.7}},
-    ],
-    "token_usage": {"input_tokens": 50, "output_tokens": 30},
-    "total_cost_usd": 0.002,
-    "final_output": "The weather in Tokyo is sunny, 22°C.",
-})
-```
-
-`ExecutionResult.from_dict()` accepts the following keys:
+`ExecutionResult.from_dict()` accepts these keys:
 
 | Key | Type | Description |
 |---|---|---|
-| `tool_calls` | `list[dict]` | Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional — tool execution result stored for reference; not used in assertions) |
+| `tool_calls` | `list[dict]` | Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional — stored for reference; not used in assertions) |
 | `token_usage` | `dict` or `None` | `{"input_tokens": int, "output_tokens": int}` |
-| `total_cost_usd` | `float` or `None` | Total cost in USD (must be set manually — not auto-calculated from tokens) |
+| `total_cost_usd` | `float` or `None` | Total cost in USD (must be set manually — not auto-calculated from tokens or populated from cassettes) |
 | `final_output` | `str` or `None` | The agent's final text response |
+| `duration_ms` | `float` or `None` | Wall-clock duration in milliseconds (auto-populated by the `cassette` fixture and `MockLLM`) |
 
-You can also use `ExecutionResult.from_json(json_string)` to parse from a JSON string, and `to_dict()` / `to_json()` for serialization.
+`ExecutionResult.from_json(json_string)` and `to_dict()` / `to_json()` are also available for serialization.
 
-#### Building from Your Framework
-
-For frameworks with built-in adapter support (Strands Agents, LangChain, LangGraph, OpenAI Agents SDK), use the adapter directly:
-
-```python
-from agentverify.frameworks.strands import from_strands
-
-result = agent("Analyze the files")
-execution_result = from_strands(result)
-```
-
-For other frameworks, write a small converter function (~20–50 lines) that maps your framework's output to the dict schema above. See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for reference implementations. Here's the general pattern:
-
-```python
-from agentverify import ExecutionResult, ToolCall, TokenUsage
-
-def my_framework_to_execution_result(agent_output) -> ExecutionResult:
-    # 1. Extract tool calls: map your framework's tool call objects
-    #    to ToolCall(name=..., arguments=...)
-    tool_calls = [
-        ToolCall(name=tc.tool_name, arguments=tc.params)
-        for tc in agent_output.tool_history
-    ]
-
-    # 2. Extract token usage (if available)
-    token_usage = TokenUsage(
-        input_tokens=agent_output.metrics.prompt_tokens,
-        output_tokens=agent_output.metrics.completion_tokens,
-    )
-
-    # 3. Extract final output text
-    return ExecutionResult(
-        tool_calls=tool_calls,
-        token_usage=token_usage,
-        final_output=agent_output.response_text,
-    )
-```
-
-### Step 2: Assert
-
-```python
-from agentverify import assert_tool_calls, assert_cost, assert_no_tool_call, assert_final_output, ToolCall, ANY
-
-# Did the agent call the right tools in the right order?
-assert_tool_calls(result, expected=[
-    ToolCall("get_location", {"city": "Tokyo"}),
-    ToolCall("get_weather", {"lat": ANY, "lon": ANY}),
-])
-
-# Did it stay within budget?
-assert_cost(result, max_tokens=500, max_cost_usd=0.01)
-
-# Did it avoid dangerous tools?
-assert_no_tool_call(result, forbidden_tools=["delete_user", "drop_table"])
-
-# Did the final output contain the expected content?
-# See "Final Output Assertions" below for equals and regex options.
-assert_final_output(result, contains="Tokyo")
-```
-
-### Step 3: Record & Replay with Cassettes
+## Record & Replay with Cassettes
 
 Record real LLM API calls once. Replay them in CI forever — zero cost, deterministic.
 
-Cassette replay verifies request content by default — if your model or tools change, replay raises `CassetteRequestMismatchError` instead of silently returning stale responses. Re-record cassettes with `--cassette-mode=record` after significant agent changes. See [Request Matching](#request-matching-stale-cassette-detection) for details.
-
-The `cassette` fixture is a pytest fixture provided by the agentverify plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP — it patches the SDK's chat completion method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
+The `cassette` fixture is provided by the agentverify pytest plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP — it patches the SDK's chat completion method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
 
 ```python
 import pytest
