@@ -720,3 +720,185 @@ class TestBuildExecutionResultProbeOrphanExit:
             duration_ms=None,
         )
         assert result.steps == []
+
+
+
+class TestCassetteToolResultsBackfill:
+    """Post-processing step that lifts tool output from the next step's
+    input_context onto the producing step's tool_results.
+    """
+
+    def test_backfill_from_next_step_tool_messages(self):
+        """Tool messages in step N+1's input_context populate step N's tool_results."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        # step 0 emits a tool call
+        resp0 = NormalizedResponse(
+            content=None,
+            tool_calls=[{"name": "list_issues", "arguments": {}}],
+        )
+
+        # step 1's input_context carries step 0's tool output as a tool message
+        req1 = NormalizedRequest(
+            messages=[
+                {"role": "user", "content": "triage"},
+                {"role": "assistant", "content": None},
+                {"role": "tool", "content": '[{"number": 1}, {"number": 2}]'},
+            ],
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(
+            content="done",
+            tool_calls=[],
+        )
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+
+        # Step 0 should now carry the tool result that step 1 observed.
+        assert result.steps[0].tool_results == ['[{"number": 1}, {"number": 2}]']
+
+    def test_backfill_skipped_when_tool_results_already_populated(self):
+        """If step N already has tool_results, backfill does not overwrite."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(
+            content=None,
+            tool_calls=[{"name": "x", "arguments": {}}],
+        )
+        req1 = NormalizedRequest(
+            messages=[{"role": "tool", "content": "new-data"}],
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(content="done")
+
+        # Simulate pre-populated tool_results via a probe
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[1], []],
+            probe_events=[
+                ("enter", 1, "p", None),
+                ("exit", 1, None, None),
+            ],
+            probe_tool_results={1: ["pre-existing"]},
+            duration_ms=None,
+        )
+
+        # The probe step (producer) keeps its pre-existing tool_results — backfill skipped
+        producer = result.steps[0]
+        assert "pre-existing" in producer.tool_results
+        assert "new-data" not in producer.tool_results
+
+    def test_backfill_skipped_for_steps_without_tool_calls(self):
+        """Steps that made no tool calls don't get backfill."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        # step 0 has no tool calls (e.g. pure thinking step)
+        resp0 = NormalizedResponse(content="think")
+
+        req1 = NormalizedRequest(
+            messages=[{"role": "tool", "content": "whatever"}],
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(content="done")
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps[0].tool_results == []
+
+    def test_backfill_skipped_when_no_tool_message_in_next_context(self):
+        """Step N+1 without tool messages → no backfill for step N."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(
+            content=None,
+            tool_calls=[{"name": "x", "arguments": {}}],
+        )
+        req1 = NormalizedRequest(
+            messages=[{"role": "user", "content": "hi"}],  # no tool messages
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(content="done")
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps[0].tool_results == []
+
+    def test_backfill_skipped_when_next_input_context_is_none(self):
+        """Step N+1 with input_context=None → no backfill."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        # Simulate a weird case where input_context is None by building steps manually
+        from agentverify.cassette.recorder import _build_execution_result
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(
+            content=None,
+            tool_calls=[{"name": "x", "arguments": {}}],
+        )
+        # Second request with empty messages - input_context will be {"messages": [], "model": "gpt-4"}
+        req1 = NormalizedRequest(messages=[], model="gpt-4")
+        resp1 = NormalizedResponse(content="done")
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        # No tool messages → step 0 has no backfilled tool_results
+        assert result.steps[0].tool_results == []
+
+
+
+class TestCassetteToolResultsBackfillDefensive:
+    def test_backfill_skipped_when_consumer_input_context_none(self):
+        """Backfill skipped when the next step's input_context is None.
+
+        Triggered when an LLM step is followed by a standalone probe
+        step (which has input_context=None).
+        """
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(
+            content=None,
+            tool_calls=[{"name": "x", "arguments": {}}],
+        )
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0)],
+            probe_stacks=[[]],
+            probe_events=[
+                # Probe enter/exit with no LLM call inside → standalone probe step
+                ("enter", 1, "after_llm", None),
+                ("exit", 1, None, "done"),
+            ],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+
+        # step 0 = LLM step with tool_call, step 1 = standalone probe
+        # input_context of step 1 (probe) is None → backfill skipped
+        llm_step = next(s for s in result.steps if s.source == "llm")
+        assert llm_step.tool_results == []

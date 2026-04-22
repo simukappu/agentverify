@@ -986,3 +986,103 @@ class TestLeavesBranches:
             ]),
         ])
         assert_step_uses_result_from(result, step=1, depends_on=0)
+
+
+
+class TestStepDataFlowJSONDescent:
+    def test_integer_leaf_found_in_consumed_dict(self):
+        """Integer produced leaves are matched inside dict-valued consumed."""
+        result = ExecutionResult(steps=[
+            # tool_result is a list of dicts; leaves include int 42
+            Step(index=0, source="llm", tool_results=[[{"id": 42, "name": "x"}]]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("fetch", {"id": 42}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_json_string_descended_for_primitive_lookup(self):
+        """A JSON-serialized tool_result is parsed and its primitives matched."""
+        result = ExecutionResult(steps=[
+            # Common cassette shape: tool_result is a JSON string
+            Step(
+                index=0,
+                source="llm",
+                tool_results=['[{"number": 1}, {"number": 2}]'],
+            ),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("get_issue", {"issue_number": 2}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_non_json_string_is_plain_leaf(self):
+        """Strings that don't parse as JSON are treated as plain leaves."""
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", output="hello world"),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("x", {"q": "a hello world note"}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_json_array_that_is_actually_not_json(self):
+        """A string starting with '[' but not valid JSON is treated as plain leaf."""
+        # The raw string itself is yielded as a leaf; it must appear
+        # verbatim in the consumer to match.
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", output="[not json]"),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("x", {"q": "saw [not json] marker"}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_leaves_already_contain_produced_itself(self):
+        """If _leaves yields the value itself, candidates list isn't duplicated."""
+        from agentverify.assertions import _leaves
+
+        # Dict value — leaves yields primitives + dict is not yielded itself
+        v = {"x": 1}
+        leaves = list(_leaves(v))
+        assert leaves == [1]
+
+        # String leaf — yields itself
+        assert list(_leaves("abc")) == ["abc"]
+
+
+
+class TestValueMatchesDirectEquality:
+    def test_identical_values_match(self):
+        from agentverify.assertions import _value_matches
+
+        assert _value_matches(42, 42) is True
+        assert _value_matches("x", "x") is True
+
+
+class TestAssertStepUsesResultFromPrimitiveProduced:
+    def test_int_produced_directly(self):
+        """Direct int produced value flows to consumer."""
+        result = ExecutionResult(steps=[
+            # tool_result is a primitive int
+            Step(index=0, source="llm", tool_results=[42]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("x", {"id": 42}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_none_produced_ignored(self):
+        """None produced values don't cause false positives."""
+        # None tool_call.result is skipped by _produced_values, so this
+        # tests the primitive-path candidates construction.
+        from agentverify.errors import StepDependencyError
+
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_results=[None]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("x", {"v": "nothing relevant"}),
+            ]),
+        ])
+        with pytest.raises(StepDependencyError):
+            assert_step_uses_result_from(result, step=1, depends_on=0)

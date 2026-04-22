@@ -602,14 +602,16 @@ def assert_step_uses_result_from(
 
     for p in produced:
         # A produced value flows when it equals a consumed value, or
-        # (for containers) any of its leaves appears inside a consumed
-        # value.
+        # any of its leaves appears inside a consumed value.
+        # Strings are also passed through _leaves so that JSON-encoded
+        # tool results can be descended and their primitives extracted.
         candidates: list = []
-        if isinstance(p, (str, int, float, bool)) or p is None:
+        if isinstance(p, (int, float, bool)) or p is None:
             candidates.append(p)
         else:
             candidates.extend(_leaves(p))
-            candidates.append(p)  # also try direct equality with the container
+            if p not in candidates:
+                candidates.append(p)  # direct equality fallback
         for cand in candidates:
             for c in consumed:
                 if _value_matches(cand, c):
@@ -664,9 +666,10 @@ def _value_matches(produced, consumed) -> bool:
 
     - Direct equality always matches.
     - String produced in string consumed → substring match.
-    - String produced in any other consumed → substring match on a
-      JSON/repr serialization of ``consumed``.
-    - Non-string produced values are only matched via direct equality
+    - Primitive produced (str / int / float / bool) in any other
+      consumed → substring match on a JSON/repr serialization of
+      ``consumed``.
+    - Non-primitive produced values are only matched via direct equality
       (callers are expected to pass leaves via :func:`_leaves`).
     """
     if produced == consumed:
@@ -679,6 +682,13 @@ def _value_matches(produced, consumed) -> bool:
             return produced in consumed
         serialized = _stringify(consumed)
         return produced in serialized
+
+    # Non-string primitives: JSON-serialize and substring-search the
+    # consumed container to catch values embedded in nested structures.
+    if isinstance(produced, (int, float, bool)) and not isinstance(consumed, str):
+        needle = _stringify(produced)
+        serialized = _stringify(consumed)
+        return needle in serialized
 
     return False
 
@@ -696,12 +706,30 @@ def _stringify(value) -> str:
 
 
 def _leaves(value):
-    """Yield leaf (non-container) values from a nested structure."""
+    """Yield leaf (non-container) values from a nested structure.
+
+    Strings that successfully parse as JSON are recursively descended —
+    this lets us extract primitive values embedded in JSON-serialized
+    tool results (common in cassette-based tests).
+    """
     if isinstance(value, dict):
         for v in value.values():
             yield from _leaves(v)
     elif isinstance(value, (list, tuple)):
         for v in value:
             yield from _leaves(v)
+    elif isinstance(value, str):
+        # Try to see if the string is JSON; if so, descend into it.
+        stripped = value.strip()
+        if stripped and stripped[0] in "[{":
+            try:
+                parsed = json.loads(stripped)
+            except (json.JSONDecodeError, ValueError):
+                parsed = None
+            if isinstance(parsed, (dict, list)):
+                yield value  # keep the raw string itself as a candidate too
+                yield from _leaves(parsed)
+                return
+        yield value
     else:
         yield value

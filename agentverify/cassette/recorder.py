@@ -490,6 +490,42 @@ def _build_execution_result(
             )
         )
 
+    # Backfill tool_results from the NEXT step's input_context.  When
+    # the cassette layer doesn't have direct access to tool execution
+    # results (unlike framework adapters), the next LLM call's input
+    # messages carry the previous step's tool output as ``role="tool"``
+    # messages.  Lifting those onto the producing step makes data-flow
+    # assertions (``assert_step_uses_result_from``) work on cassette
+    # replay.
+    for i in range(len(steps) - 1):
+        producer = steps[i]
+        consumer_next = steps[i + 1]
+        if producer.tool_results:
+            continue  # already populated (e.g. by framework adapter)
+        if not producer.tool_calls:
+            continue  # nothing to correlate with
+        if consumer_next.input_context is None:
+            continue
+        messages = consumer_next.input_context.get("messages")
+        if not isinstance(messages, list):  # pragma: no cover — defensive
+            continue
+        extracted: list[Any] = []
+        for msg in messages:
+            if isinstance(msg, dict) and msg.get("role") == "tool":
+                extracted.append(msg.get("content"))
+        if extracted:
+            steps[i] = Step(
+                index=producer.index,
+                name=producer.name,
+                source=producer.source,
+                tool_calls=producer.tool_calls,
+                tool_results=extracted,
+                output=producer.output,
+                duration_ms=producer.duration_ms,
+                token_usage=producer.token_usage,
+                input_context=producer.input_context,
+            )
+
     # Re-index steps to be contiguous 0..N-1 in case of out-of-order probe inserts.
     steps = [
         Step(
