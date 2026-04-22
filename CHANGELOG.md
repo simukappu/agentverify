@@ -18,24 +18,10 @@
 
 ### Features
 
-- **Built-in framework adapters**: Extract `ExecutionResult` directly from agent framework outputs without writing a custom converter
-  - `from agentverify.frameworks.strands import from_strands` — Strands Agents `AgentResult` adapter
-  - `from agentverify.frameworks.langchain import from_langchain` — LangChain `AgentExecutor` output adapter
-  - `from agentverify.frameworks.langgraph import from_langgraph` — LangGraph `create_react_agent` result adapter
-  - `from agentverify.frameworks.openai_agents import from_openai_agents` — OpenAI Agents SDK `RunResult` adapter
-- **Cassette request matching**: Detect stale cassettes by verifying model name and tool names during replay
-  - Enabled by default; disable with `--no-cassette-match-requests` CLI option or `match_requests=False` parameter
-  - Raises `CassetteRequestMismatchError` with clear diff on mismatch
-- **Cassette sanitization**: Automatic redaction of API keys and sensitive data when recording cassettes
-  - Enabled by default with built-in patterns for OpenAI, Anthropic, AWS, and Bearer tokens
-  - Customizable via `sanitize` parameter with `SanitizePattern` objects
-  - Disable with `sanitize=False` when needed
-- **Strands Weather Forecaster example**: End-to-end example testing the official Strands Weather Forecaster sample with pre-recorded Bedrock cassette
-
-### Internal
-
-- Cassette version stamp now derived dynamically from `importlib.metadata` (single version source in `pyproject.toml`)
-- CI now runs on all branches (not just `main`)
+- **Built-in framework adapters** for Strands Agents, LangChain, LangGraph, and OpenAI Agents SDK. Extract `ExecutionResult` directly from agent framework outputs without writing a custom converter (`from_strands`, `from_langchain`, `from_langgraph`, `from_openai_agents`).
+- **Cassette request matching** detects stale cassettes by verifying model name and tool names during replay. Enabled by default; raises `CassetteRequestMismatchError` with a clear diff on mismatch.
+- **Cassette sanitization** automatically redacts API keys and sensitive data when recording. Built-in patterns cover OpenAI, Anthropic, AWS, and Bearer tokens; extendable with custom `SanitizePattern` objects.
+- **Strands Weather Forecaster example**: End-to-end example testing the official Strands sample with a pre-recorded Bedrock cassette.
 
 ## 0.1.0 (2026-04-16)
 
@@ -43,16 +29,12 @@ Initial release.
 
 ### Features
 
-- **Tool call assertions**: `assert_tool_calls()` with ExactOrder, InOrder, and AnyOrder modes
-- **Cost/token budget assertions**: `assert_cost()` with max_tokens and max_cost_usd
-- **Safety guardrails**: `assert_no_tool_call()` for forbidden tool detection
-- **Final output assertions**: `assert_final_output()` with contains, equals, and regex matching
-- **Batch assertions**: `assert_all()` collects all failures without stopping at first
-- **ANY matcher**: Wildcard for non-deterministic argument values
-- **Partial argument matching**: Only check the keys you care about
-- **LLM Cassette Record & Replay**: VCR-style recording of LLM API calls for deterministic CI testing
-- **5 LLM provider adapters**: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, LiteLLM
-- **YAML and JSON cassette formats**: Auto-detected by file extension
-- **pytest plugin**: Auto-registers on install, provides `cassette` fixture and `@pytest.mark.agentverify` marker
-- **Structured error messages**: Clear diffs with mismatch position highlighting
-- **Input validation**: `ExecutionResult.from_dict()` validates tool call entries with clear error messages
+- **Tool call assertions**: `assert_tool_calls` with EXACT, IN_ORDER, and ANY_ORDER modes; `ANY` wildcard and `partial_args` for flexible argument matching.
+- **Cost budget assertions**: `assert_cost` enforces `max_tokens` and `max_cost_usd` limits.
+- **Safety guardrails**: `assert_no_tool_call` detects forbidden tool invocations.
+- **Final output assertions**: `assert_final_output` with `contains`, `equals`, and `matches` (regex).
+- **Batch assertions**: `assert_all` collects all failures without stopping at the first.
+- **LLM Cassette Record & Replay**: VCR-style recording of LLM API calls for deterministic CI testing. Human-readable YAML / JSON cassettes that you commit to git.
+- **5 LLM provider adapters**: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, LiteLLM.
+- **pytest plugin**: Auto-registers on install, provides the `cassette` fixture and `@pytest.mark.agentverify` marker.
+- **Structured error messages**: Clear diffs with mismatch position highlighting.
