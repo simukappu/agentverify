@@ -66,6 +66,11 @@ Both mock and real MCP cassettes are replayed deterministically — no OpenAI or
 | `TestIssueTriage_MockMCP` | `test_tool_call_sequence` | `assert_tool_calls()` | `list_issues` → `get_issue` ordering (IN_ORDER) |
 | `TestIssueTriage_MockMCP` | `test_safety_read_and_label_only` | `assert_no_tool_call()` | `close_issue`, `delete_comment`, `delete_issue`, `update_issue`, `create_issue` are never called |
 | `TestIssueTriage_RealMCP` | `test_tool_call_with_real_github` | `assert_tool_calls()` | `list_issues` call verified from real GitHub cassette |
+| `TestIssueTriageStepLevel` | `test_step_sequence` | `assert_step()` | Each of the four ReAct steps runs the expected tool — `list_issues`, `get_issue`, `list_labels`, then the summary step |
+| `TestIssueTriageStepLevel` | `test_step_1_uses_step_0_result` | `assert_step_uses_result_from()` | The `issue_number` passed to `get_issue` in step 1 actually came from step 0's `list_issues` response — catches "agent hallucinated an issue number" bugs |
+| `TestIssueTriageStepLevel` | `test_final_step_reports_triage` | `assert_step_output()` | The final step (no tool calls) produces the triage summary text |
+
+The step-level tests work on cassette replay because agentverify automatically backfills tool results from the next step's LLM input — no adapter setup needed. See [Step-Level Assertions](../../README.md#step-level-assertions) in the main README for details.
 
 ### Recording Mode (Real APIs)
 

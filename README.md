@@ -69,9 +69,13 @@ test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
 
-## Real-World Example — Testing the Strands Weather Forecaster
+## Real-World Examples
 
-Here's how you'd test the [Strands Weather Forecaster](https://strandsagents.com/docs/examples/python/weather_forecaster/) — an official Strands Agents sample that uses the `http_request` tool to fetch weather data from the National Weather Service API.
+Two end-to-end examples that showcase different agent patterns and testing angles. Both run with pre-recorded cassettes — no API keys needed.
+
+### Strands Weather Forecaster — Two-Step ReAct
+
+Test the [Strands Weather Forecaster](https://strandsagents.com/docs/examples/python/weather_forecaster/) — an official Strands Agents sample that uses the `http_request` tool to fetch weather data from the National Weather Service API.
 
 ```python
 import pytest
@@ -131,6 +135,49 @@ def test_weather_agent_steps(cassette):
 ```
 
 Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration). `MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`. Step assertions are covered in [Step-Level Assertions](#step-level-assertions).
+
+### LangChain Issue Triage — Multi-Step with Data Flow
+
+Test a LangChain agent that triages GitHub issues via the [GitHub MCP server](https://github.com/github/github-mcp-server). The agent runs a four-step plan: list open issues, fetch details for a specific issue, list available labels, then produce a triage summary. Each step consumes data from the previous ones — exactly what `assert_step_uses_result_from` verifies.
+
+```python
+import pytest
+from agentverify import (
+    ANY, ToolCall,
+    assert_step, assert_step_output, assert_step_uses_result_from,
+)
+
+@pytest.mark.agentverify
+def test_issue_triage_steps(cassette):
+    with cassette("issue_triage_mock.yaml", provider="openai") as rec:
+        pass  # cassette replay
+
+    result = rec.to_execution_result()
+
+    # Step 0: list open issues in the repo
+    assert_step(result, step=0, expected_tool=ToolCall(
+        "list_issues", {"repo": ANY},
+    ), partial_args=True)
+
+    # Step 1: fetch details for a specific issue — using an issue_number
+    # that was returned by step 0's list_issues call
+    assert_step(result, step=1, expected_tool=ToolCall(
+        "get_issue", {"repo": ANY, "issue_number": ANY},
+    ), partial_args=True)
+    assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    # Step 2: list available labels
+    assert_step(result, step=2, expected_tool=ToolCall(
+        "list_labels", {"repo": ANY},
+    ), partial_args=True)
+
+    # Final step (no tool calls) produces the triage summary
+    assert_step_output(result, step=3, contains="Issue Triage Results")
+```
+
+The interesting assertion here is `assert_step_uses_result_from(result, step=1, depends_on=0)` — it catches the common "agent hallucinated an issue number" bug by verifying that the number passed to `get_issue` actually came from `list_issues`'s response. This works on cassette replay because agentverify automatically backfills tool results from the next step's LLM input — see [Assert step-to-step data flow](#assert-step-to-step-data-flow).
+
+See [`examples/langchain-issue-triage/`](examples/langchain-issue-triage/) for the full agent code and the cassette.
 
 ## Build an ExecutionResult
 
@@ -377,7 +424,11 @@ assert_step_uses_result_from(result, step=2, depends_on=1)
 assert_step_uses_result_from(result, step=2, depends_on=1, via="tool_result")
 ```
 
-The check searches for any produced value (step M's `tool_results`, `tool_calls[*].result`, or `output`) inside step N's `input_context` or `tool_calls[*].arguments`. Matching is substring for strings, structural for containers.
+The check searches for any produced value (step M's `tool_results`, `tool_calls[*].result`, or `output`) inside step N's `input_context` or `tool_calls[*].arguments`. Strings are substring-matched; primitives (numbers, booleans) are matched structurally inside containers; JSON-encoded tool results are descended automatically.
+
+Concretely, if step 0's `list_issues` tool returned `[{"number": 1}, {"number": 2}]` and step 1 called `get_issue(issue_number=2)`, the check finds that the number `2` produced by step 0 shows up in step 1's arguments — data flows correctly.
+
+**Works on cassette replay.** Cassette recorders don't record tool execution results directly, but agentverify backfills them from the next step's `input_context` so you can assert data flow without any special adapter setup.
 
 ### Workflow-style Agents with `step_probe`
 
