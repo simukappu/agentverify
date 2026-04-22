@@ -75,3 +75,48 @@ def test_weather_agent_all(cassette):
         lambda r: assert_no_tool_call(r, forbidden_tools=["write_file"]),
         lambda r: assert_final_output(r, contains="Seattle"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Step-level assertions (v0.3.0)
+# ---------------------------------------------------------------------------
+
+
+from agentverify import (
+    MATCHES,
+    assert_step,
+    assert_step_uses_result_from,
+)
+
+
+@pytest.mark.agentverify
+def test_weather_agent_steps(cassette):
+    """Verify the two-step ReAct pattern and the data flow between them.
+
+    This test mirrors the step-level example in the README:
+    step 0 calls /points/ to discover the forecast office,
+    step 1 calls /forecast/ using a URL derived from the first response.
+    """
+    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
+        pass  # cassette replay
+
+    result = rec.to_execution_result()
+
+    # First step must call /points/ to discover the forecast office
+    assert_step(
+        result, step=0,
+        expected_tool=ToolCall(
+            "http_request", {"method": "GET", "url": MATCHES(r"/points/")},
+        ),
+        partial_args=True,
+    )
+
+    # Second step must call /forecast/ AND use data from the first step's result
+    assert_step(
+        result, step=1,
+        expected_tool=ToolCall(
+            "http_request", {"method": "GET", "url": MATCHES(r"/forecast")},
+        ),
+        partial_args=True,
+    )
+    assert_step_uses_result_from(result, step=1, depends_on=0)

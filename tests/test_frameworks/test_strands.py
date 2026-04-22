@@ -279,3 +279,113 @@ class TestFromStrands:
         er = from_strands(result)
 
         assert er.final_output is None
+
+
+
+class TestFromStrandsBranches:
+    """Cover remaining strands branches."""
+
+    def test_content_with_non_dict_block(self):
+        """Content list with a non-dict entry is skipped without error."""
+        result = _make_strands_result(
+            messages=[
+                {
+                    "content": [
+                        "not-a-dict",  # non-dict block — skipped
+                        {
+                            "toolUse": {
+                                "name": "search",
+                                "input": {"q": "x"},
+                            }
+                        },
+                    ]
+                },
+            ]
+        )
+        er = from_strands(result)
+        assert [tc.name for tc in er.tool_calls] == ["search"]
+
+    def test_user_message_without_tool_results_and_no_prior_step(self):
+        """A standalone user message sets pending_input_context but adds no step."""
+        result = _make_strands_result(
+            messages=[
+                {"role": "user", "content": [{"text": "hello"}]},  # no toolResult, no prior assistant
+                {
+                    "role": "assistant",
+                    "content": [{"text": "hi"}],
+                },
+            ]
+        )
+        er = from_strands(result)
+        # One assistant step. pending_input_context carries the user message.
+        assert len(er.steps) == 1
+        assert er.steps[0].input_context == {"messages": [{"role": "user", "content": [{"text": "hello"}]}]}
+
+    def test_user_tool_result_before_any_assistant_step_is_dropped(self):
+        """Tool results before any assistant step are silently discarded (no prior step to attach to)."""
+        result = _make_strands_result(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"toolResult": {"r": 1}}],  # orphan tool result
+                },
+            ]
+        )
+        er = from_strands(result)
+        assert er.steps == []
+
+    def test_multiple_assistant_messages(self):
+        """Multiple assistant messages each become a separate step."""
+        result = _make_strands_result(
+            messages=[
+                {"role": "assistant", "content": [{"toolUse": {"name": "a", "input": {}}}]},
+                {"role": "assistant", "content": [{"toolUse": {"name": "b", "input": {}}}]},
+            ]
+        )
+        er = from_strands(result)
+        assert len(er.steps) == 2
+
+
+    def test_non_assistant_non_user_message_skipped(self):
+        """A message with role='system' falls through both branches."""
+        result = _make_strands_result(
+            messages=[
+                {"role": "system", "content": [{"text": "instructions"}]},
+                {"role": "assistant", "content": [{"text": "ok"}]},
+            ]
+        )
+        er = from_strands(result)
+        # assistant + system-with-text produces one assistant step + system
+        # is_assistant because has_text when role=system: role is "system"
+        # and role is None is False → is_assistant = ("system" == "assistant") or (None and has_text) = False.
+        # is_user = ("system" == "user") or (None and has_tool_result) = False.
+        # So system message is fully skipped.
+        assert len(er.steps) == 1
+
+    def test_non_list_content_skipped(self):
+        """Messages with content that is not a list are skipped."""
+        result = _make_strands_result(
+            messages=[
+                {"role": "assistant", "content": "not-a-list"},  # skipped
+                {"role": "assistant", "content": [{"text": "ok"}]},
+            ]
+        )
+        er = from_strands(result)
+        assert len(er.steps) == 1
+
+    def test_no_state_no_token_usage_no_message(self):
+        """AgentResult without state/metrics/message — still works."""
+        result = SimpleNamespace()  # no state attribute at all
+        er = from_strands(result)
+        assert er.steps == []
+        assert er.token_usage is None
+        assert er.final_output is None
+
+    def test_metrics_with_zero_tokens_produces_no_token_usage(self):
+        """inputTokens=0 and outputTokens=0 leaves token_usage as None."""
+        result = _make_strands_result(
+            messages=[],
+            metrics={"inputTokens": 0, "outputTokens": 0},
+        )
+        er = from_strands(result)
+        assert er.token_usage is None

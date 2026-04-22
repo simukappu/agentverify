@@ -107,7 +107,30 @@ def test_weather_agent(cassette):
     )
 ```
 
-Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration). `MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`.
+Want to go deeper? The weather agent is a classic two-step ReAct pattern — `/points/` lookup, then `/forecast/` call using the URL discovered in the first response. Step-level assertions verify that structure and the data flow between steps:
+
+```python
+from agentverify import assert_step, assert_step_uses_result_from
+
+@pytest.mark.agentverify
+def test_weather_agent_steps(cassette):
+    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
+        weather_agent("What's the weather in Seattle?")
+    result = rec.to_execution_result()
+
+    # First step must call /points/ to discover the forecast office
+    assert_step(result, step=0, expected_tool=ToolCall(
+        "http_request", {"method": "GET", "url": MATCHES(r"/points/")},
+    ), partial_args=True)
+
+    # Second step must call /forecast/ AND use data from the first step's result
+    assert_step(result, step=1, expected_tool=ToolCall(
+        "http_request", {"method": "GET", "url": MATCHES(r"/forecast")},
+    ), partial_args=True)
+    assert_step_uses_result_from(result, step=1, depends_on=0)
+```
+
+Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration). `MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`. Step assertions are covered in [Step-Level Assertions](#step-level-assertions).
 
 ## Build an ExecutionResult
 
@@ -121,7 +144,8 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 
 | Key | Type | Description |
 |---|---|---|
-| `tool_calls` | `list[dict]` | Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional — stored for reference; not used in assertions) |
+| `steps` | `list[dict]` | Each step dict has `index` (int), `source` (`"llm"` / `"probe"` / `"tool"`), `tool_calls` (list), `tool_results` (list), `output` (str or None), `input_context` (dict or None), `name` (str or None). See [Step-Level Assertions](#step-level-assertions) |
+| `tool_calls` | `list[dict]` | **Legacy v0.2.0 form** — when `steps` is absent, a flat `tool_calls` list is wrapped into a single synthetic step. Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional) |
 | `token_usage` | `dict` or `None` | `{"input_tokens": int, "output_tokens": int}` |
 | `total_cost_usd` | `float` or `None` | Total cost in USD (must be set manually — not auto-calculated from tokens or populated from cassettes) |
 | `duration_ms` | `float` or `None` | Wall-clock duration in milliseconds (auto-populated by the `cassette` fixture and `MockLLM`) |
@@ -314,6 +338,80 @@ assert_cost(result, max_tokens=500, max_cost_usd=0.01, strict=True)
 assert_latency(result, max_ms=3000, strict=True)
 ```
 
+## Step-Level Assertions
+
+For agents that make multiple LLM calls per execution (ReAct, Plan-and-Execute, multi-hop retrieval, workflow-style), agentverify exposes the full step structure — not just a flat list of tool calls.
+
+`ExecutionResult.steps` is the single source of truth; `result.tool_calls` remains as a derived flat view for simpler cases.
+
+```python
+from agentverify import assert_step, assert_step_output, ToolCall, MATCHES
+
+@pytest.mark.agentverify
+def test_plan_and_execute(cassette):
+    with cassette("trip_planner.yaml", provider="openai") as rec:
+        plan_trip("2 days in Tokyo")
+    result = rec.to_execution_result()
+
+    # Step 0: agent plans what to search for
+    assert_step_output(result, step=0, contains="flights")
+
+    # Step 1: agent calls the flight search tool
+    assert_step(result, step=1, expected_tool=ToolCall("search_flights", {"city": "Tokyo"}))
+
+    # Step 2: agent calls the hotel search with a location string it discovered
+    assert_step(result, step=2, expected_tool=ToolCall("search_hotels", {"area": MATCHES(r"Shibuya|Shinjuku")}))
+```
+
+### Assert step-to-step data flow
+
+`assert_step_uses_result_from()` verifies that one step's input references data produced by another — catches "agent ignored the tool result" bugs.
+
+```python
+from agentverify import assert_step_uses_result_from
+
+# Verify step 2 (hotel search) actually uses the result of step 1 (flight search)
+assert_step_uses_result_from(result, step=2, depends_on=1)
+
+# Restrict to a specific channel
+assert_step_uses_result_from(result, step=2, depends_on=1, via="tool_result")
+```
+
+The check searches for any produced value (step M's `tool_results`, `tool_calls[*].result`, or `output`) inside step N's `input_context` or `tool_calls[*].arguments`. Matching is substring for strings, structural for containers.
+
+### Workflow-style Agents with `step_probe`
+
+Many production agents aren't pure ReAct loops — they mix LLM calls with caching, state management, validation, and conditional branches. `step_probe()` lets you mark logical step boundaries in your agent code so tests can assert on those non-LLM steps.
+
+```python
+# agent.py
+from agentverify import step_probe
+
+def run_agent(query: str) -> str:
+    with step_probe("fetch_cache") as p:
+        cached = cache.get(query)
+        p.set_tool_result({"hit": cached is not None})
+        if cached:
+            return cached
+    with step_probe("call_llm"):
+        response = llm.invoke(query)
+    with step_probe("postprocess", output="formatted"):
+        return format_output(response)
+```
+
+```python
+# test_agent.py
+def test_cache_miss_path():
+    with MockLLM([mock_response(content="42")], provider="openai") as rec:
+        run_agent("what's the answer?")
+    result = rec.to_execution_result()
+    assert_step(result, name="fetch_cache", expected_tools=[])  # probe with no tool calls
+    assert_step(result, name="call_llm", ...)
+    assert_step_output(result, name="postprocess", equals="formatted")
+```
+
+**`step_probe` is a zero-cost no-op outside of test recording contexts** — when no `LLMCassetteRecorder` or `MockLLM` is active, it's a pass-through context manager. Safe to leave in production code.
+
 ## Framework Integration
 
 ### Built-in Adapters
@@ -469,7 +567,6 @@ See each example's README for setup and recording mode details.
 
 - Async support — first-class `asyncio` testing for async agents and tools
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
-- Step-level assertions — structured multi-step execution testing with `assert_step()` and intermediate output verification
 - Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
 

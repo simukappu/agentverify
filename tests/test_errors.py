@@ -242,3 +242,44 @@ class TestCassetteRequestMismatchError:
         assert err.field == "model"
         assert err.recorded == "a"
         assert err.actual == "b"
+
+
+
+class TestStepDependencyErrorTruncation:
+    def test_truncated_when_repr_exceeds_limit(self):
+        """Long repr is truncated with ellipsis."""
+        from agentverify.errors import StepDependencyError
+
+        # Long value — should trigger truncation
+        long_list = ["x" * 300]
+        err = StepDependencyError(
+            step=1, depends_on=0, via="any",
+            produced=long_list, consumed=[],
+        )
+        assert "…" in str(err)
+
+
+class TestToolCallSequenceErrorStepContext:
+    def test_step_name_included_in_message(self):
+        """Error message includes step name when provided."""
+        from agentverify.errors import ToolCallSequenceError
+
+        err = ToolCallSequenceError(
+            expected=[],
+            actual=[],
+            first_mismatch_index=0,
+            step_name="plan",
+        )
+        assert "plan" in str(err)
+
+    def test_step_index_only(self):
+        """Error message includes step index alone when name is None."""
+        from agentverify.errors import ToolCallSequenceError
+
+        err = ToolCallSequenceError(
+            expected=[],
+            actual=[],
+            first_mismatch_index=0,
+            step_index=3,
+        )
+        assert "step 3" in str(err)

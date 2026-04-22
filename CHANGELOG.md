@@ -4,19 +4,15 @@
 
 ### Features
 
-- **Regex argument matcher**: New `MATCHES(pattern)` matcher for verifying string tool call arguments against a regex
-  - Works like `ANY` but constrained to a `re.search(pattern, value)` match
-  - Accepts raw pattern strings or pre-compiled `re.Pattern` objects
-  - Non-string values never match
-- **Tool mocking**: In-memory LLM response replay for testing agent routing without a cassette or a real LLM call
-  - New `MockLLM(responses, provider=...)` context manager
-  - New `mock_response(content=..., tool_calls=..., input_tokens=..., output_tokens=...)` builder
-  - Raises `CassetteMissingRequestError` when the agent makes more LLM calls than predefined responses
-- **Latency assertion**: `assert_latency(result, max_ms=3000)` to enforce response time SLAs on agent executions
-  - New `duration_ms` field on `ExecutionResult` for wall-clock execution time
-  - Wall-clock duration is captured automatically by the `cassette` fixture and by `MockLLM` on context exit
-  - New `LatencyBudgetError` with formatted diff output
-  - Supports `strict=True` to require that `duration_ms` is present
+- **Step-level assertions** for agents that make multiple LLM calls per run (ReAct, Plan-and-Execute, workflow-style). New `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow on the new `Step` data model. See README "Step-Level Assertions".
+- **`step_probe` context manager** lets you mark logical step boundaries in agent code (including LLM-free steps like cache hits, state management, validation) so tests can assert on workflow logic. Zero-cost no-op outside of recorder/MockLLM contexts — safe to leave in production code.
+- **Regex argument matcher**: `MATCHES(pattern)` for verifying string tool call arguments against a regex — the same `ANY` wildcard semantics, constrained to a regex match.
+- **Tool mocking**: `MockLLM` + `mock_response(...)` replay predefined LLM responses in-memory — test agent routing without a cassette or real LLM call.
+- **Latency assertion**: `assert_latency(result, max_ms=...)` enforces response time SLAs. `ExecutionResult.duration_ms` is captured automatically by the cassette fixture and `MockLLM`.
+
+### Breaking Changes
+
+- **`ExecutionResult` is now step-centric.** `steps: list[Step]` is the single source of truth; `result.tool_calls` is a derived read-only property. Existing read-side code (`assert_tool_calls`, `assert_no_tool_call`, etc.) works unchanged. `ExecutionResult(tool_calls=[...])` constructor kwarg still works for backward compatibility. `result.to_dict()` now emits `steps: [...]` instead of `tool_calls: [...]` — `from_dict()` still accepts the legacy `tool_calls` key on input.
 
 ## 0.2.0 (2026-04-18)
 

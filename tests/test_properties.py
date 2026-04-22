@@ -704,3 +704,70 @@ def test_property_12_assert_all_collects_failures(n_pass, n_fail):
             assert False, "Expected MultipleAssertionError"
         except MultipleAssertionError as e:
             assert len(e.errors) == n_fail
+
+
+
+# ---------------------------------------------------------------------------
+# Step-level properties (v0.3.0)
+# ---------------------------------------------------------------------------
+
+
+from agentverify import Step
+
+
+@given(
+    steps_data=st.lists(
+        st.lists(
+            st.builds(
+                ToolCall,
+                name=st.text(min_size=1, max_size=10),
+                arguments=st.dictionaries(
+                    keys=st.text(min_size=1, max_size=5),
+                    values=st.integers(),
+                    max_size=3,
+                ),
+            ),
+            max_size=5,
+        ),
+        max_size=6,
+    ),
+)
+@settings(max_examples=50, deadline=None)
+def test_property_flatten_steps_equals_tool_calls(steps_data):
+    """Flattening steps must equal the derived tool_calls property."""
+    steps = [
+        Step(index=i, source="llm", tool_calls=tcs)
+        for i, tcs in enumerate(steps_data)
+    ]
+    result = ExecutionResult(steps=steps)
+    expected_flat = [tc for step_tcs in steps_data for tc in step_tcs]
+    assert list(result.tool_calls) == expected_flat
+
+
+@given(
+    steps_data=st.lists(
+        st.lists(
+            st.text(min_size=1, max_size=5),
+            max_size=3,
+        ),
+        max_size=5,
+    ),
+)
+@settings(max_examples=30, deadline=None)
+def test_property_to_dict_from_dict_round_trip_with_steps(steps_data):
+    """Step round-trip via to_dict/from_dict preserves structure."""
+    steps = [
+        Step(
+            index=i,
+            source="llm",
+            tool_calls=[ToolCall(name=n) for n in names],
+        )
+        for i, names in enumerate(steps_data)
+    ]
+    original = ExecutionResult(steps=steps)
+    reloaded = ExecutionResult.from_dict(original.to_dict())
+    assert len(reloaded.steps) == len(steps)
+    for a, b in zip(reloaded.steps, steps):
+        assert a.index == b.index
+        assert a.source == b.source
+        assert [tc.name for tc in a.tool_calls] == [tc.name for tc in b.tool_calls]

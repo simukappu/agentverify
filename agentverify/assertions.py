@@ -6,6 +6,7 @@ cost/token budgets, safety guardrails, and batch assertion execution.
 
 from __future__ import annotations
 
+import json
 from typing import Callable, Optional
 
 from agentverify.errors import (
@@ -356,3 +357,351 @@ def assert_all(
 
     if errors:
         raise MultipleAssertionError(errors=errors)
+
+
+
+# ---------------------------------------------------------------------------
+# Step-level assertions
+# ---------------------------------------------------------------------------
+
+
+def _resolve_step(
+    result: ExecutionResult,
+    step: int | None,
+    name: str | None,
+):
+    """Resolve a step specifier into a Step object.
+
+    Exactly one of ``step`` or ``name`` must be provided.
+    """
+    from agentverify.errors import (
+        StepIndexError,
+        StepNameAmbiguousError,
+        StepNameNotFoundError,
+    )
+
+    if (step is None) == (name is None):
+        raise ValueError(
+            "Exactly one of `step` or `name` must be provided"
+        )
+
+    if step is not None:
+        if step < 0 or step >= len(result.steps):
+            raise StepIndexError(step=step, total_steps=len(result.steps))
+        return result.steps[step]
+
+    # name-based lookup
+    matches = [s for s in result.steps if s.name == name]
+    if not matches:
+        raise StepNameNotFoundError(
+            name=name,
+            available_names=[s.name for s in result.steps],
+        )
+    if len(matches) > 1:
+        raise StepNameAmbiguousError(
+            name=name,
+            indices=[s.index for s in matches],
+        )
+    return matches[0]
+
+
+def assert_step(
+    result: ExecutionResult,
+    step: int | None = None,
+    name: str | None = None,
+    expected_tool: Optional["ToolCall"] = None,
+    expected_tools: Optional[list["ToolCall"]] = None,
+    order: OrderMode = OrderMode.EXACT,
+    partial_args: bool = False,
+) -> None:
+    """Verify the tool call(s) at a specific step.
+
+    Exactly one of ``step`` (0-indexed) or ``name`` (from
+    :func:`step_probe`) must be provided.  Exactly one of
+    ``expected_tool`` or ``expected_tools`` must be provided.  Use
+    ``expected_tools=[]`` to assert the step made no tool calls.
+
+    Raises:
+        StepIndexError: step index out of range.
+        StepNameNotFoundError: no step with the given name.
+        StepNameAmbiguousError: multiple steps share the name.
+        ToolCallSequenceError: the step's tool calls don't match.
+    """
+    if (expected_tool is None) == (expected_tools is None):
+        raise ValueError(
+            "Exactly one of `expected_tool` or `expected_tools` must be provided"
+        )
+
+    resolved_step = _resolve_step(result, step, name)
+    expected_list: list[ToolCall]
+    if expected_tool is not None:
+        expected_list = [expected_tool]
+    else:
+        expected_list = list(expected_tools or [])
+
+    actual = resolved_step.tool_calls
+
+    if order == OrderMode.EXACT:
+        _assert_step_exact(resolved_step, expected_list, actual, partial_args)
+    elif order == OrderMode.IN_ORDER:
+        _assert_step_in_order(resolved_step, expected_list, actual, partial_args)
+    else:  # OrderMode.ANY_ORDER — OrderMode is a closed enum
+        _assert_step_any_order(resolved_step, expected_list, actual, partial_args)
+
+
+def _assert_step_exact(step_obj, expected, actual, partial_args) -> None:
+    if len(expected) != len(actual):
+        mismatch = min(len(expected), len(actual))
+        for i in range(mismatch):
+            if not _tool_call_matches(expected[i], actual[i], partial_args):
+                mismatch = i
+                break
+        raise ToolCallSequenceError(
+            expected=expected,
+            actual=actual,
+            first_mismatch_index=mismatch,
+            step_index=step_obj.index,
+            step_name=step_obj.name,
+        )
+    for i in range(len(expected)):
+        if not _tool_call_matches(expected[i], actual[i], partial_args):
+            raise ToolCallSequenceError(
+                expected=expected,
+                actual=actual,
+                first_mismatch_index=i,
+                step_index=step_obj.index,
+                step_name=step_obj.name,
+            )
+
+
+def _assert_step_in_order(step_obj, expected, actual, partial_args) -> None:
+    if not expected:
+        return
+    exp_idx = 0
+    for act in actual:
+        if exp_idx < len(expected) and _tool_call_matches(
+            expected[exp_idx], act, partial_args
+        ):
+            exp_idx += 1
+    if exp_idx < len(expected):
+        raise ToolCallSequenceError(
+            expected=expected,
+            actual=actual,
+            first_mismatch_index=exp_idx,
+            step_index=step_obj.index,
+            step_name=step_obj.name,
+        )
+
+
+def _assert_step_any_order(step_obj, expected, actual, partial_args) -> None:
+    for i, exp_tc in enumerate(expected):
+        if not any(_tool_call_matches(exp_tc, a, partial_args) for a in actual):
+            raise ToolCallSequenceError(
+                expected=expected,
+                actual=actual,
+                first_mismatch_index=i,
+                step_index=step_obj.index,
+                step_name=step_obj.name,
+            )
+
+
+def assert_step_output(
+    result: ExecutionResult,
+    step: int | None = None,
+    name: str | None = None,
+    contains: str | None = None,
+    equals: str | None = None,
+    matches: str | None = None,
+) -> None:
+    """Verify the intermediate text output of a specific step.
+
+    Exactly one of ``step`` or ``name`` must be provided.  At least one
+    of ``contains``, ``equals``, or ``matches`` must be provided.
+    """
+    from agentverify.errors import StepOutputError
+
+    if contains is None and equals is None and matches is None:
+        raise ValueError(
+            "assert_step_output requires at least one of: contains, equals, matches"
+        )
+
+    resolved_step = _resolve_step(result, step, name)
+    output = resolved_step.output
+
+    step_label = f"step {resolved_step.index}"
+    if resolved_step.name:
+        step_label += f" ({resolved_step.name!r})"
+
+    if output is None:
+        raise StepOutputError(f"{step_label} has no output")
+
+    if equals is not None and output != equals:
+        raise StepOutputError(
+            f"{step_label} output does not equal expected\n"
+            f"\n"
+            f"  Expected: {equals!r}\n"
+            f"  Actual:   {output!r}"
+        )
+    if contains is not None and contains not in output:
+        raise StepOutputError(
+            f"{step_label} output does not contain expected substring\n"
+            f"\n"
+            f"  Substring: {contains!r}\n"
+            f"  Actual:    {output!r}"
+        )
+    if matches is not None:
+        import re
+
+        if not re.search(matches, output):
+            raise StepOutputError(
+                f"{step_label} output does not match pattern\n"
+                f"\n"
+                f"  Pattern: {matches!r}\n"
+                f"  Actual:  {output!r}"
+            )
+
+
+def assert_step_uses_result_from(
+    result: ExecutionResult,
+    step: int | str,
+    depends_on: int | str,
+    via: str = "any",
+) -> None:
+    """Verify that step N's input references data produced by step M.
+
+    Checks that any produced value from step M appears as a consumed
+    value in step N.
+
+    * Produced values: step M's ``tool_results``,
+      ``tool_calls[*].result``, ``output``.
+    * Consumed values: step N's ``input_context``,
+      ``tool_calls[*].arguments``.
+
+    Matching is substring for strings, structural equality for
+    containers.
+
+    Args:
+        step: Step that should consume data.  Accepts int (index) or
+            str (name).
+        depends_on: Step that should produce data.  Same specifier rules.
+        via: One of ``"tool_result"``, ``"output"``, or ``"any"``.
+            Restricts which channel of produced values is checked.
+    """
+    from agentverify.errors import StepDependencyError
+
+    if via not in ("tool_result", "output", "any"):
+        raise ValueError(
+            f"via must be one of 'tool_result', 'output', 'any' — got {via!r}"
+        )
+
+    consumer = _resolve_step_by_spec(result, step)
+    producer = _resolve_step_by_spec(result, depends_on)
+
+    produced = _produced_values(producer, via)
+    consumed = _consumed_values(consumer)
+
+    for p in produced:
+        # A produced value flows when it equals a consumed value, or
+        # (for containers) any of its leaves appears inside a consumed
+        # value.
+        candidates: list = []
+        if isinstance(p, (str, int, float, bool)) or p is None:
+            candidates.append(p)
+        else:
+            candidates.extend(_leaves(p))
+            candidates.append(p)  # also try direct equality with the container
+        for cand in candidates:
+            for c in consumed:
+                if _value_matches(cand, c):
+                    return
+
+    raise StepDependencyError(
+        step=consumer.index,
+        depends_on=producer.index,
+        via=via,
+        produced=produced,
+        consumed=consumed,
+    )
+
+
+def _resolve_step_by_spec(result: ExecutionResult, spec: int | str):
+    """Resolve a step spec (int index or str name) into a Step."""
+    if isinstance(spec, int):
+        return _resolve_step(result, step=spec, name=None)
+    if isinstance(spec, str):
+        return _resolve_step(result, step=None, name=spec)
+    raise TypeError(
+        f"step spec must be int or str, got {type(spec).__name__}"
+    )
+
+
+def _produced_values(step_obj, via: str) -> list:
+    """Collect values produced by a step that downstream steps might use."""
+    produced: list = []
+    if via in ("tool_result", "any"):
+        produced.extend(step_obj.tool_results)
+        for tc in step_obj.tool_calls:
+            if tc.result is not None:
+                produced.append(tc.result)
+    if via in ("output", "any"):
+        if step_obj.output is not None:
+            produced.append(step_obj.output)
+    return produced
+
+
+def _consumed_values(step_obj) -> list:
+    """Collect values that a step consumed as input."""
+    consumed: list = []
+    if step_obj.input_context is not None:
+        consumed.append(step_obj.input_context)
+    for tc in step_obj.tool_calls:
+        consumed.append(tc.arguments)
+    return consumed
+
+
+def _value_matches(produced, consumed) -> bool:
+    """Return True when ``produced`` appears inside ``consumed``.
+
+    - Direct equality always matches.
+    - String produced in string consumed → substring match.
+    - String produced in any other consumed → substring match on a
+      JSON/repr serialization of ``consumed``.
+    - Non-string produced values are only matched via direct equality
+      (callers are expected to pass leaves via :func:`_leaves`).
+    """
+    if produced == consumed:
+        return True
+
+    if isinstance(produced, str):
+        if not produced:
+            return False
+        if isinstance(consumed, str):
+            return produced in consumed
+        serialized = _stringify(consumed)
+        return produced in serialized
+
+    return False
+
+
+def _stringify(value) -> str:
+    """Serialize a nested value into a string for substring search.
+
+    Falls back to ``repr`` if JSON serialization fails (e.g. circular
+    references or non-serializable types with no default handler).
+    """
+    try:
+        return json.dumps(value, default=str, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def _leaves(value):
+    """Yield leaf (non-container) values from a nested structure."""
+    if isinstance(value, dict):
+        for v in value.values():
+            yield from _leaves(v)
+    elif isinstance(value, (list, tuple)):
+        for v in value:
+            yield from _leaves(v)
+    else:
+        yield value

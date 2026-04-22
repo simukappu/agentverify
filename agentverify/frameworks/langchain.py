@@ -1,39 +1,20 @@
 """LangChain adapter for agentverify.
 
 Converts a LangChain ``AgentExecutor`` output dict into an agentverify
-``ExecutionResult`` without requiring a custom converter function.
+``ExecutionResult``.
 
-Usage::
-
-    from agentverify.adapters.langchain import from_langchain
-
-    result = agent_executor.invoke({"input": "Triage the issues"})
-    execution_result = from_langchain(result)
-
-The LangChain AgentExecutor returns the following structure:
-
-- ``result["output"]``: Final response text.
-- ``result["intermediate_steps"]``: List of ``(AgentAction, observation)``
-  tuples recording the tool call history.
-
-Token consumption is not included in the AgentExecutor output dict.
-To capture token usage, pass the conversation history ``messages`` list
-separately; ``AIMessage.usage_metadata`` will be aggregated.
-
-Conversion mapping::
-
-    intermediate_steps[*][0].tool        -> tool_calls[*].name
-    intermediate_steps[*][0].tool_input  -> tool_calls[*].arguments
-    AIMessage.usage_metadata.input_tokens  -> token_usage.input_tokens
-    AIMessage.usage_metadata.output_tokens -> token_usage.output_tokens
-    output                               -> final_output
+Step boundary: **each ``(AgentAction, observation)`` tuple in
+``intermediate_steps`` becomes one step** (``source="llm"``).  The
+observation is attached as the step's sole ``tool_results`` entry.
+The final ``output`` of the executor is set on the
+``ExecutionResult.final_output`` field (not on the last step).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from agentverify.models import ExecutionResult, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
 
 
 def from_langchain(
@@ -47,33 +28,30 @@ def from_langchain(
         messages: LangChain conversation history message list (optional).
             Used to aggregate token consumption from
             ``AIMessage.usage_metadata``.
-
-    Returns:
-        An ``ExecutionResult`` containing tool calls, token usage,
-        and final output text extracted from the LangChain result.
     """
-    # --- Extract tool calls ---
-    tool_calls: list[ToolCall] = []
-
-    for action, _observation in result.get("intermediate_steps", []):
+    steps: list[Step] = []
+    for i, (action, observation) in enumerate(
+        result.get("intermediate_steps", [])
+    ):
         arguments = (
             action.tool_input if isinstance(action.tool_input, dict) else {}
         )
-        tool_calls.append(
-            ToolCall(
-                name=action.tool,
-                arguments=arguments,
+        steps.append(
+            Step(
+                index=i,
+                source="llm",
+                tool_calls=[ToolCall(name=action.tool, arguments=arguments)],
+                tool_results=[observation],
             )
         )
 
-    # --- Extract token usage ---
-    token_usage = None
+    # Token usage — aggregated from AIMessage.usage_metadata across
+    # conversation history (not per-step).
+    token_usage: TokenUsage | None = None
     if messages:
         total_input = 0
         total_output = 0
         for msg in messages:
-            # Only AIMessage instances carry usage_metadata.
-            # Use duck-typing to avoid hard dependency on langchain_core.
             usage = getattr(msg, "usage_metadata", None)
             if usage:
                 total_input += usage.get("input_tokens", 0)
@@ -84,9 +62,8 @@ def from_langchain(
                 output_tokens=total_output,
             )
 
-    # --- Extract final output text ---
     return ExecutionResult(
-        tool_calls=tool_calls,
+        steps=steps,
         token_usage=token_usage,
         final_output=result.get("output"),
     )

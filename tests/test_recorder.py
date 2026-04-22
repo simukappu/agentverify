@@ -532,3 +532,191 @@ class TestRecorderSanitize:
         rec = LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.RECORD)
         assert rec._sanitize_patterns is not None
         assert len(rec._sanitize_patterns) > 0
+
+
+
+# ---------------------------------------------------------------------------
+# step_probe integration with LLMCassetteRecorder (v0.3.0)
+# ---------------------------------------------------------------------------
+
+
+from agentverify import step_probe
+from agentverify.cassette.recorder import _build_execution_result, _request_to_context
+
+
+class TestRecorderProbeIntegration:
+    def _make_recorder(self, tmp_path, cassette_file, provider="openai"):
+        return LLMCassetteRecorder(
+            cassette_path=tmp_path / cassette_file,
+            mode=CassetteMode.AUTO,
+            provider=provider,
+        )
+
+    def test_probe_events_recorded(self, tmp_path):
+        """Probe events go through the recorder's ProbeSession protocol."""
+        rec = LLMCassetteRecorder(
+            cassette_path=tmp_path / "unused.yaml",
+            mode=CassetteMode.AUTO,
+            provider="openai",
+        )
+        with rec:
+            with step_probe("outer") as p:
+                p.set_tool_result({"x": 1})
+                with step_probe("inner"):
+                    pass
+
+        # Should have recorded 4 probe events (2 enter + 2 exit)
+        assert len(rec._probe_events) == 4
+        kinds = [e[0] for e in rec._probe_events]
+        assert kinds == ["enter", "enter", "exit", "exit"]
+
+    def test_probe_without_llm_results_in_standalone_step(self, tmp_path):
+        """A probe with no LLM call emits a standalone probe step."""
+        rec = LLMCassetteRecorder(
+            cassette_path=tmp_path / "unused.yaml",
+            mode=CassetteMode.AUTO,
+            provider="openai",
+        )
+        with rec:
+            with step_probe("cache_lookup", output="miss"):
+                pass
+
+        result = rec.to_execution_result()
+        names = [s.name for s in result.steps]
+        assert "cache_lookup" in names
+
+    def test_request_to_context_none(self):
+        """_request_to_context returns None for None."""
+        assert _request_to_context(None) is None
+
+
+class TestBuildExecutionResultEdgeCases:
+    def test_build_with_no_probe_stack(self):
+        """_build_execution_result works with an empty probe_stacks list."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        req = NormalizedRequest(messages=[], model="gpt-4")
+        resp = NormalizedResponse(content="hi")
+
+        result = _build_execution_result(
+            interactions=[(req, resp)],
+            probe_stacks=[],  # missing stacks — falls back to empty
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=10.0,
+        )
+        assert len(result.steps) == 1
+        assert result.steps[0].output == "hi"
+
+    def test_build_merges_probe_token_usage(self):
+        """Multiple responses inside same probe accumulate token usage."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify import TokenUsage
+
+        req = NormalizedRequest(messages=[], model="gpt-4")
+        r1 = NormalizedResponse(content=None, token_usage=TokenUsage(input_tokens=10, output_tokens=5))
+        r2 = NormalizedResponse(content="done", token_usage=TokenUsage(input_tokens=20, output_tokens=7))
+
+        # Both inside probe id=1 (innermost).
+        result = _build_execution_result(
+            interactions=[(req, r1), (req, r2)],
+            probe_stacks=[[1], [1]],
+            probe_events=[
+                ("enter", 1, "thinking", None),
+                ("exit", 1, None, None),
+            ],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert len(result.steps) == 1
+        assert result.steps[0].name == "thinking"
+        assert result.steps[0].token_usage.input_tokens == 30
+        assert result.steps[0].token_usage.output_tokens == 12
+
+    def test_build_unfinished_probe_skipped(self):
+        """A probe that never exited is not emitted as a standalone step."""
+        result = _build_execution_result(
+            interactions=[],
+            probe_stacks=[],
+            probe_events=[("enter", 1, "partial", None)],  # no matching exit
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps == []
+
+    def test_build_probe_not_in_any_stack_but_has_exit(self):
+        """Probe with exit but handle never seen in any stack becomes standalone."""
+        result = _build_execution_result(
+            interactions=[],
+            probe_stacks=[],
+            probe_events=[
+                ("enter", 1, "foo", None),
+                ("exit", 1, None, "out"),
+            ],
+            probe_tool_results={1: ["tool-r"]},
+            duration_ms=None,
+        )
+        assert len(result.steps) == 1
+        assert result.steps[0].name == "foo"
+        assert result.steps[0].output == "out"
+        assert result.steps[0].tool_results == ["tool-r"]
+
+
+
+class TestBuildExecutionResultProbeMerge:
+    def test_probe_first_response_no_tokens_second_has_tokens(self):
+        """Within a probe, first response has no tokens; second brings tokens."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify import TokenUsage
+
+        req = NormalizedRequest(messages=[], model="gpt-4")
+        r1 = NormalizedResponse(content=None, token_usage=None)
+        r2 = NormalizedResponse(content="done", token_usage=TokenUsage(input_tokens=5, output_tokens=3))
+
+        result = _build_execution_result(
+            interactions=[(req, r1), (req, r2)],
+            probe_stacks=[[1], [1]],
+            probe_events=[
+                ("enter", 1, "p", None),
+                ("exit", 1, None, None),
+            ],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert len(result.steps) == 1
+        assert result.steps[0].token_usage.input_tokens == 5
+
+    def test_probe_exit_without_enter_ignored(self, tmp_path):
+        """Lone probe_exit without a matching enter doesn't crash."""
+        rec = LLMCassetteRecorder(
+            cassette_path=tmp_path / "nonexistent-av-test.yaml",
+            mode=CassetteMode.AUTO,
+            provider="openai",
+        )
+        # Simulate orphan exit event — should not raise.
+        rec.probe_exit(handle_id=999, output=None)
+
+
+
+class TestBuildExecutionResultProbeOrphanExit:
+    def test_exit_event_without_enter_ignored(self):
+        """An exit event for an unknown handle_id is ignored."""
+        result = _build_execution_result(
+            interactions=[],
+            probe_stacks=[],
+            probe_events=[("exit", 999, None, "orphan")],  # no matching enter
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps == []
+
+    def test_unknown_event_kind_ignored(self):
+        """An unexpected event kind falls through the kind switch."""
+        result = _build_execution_result(
+            interactions=[],
+            probe_stacks=[],
+            probe_events=[("bogus", 1, "name", None)],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps == []

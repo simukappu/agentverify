@@ -34,7 +34,7 @@ from agentverify.cassette.adapters.base import (
 )
 from agentverify.cassette.recorder import _resolve_provider
 from agentverify.errors import CassetteMissingRequestError
-from agentverify.models import ExecutionResult, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
 
 
 def mock_response(
@@ -130,6 +130,12 @@ class MockLLM:
         # on each ``lookup()`` so that ``to_execution_result`` can inspect
         # which requests actually ran.
         self._interactions: list[tuple[NormalizedRequest, NormalizedResponse]] = []
+        # Probe event tracking — mirrors LLMCassetteRecorder.
+        self._probe_events: list[tuple[str, int, str | None, Any]] = []
+        self._probe_tool_results: dict[int, list[Any]] = {}
+        self._interaction_probe_stack: list[list[int]] = []
+        self._next_probe_handle_id: int = 0
+        self._current_probe_stack: list[int] = []
         self._replay_index: int = 0
         self._patch_ctx: Any = None
         self._start_time: float | None = None
@@ -138,8 +144,12 @@ class MockLLM:
     # -- Context manager -----------------------------------------------------
 
     def __enter__(self) -> MockLLM:
+        from agentverify.probe import _activate_session
+
         self._patch_ctx = self._adapter.patch(self)
         self._patch_ctx.__enter__()
+        self._probe_ctx = _activate_session(self)
+        self._probe_ctx.__enter__()
         self._start_time = time.monotonic()
         return self
 
@@ -147,9 +157,31 @@ class MockLLM:
         if self._start_time is not None:
             self._duration_ms = (time.monotonic() - self._start_time) * 1000
             self._start_time = None
+        if getattr(self, "_probe_ctx", None) is not None:
+            self._probe_ctx.__exit__(*args)
+            self._probe_ctx = None
         if self._patch_ctx is not None:
             self._patch_ctx.__exit__(*args)
             self._patch_ctx = None
+
+    # -- ProbeSession protocol ----------------------------------------------
+
+    def probe_enter(self, name: str) -> int:
+        handle_id = self._next_probe_handle_id
+        self._next_probe_handle_id += 1
+        self._probe_events.append(("enter", handle_id, name, None))
+        self._current_probe_stack.append(handle_id)
+        return handle_id
+
+    def probe_exit(self, handle_id: int, output: Any) -> None:
+        self._probe_events.append(("exit", handle_id, None, output))
+        try:
+            self._current_probe_stack.remove(handle_id)
+        except ValueError:
+            pass
+
+    def probe_attach_tool_result(self, handle_id: int, result: Any) -> None:
+        self._probe_tool_results.setdefault(handle_id, []).append(result)
 
     # -- Protocol expected by adapter.patch() -------------------------------
 
@@ -169,60 +201,24 @@ class MockLLM:
 
         response = self._responses[self._replay_index]
         self._interactions.append((request, response))
+        self._interaction_probe_stack.append(list(self._current_probe_stack))
         self._replay_index += 1
         return response
-
-    def record(
-        self, request: NormalizedRequest, response: NormalizedResponse
-    ) -> None:
-        """MockLLM is replay-only. Record calls are silently ignored.
-
-        Some adapters call ``record()`` after a real HTTP fallback;
-        MockLLM never falls back, so this should not normally execute.
-        """  # pragma: no cover — defensive
 
     # -- Result construction -------------------------------------------------
 
     def to_execution_result(self) -> ExecutionResult:
-        """Build an :class:`ExecutionResult` from the mocked interactions."""
-        tool_calls: list[ToolCall] = []
-        total_input = 0
-        total_output = 0
-        has_token_usage = False
-        final_output: str | None = None
+        """Build an :class:`ExecutionResult` from the mocked interactions.
 
-        for _, resp in self._interactions:
-            if resp.tool_calls:
-                for tc in resp.tool_calls:
-                    arguments = tc.get("arguments", {})
-                    if isinstance(arguments, str):
-                        import json
+        Behaves identically to :class:`LLMCassetteRecorder` with respect
+        to ``step_probe`` handling.
+        """
+        from agentverify.cassette.recorder import _build_execution_result
 
-                        try:
-                            arguments = json.loads(arguments)
-                        except (json.JSONDecodeError, ValueError):
-                            arguments = {}
-                    tool_calls.append(
-                        ToolCall(name=tc["name"], arguments=arguments)
-                    )
-
-            if resp.token_usage is not None:
-                has_token_usage = True
-                total_input += resp.token_usage.input_tokens
-                total_output += resp.token_usage.output_tokens
-
-            if resp.content is not None:
-                final_output = resp.content
-
-        token_usage = (
-            TokenUsage(input_tokens=total_input, output_tokens=total_output)
-            if has_token_usage
-            else None
-        )
-
-        return ExecutionResult(
-            tool_calls=tool_calls,
-            token_usage=token_usage,
-            final_output=final_output,
+        return _build_execution_result(
+            interactions=self._interactions,
+            probe_stacks=self._interaction_probe_stack,
+            probe_events=self._probe_events,
+            probe_tool_results=self._probe_tool_results,
             duration_ms=self._duration_ms,
         )

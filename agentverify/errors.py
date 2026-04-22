@@ -23,10 +23,14 @@ class ToolCallSequenceError(AgentVerifyError):
         expected: list[Any],
         actual: list[Any],
         first_mismatch_index: int,
+        step_index: int | None = None,
+        step_name: str | None = None,
     ) -> None:
         self.expected = expected
         self.actual = actual
         self.first_mismatch_index = first_mismatch_index
+        self.step_index = step_index
+        self.step_name = step_name
         super().__init__(self._build_message())
 
     def _format_tool_call(self, tc: Any) -> str:
@@ -40,7 +44,15 @@ class ToolCallSequenceError(AgentVerifyError):
 
     def _build_message(self) -> str:
         idx = self.first_mismatch_index
-        lines = [f"Tool call sequence mismatch at index {idx}", ""]
+        header = f"Tool call sequence mismatch at index {idx}"
+        if self.step_index is not None or self.step_name is not None:
+            parts: list[str] = []
+            if self.step_index is not None:
+                parts.append(f"step {self.step_index}")
+            if self.step_name is not None:
+                parts.append(f"name={self.step_name!r}")
+            header = f"Tool call sequence mismatch at index {idx} ({', '.join(parts)})"
+        lines = [header, ""]
 
         lines.append("Expected:")
         for i, tc in enumerate(self.expected):
@@ -207,3 +219,86 @@ class CassetteRequestMismatchError(AgentVerifyError):
             f"\n"
             f"  The cassette may be stale. Re-record with --cassette-mode=record."
         )
+
+
+class StepIndexError(AgentVerifyError):
+    """Raised when a step index is out of range."""
+
+    def __init__(self, step: int, total_steps: int) -> None:
+        self.step = step
+        self.total_steps = total_steps
+        super().__init__(
+            f"Step index {step} is out of range (result has {total_steps} step{'s' if total_steps != 1 else ''})"
+        )
+
+
+class StepNameNotFoundError(AgentVerifyError):
+    """Raised when no step with the given name exists."""
+
+    def __init__(self, name: str, available_names: list[str]) -> None:
+        self.name = name
+        self.available_names = available_names
+        named = [n for n in available_names if n is not None]
+        hint = (
+            f"  Available step names: {named}"
+            if named
+            else "  No steps in this result have names."
+        )
+        super().__init__(
+            f"No step named {name!r} in execution result\n\n{hint}"
+        )
+
+
+class StepNameAmbiguousError(AgentVerifyError):
+    """Raised when multiple steps share the same name."""
+
+    def __init__(self, name: str, indices: list[int]) -> None:
+        self.name = name
+        self.indices = indices
+        super().__init__(
+            f"Step name {name!r} is ambiguous — matches {len(indices)} steps at indices {indices}.\n"
+            f"\n"
+            f"  Use `step=<index>` instead of `name=...` to disambiguate."
+        )
+
+
+class StepOutputError(AgentVerifyError):
+    """Raised when a step's intermediate output does not match expectations."""
+
+    pass
+
+
+class StepDependencyError(AgentVerifyError):
+    """Raised when no data flow is detected between two steps."""
+
+    def __init__(
+        self,
+        step: int,
+        depends_on: int,
+        via: str,
+        produced: list[Any],
+        consumed: list[Any],
+    ) -> None:
+        self.step = step
+        self.depends_on = depends_on
+        self.via = via
+        self.produced = produced
+        self.consumed = consumed
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        lines = [
+            f"No data flow detected from step {self.depends_on} to step {self.step}",
+            "",
+            f"  via: {self.via}",
+            f"  step {self.depends_on} produced: {self._truncate_list(self.produced)}",
+            f"  step {self.step} consumed:  {self._truncate_list(self.consumed)}",
+        ]
+        return "\n".join(lines)
+
+    @staticmethod
+    def _truncate_list(values: list[Any], limit: int = 200) -> str:
+        repr_str = repr(values)
+        if len(repr_str) > limit:
+            return repr_str[:limit] + "…"
+        return repr_str

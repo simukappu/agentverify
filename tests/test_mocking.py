@@ -243,3 +243,5 @@ class TestMockLLMEndToEnd:
             result, expected=[ToolCall("get_weather", {"city": "Tokyo"})]
         )
         assert_cost(result, max_tokens=30)
+
+

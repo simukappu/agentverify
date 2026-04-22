@@ -109,7 +109,20 @@ class TestExecutionResult:
             duration_ms=42.0,
         )
         d = r.to_dict()
-        assert d["tool_calls"] == [{"name": "x", "arguments": {"k": "v"}, "result": "r"}]
+        # v0.3.0 schema: steps is the single source; tool_calls is a derived property
+        assert d["steps"] == [
+            {
+                "index": 0,
+                "name": None,
+                "source": "llm",
+                "tool_calls": [{"name": "x", "arguments": {"k": "v"}, "result": "r"}],
+                "tool_results": [],
+                "output": None,
+                "duration_ms": None,
+                "token_usage": None,
+                "input_context": None,
+            }
+        ]
         assert d["token_usage"] == {"input_tokens": 10, "output_tokens": 5}
         assert d["total_cost_usd"] == 0.02
         assert d["final_output"] == "out"
@@ -140,3 +153,116 @@ class TestExecutionResult:
         assert restored.token_usage.input_tokens == original.token_usage.input_tokens
         assert restored.total_cost_usd == original.total_cost_usd
         assert restored.final_output == original.final_output
+
+
+
+# ---------------------------------------------------------------------------
+# Step and v0.3.0 ExecutionResult behaviour
+# ---------------------------------------------------------------------------
+
+
+from agentverify import Step
+
+
+class TestStep:
+    def test_to_dict_round_trip(self):
+        s = Step(
+            index=2,
+            name="plan",
+            source="probe",
+            tool_calls=[ToolCall(name="x", arguments={"k": 1}, result="r")],
+            tool_results=[{"result": "ok"}],
+            output="text",
+            duration_ms=12.5,
+            token_usage=TokenUsage(input_tokens=3, output_tokens=7),
+            input_context={"messages": [{"content": "hi"}]},
+        )
+        d = s.to_dict()
+        restored = Step.from_dict(d)
+        assert restored.index == 2
+        assert restored.name == "plan"
+        assert restored.source == "probe"
+        assert restored.tool_calls[0].name == "x"
+        assert restored.tool_results == [{"result": "ok"}]
+        assert restored.output == "text"
+        assert restored.duration_ms == 12.5
+        assert restored.token_usage.input_tokens == 3
+        assert restored.input_context == {"messages": [{"content": "hi"}]}
+
+    def test_from_dict_rejects_invalid_source(self):
+        with pytest.raises(ValueError, match="source"):
+            Step.from_dict({"index": 0, "source": "bogus"})
+
+    def test_from_dict_rejects_tool_call_without_name(self):
+        with pytest.raises(ValueError, match="name"):
+            Step.from_dict({
+                "index": 0,
+                "source": "llm",
+                "tool_calls": [{"arguments": {}}],  # missing 'name'
+            })
+
+    def test_from_dict_with_minimal_input(self):
+        s = Step.from_dict({})
+        assert s.index == 0
+        assert s.source == "llm"
+        assert s.tool_calls == []
+
+
+class TestExecutionResultStepsSingleSource:
+    def test_tool_calls_property_derives_from_steps(self):
+        r = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_calls=[ToolCall("a")]),
+            Step(index=1, source="llm", tool_calls=[ToolCall("b"), ToolCall("c")]),
+        ])
+        assert [tc.name for tc in r.tool_calls] == ["a", "b", "c"]
+
+    def test_from_flat_tool_calls_wraps_into_single_step(self):
+        r = ExecutionResult.from_flat_tool_calls([
+            ToolCall("x"),
+            ToolCall("y"),
+        ])
+        assert len(r.steps) == 1
+        assert [tc.name for tc in r.steps[0].tool_calls] == ["x", "y"]
+
+    def test_constructor_rejects_both_steps_and_tool_calls(self):
+        with pytest.raises(TypeError):
+            ExecutionResult(
+                steps=[Step(index=0, source="llm")],
+                tool_calls=[ToolCall("a")],
+            )
+
+    def test_from_dict_prefers_steps_over_legacy_tool_calls(self):
+        r = ExecutionResult.from_dict({
+            "steps": [{"index": 0, "source": "llm", "tool_calls": [{"name": "x"}]}],
+            "tool_calls": [{"name": "ignored"}],
+        })
+        assert [tc.name for tc in r.tool_calls] == ["x"]
+
+    def test_from_dict_legacy_tool_calls_only(self):
+        r = ExecutionResult.from_dict({
+            "tool_calls": [{"name": "a"}, {"name": "b"}],
+        })
+        assert len(r.steps) == 1
+        assert [tc.name for tc in r.tool_calls] == ["a", "b"]
+
+    def test_from_dict_legacy_tool_calls_rejects_missing_name(self):
+        with pytest.raises(ValueError, match="name"):
+            ExecutionResult.from_dict({
+                "tool_calls": [{"arguments": {}}],
+            })
+
+    def test_from_dict_empty(self):
+        r = ExecutionResult.from_dict({})
+        assert r.steps == []
+        assert r.tool_calls == []
+
+    def test_to_dict_round_trip_with_steps(self):
+        original = ExecutionResult(steps=[
+            Step(index=0, source="probe", name="p", output="x"),
+            Step(index=1, source="llm", tool_calls=[ToolCall("a")]),
+        ])
+        reloaded = ExecutionResult.from_dict(original.to_dict())
+        assert len(reloaded.steps) == 2
+        assert reloaded.steps[0].name == "p"
+        assert reloaded.steps[0].source == "probe"
+        assert reloaded.steps[1].tool_calls[0].name == "a"
