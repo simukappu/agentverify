@@ -15,6 +15,8 @@
 
 - **Numeric-string data flow** in `assert_step_uses_result_from`: tool results returned as strings like `"231317.0"` now correctly match downstream steps that consume them as ints or floats. Uses digit-boundary matching to avoid false positives (e.g. `"231"` no longer matches inside `1231`).
 - **langchain-openai v1.x compatibility** in the OpenAI cassette adapter: intercepts the `with_raw_response.create` code path (which langchain-openai v1.x routes through) and returns a `LegacyAPIResponse`-compatible wrapper on replay. Also unwraps `LegacyAPIResponse` during recording.
+- **AsyncOpenAI client support** in the OpenAI cassette adapter: patches `AsyncCompletions.create` in addition to the sync entry point so agent frameworks that drive the OpenAI SDK through an async client (including OpenAI Agents SDK internals, even when run via the sync `Runner.run_sync`) are recorded and replayed transparently.
+- **Openai sentinel filtering** in the OpenAI cassette adapter: `openai.omit` / `openai.NOT_GIVEN` values passed as keyword arguments (common when native `openai` callers route through the SDK) are now stripped from `tools`, per-message dicts, and extra parameters before they reach the cassette YAML.
 
 ### Breaking Changes
 
