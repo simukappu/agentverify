@@ -6,15 +6,22 @@
 [![Coverage](https://coveralls.io/repos/github/simukappu/agentverify/badge.svg?branch=main)](https://coveralls.io/github/simukappu/agentverify?branch=main)
 [![License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
 
-**pytest for AI agents.** Assert tool calls, not vibes.
+**pytest for AI agents.** Assert agent actions, not vibes.
 
-agentverify is a pytest plugin for deterministic testing of AI agent behavior. Record real LLM calls once, replay them in CI with zero cost, and assert exactly which tools were called, in what order, with what arguments — plus cost budgets and safety guardrails. Framework-agnostic, provider-agnostic, zero LLM cost in CI.
+agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once, replay them in CI with zero cost, and assert exactly what your agent did — which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
 
 ## Why agentverify?
 
-Most AI testing tools evaluate what an LLM *says*. agentverify tests what an agent *does*.
+Prompt engineering and eval frameworks tell you whether an LLM said the right thing. Production agents fail for a different set of reasons: they call the wrong tool, skip a step, hallucinate a parameter that was supposed to come from the previous tool's output, or quietly burn through your token budget. Those are deterministic bugs, and they deserve deterministic tests.
 
-When agents move from prototype to production, the questions change: did the agent call the right tools in the right order? Did it stay within budget? Did it avoid dangerous operations? These are deterministic properties you can assert in CI, the same way you test any other code. Unlike HTTP-level recorders that capture raw network traffic, agentverify records at the LLM SDK level — capturing tool calls, token usage, and model responses as first-class objects you can assert against.
+agentverify records real LLM SDK calls once and replays them in CI with zero cost. On the recording you can assert:
+
+- **Tool call sequences** — exact order, subsequence, or set membership, with regex / wildcard argument matching
+- **Step-level execution** — each LLM call is a step; assert what tool was called at step N, what the step's output was, and that step N's input references data produced by step M
+- **Budgets** — token counts, cost in USD, end-to-end latency
+- **Safety** — a list of tools that must never be called, no matter what the LLM decides
+
+It ships with built-in adapters for LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and supports OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM as LLM providers. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
 
 ## Install
 
@@ -59,7 +66,7 @@ def test_output():
     assert_final_output(result, contains="Tokyo")
 ```
 
-> **Using a real agent framework?** You don't need to build dicts by hand — use a built-in adapter instead. See [Framework Integration](#framework-integration) below.
+> **Using a real agent framework?** The [Real-World Examples](#real-world-examples) below show how to test actual agents with built-in adapters for LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK.
 
 ```
 $ pytest test_agent.py -v
@@ -75,7 +82,7 @@ Two end-to-end examples that showcase different agent patterns and testing angle
 
 ### Strands Weather Forecaster — Two-Step ReAct
 
-Test the [Strands Weather Forecaster](https://strandsagents.com/docs/examples/python/weather_forecaster/) — an official Strands Agents sample that uses the `http_request` tool to fetch weather data from the National Weather Service API.
+Test the [Strands Weather Forecaster](https://strandsagents.com/docs/examples/python/weather_forecaster/) — an official Strands Agents sample. The agent uses the `http_request` tool to call the National Weather Service API, which returns the forecast URL for the requested location; the agent then calls that URL to get the actual forecast. Two steps, one piece of data flowing between them — the simplest shape of a ReAct loop.
 
 ```python
 import pytest
@@ -111,7 +118,7 @@ def test_weather_agent(cassette):
     )
 ```
 
-Want to go deeper? The weather agent is a classic two-step ReAct pattern — `/points/` lookup, then `/forecast/` call using the URL discovered in the first response. Step-level assertions verify that structure and the data flow between steps:
+Want to go deeper? Step-level assertions verify the ReAct structure and the data flow between the two steps:
 
 ```python
 from agentverify import assert_step, assert_step_uses_result_from
@@ -134,57 +141,55 @@ def test_weather_agent_steps(cassette):
     assert_step_uses_result_from(result, step=1, depends_on=0)
 ```
 
-Prefer a live LLM call over a cassette? Use the built-in Strands adapter — see [Framework Integration](#framework-integration). `MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`. Step assertions are covered in [Step-Level Assertions](#step-level-assertions).
+`MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`. Step assertions are covered in [Step-Level Assertions](#step-level-assertions).
 
-### LangChain Issue Triage — Multi-Step with Data Flow
+### LangGraph Multi-Agent Supervisor — Handoff with a Running Total
 
-Test a LangChain agent that triages GitHub issues via the [GitHub MCP server](https://github.com/github/github-mcp-server). The agent runs a four-step plan: list open issues, fetch details for a specific issue, list available labels, then produce a triage summary. Each step consumes data from the previous ones — exactly what `assert_step_uses_result_from` verifies.
+Test a multi-agent workflow built with [langgraph-supervisor](https://github.com/langchain-ai/langgraph-supervisor-py): a supervisor routes a query to a research expert, which calls `web_search`, then to a math expert, which adds up the numbers with a sequence of `add` calls. The interesting property here is the *running total* — each `add` must consume the previous `add`'s result, not a fresh number pulled out of thin air.
 
 ```python
 import pytest
 from agentverify import (
-    ANY, ToolCall,
-    assert_step, assert_step_output, assert_step_uses_result_from,
+    ToolCall,
+    assert_step, assert_step_uses_result_from,
 )
+from agentverify.frameworks.langgraph import from_langgraph
+
+# Import the supervisor from the example
+# (see examples/langgraph-multi-agent-supervisor/)
+from agent import run_supervisor
+
 
 @pytest.mark.agentverify
-def test_issue_triage_steps(cassette):
-    with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-        pass  # cassette replay
+def test_supervisor_running_total(cassette):
+    """The math expert must accumulate — each add step must consume the previous one's result."""
+    with cassette("supervisor_faang.yaml", provider="openai") as rec:
+        raw = run_supervisor(
+            "What's the combined headcount of the FAANG companies in 2024?"
+        )
+    result = from_langgraph(raw)
 
-    result = rec.to_execution_result()
+    # Find the two sequential add steps the math expert emits
+    add_steps = [
+        s for s in result.steps if any(tc.name == "add" for tc in s.tool_calls)
+    ]
 
-    # Step 0: list open issues in the repo
-    assert_step(result, step=0, expected_tool=ToolCall(
-        "list_issues", {"repo": ANY},
-    ), partial_args=True)
-
-    # Step 1: fetch details for a specific issue — using an issue_number
-    # that was returned by step 0's list_issues call
-    assert_step(result, step=1, expected_tool=ToolCall(
-        "get_issue", {"repo": ANY, "issue_number": ANY},
-    ), partial_args=True)
-    assert_step_uses_result_from(result, step=1, depends_on=0)
-
-    # Step 2: list available labels
-    assert_step(result, step=2, expected_tool=ToolCall(
-        "list_labels", {"repo": ANY},
-    ), partial_args=True)
-
-    # Final step (no tool calls) produces the triage summary
-    assert_step_output(result, step=3, contains="Issue Triage Results")
+    # The second add step must consume the first add step's numeric result
+    assert_step_uses_result_from(
+        result, step=add_steps[1].index, depends_on=add_steps[0].index,
+    )
 ```
 
-The interesting assertion here is `assert_step_uses_result_from(result, step=1, depends_on=0)` — it catches the common "agent hallucinated an issue number" bug by verifying that the number passed to `get_issue` actually came from `list_issues`'s response. This works on cassette replay because agentverify automatically backfills tool results from the next step's LLM input — see [Assert step-to-step data flow](#assert-step-to-step-data-flow).
+`assert_step_uses_result_from` catches the "agent dropped the running total and pulled a fresh number" bug — the math expert returns `231317.0` as a tool result string, and the next `add` must consume it as `231317` (int). agentverify matches the numeric value across type boundaries, with digit-boundary checks so `"231"` doesn't falsely match inside `1231`.
 
-See [`examples/langchain-issue-triage/`](examples/langchain-issue-triage/) for the full agent code and the cassette.
+See [`examples/langgraph-multi-agent-supervisor/`](examples/langgraph-multi-agent-supervisor/) for the full workflow (supervisor routing, handoff tool calls, multi-hop data flow) and the cassette.
 
 ## Build an ExecutionResult
 
 Every agentverify assertion takes an `ExecutionResult`. You can build one three ways:
 
 1. **From a dict** — convenient for quick tests and fixtures, as in the [Quick Start](#quick-start--no-llm-required).
-2. **From a built-in adapter** — one-liner for Strands Agents, LangChain, LangGraph, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
+2. **From a built-in adapter** — one-liner for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
 3. **From a custom converter** — for other frameworks, map your output to the schema below. See [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for a ~50-line reference implementation.
 
 `ExecutionResult.from_dict()` accepts these keys:
@@ -391,6 +396,8 @@ For agents that make multiple LLM calls per execution (ReAct, Plan-and-Execute, 
 
 `ExecutionResult.steps` is the single source of truth; `result.tool_calls` remains as a derived flat view for simpler cases.
 
+> The [Real-World Examples](#real-world-examples) above show `assert_step` and `assert_step_uses_result_from` in action on Strands and LangGraph. This section covers the full API.
+
 ```python
 from agentverify import assert_step, assert_step_output, ToolCall, MATCHES
 
@@ -471,17 +478,10 @@ agentverify ships with built-in adapters for popular agent frameworks. No conver
 
 | Framework | Adapter | Input |
 |---|---|---|
-| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
 | [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | `AgentExecutor.invoke()` dict |
 | [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` result dict |
+| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
-
-```python
-from agentverify.frameworks.strands import from_strands
-
-result = agent("Analyze the files")
-execution_result = from_strands(result)
-```
 
 For LangChain, pass the conversation history `messages` list as a second argument to capture token usage:
 
@@ -489,6 +489,19 @@ For LangChain, pass the conversation history `messages` list as a second argumen
 from agentverify.frameworks.langchain import from_langchain
 
 execution_result = from_langchain(result, messages=memory.chat_memory.messages)
+```
+
+LangGraph and Strands adapters take the raw agent output directly:
+
+```python
+from agentverify.frameworks.langgraph import from_langgraph
+from agentverify.frameworks.strands import from_strands
+
+# LangGraph: create_react_agent / create_supervisor result
+execution_result = from_langgraph(app.invoke({"messages": [...]}))
+
+# Strands: agent call result
+execution_result = from_strands(weather_agent("What's the weather in Seattle?"))
 ```
 
 ### Custom Converters
@@ -564,7 +577,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev]"
+      - run: pip install "agentverify[all]"
+      - run: pip install -r requirements.txt  # your project's deps
       - run: pytest --tb=short -v
 ```
 
@@ -594,7 +608,15 @@ LatencyBudgetError: Latency budget exceeded
   Exceeded by: 450.0 ms (15.0%)
 ```
 
-Other error types follow the same pattern: `CostBudgetError`, `SafetyRuleViolationError`, `FinalOutputError`.
+```
+CostBudgetError: Token budget exceeded
+
+  Actual:  1,100 tokens
+  Limit:   1,000 tokens
+  Exceeded by: 100 tokens (10.0%)
+```
+
+Other error types follow the same pattern: `SafetyRuleViolationError`, `FinalOutputError`.
 
 ## Requirements
 
@@ -607,9 +629,9 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 
 | Example | Framework | Description |
 |---|---|---|
-| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Fetches weather via HTTP, verifies tool sequence and safety |
-| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP |
-| [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with step-level data flow |
+| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP, step-level data flow for the discovered issue number |
+| [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with running-total data flow |
+| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it |
 | [`mcp-server`](examples/mcp-server/) | — | Mock GitHub MCP server for token-free testing |
 
 See each example's README for setup and recording mode details.
