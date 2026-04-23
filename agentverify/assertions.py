@@ -7,6 +7,7 @@ cost/token budgets, safety guardrails, and batch assertion execution.
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable, Optional
 
 from agentverify.errors import (
@@ -678,6 +679,16 @@ def _value_matches(produced, consumed) -> bool:
     if isinstance(produced, str):
         if not produced:
             return False
+        # For numeric-literal strings, use boundary-aware matching so
+        # e.g. ``"231"`` does not falsely appear inside ``1231``.
+        numeric_variants = _numeric_string_variants(produced)
+        if numeric_variants:
+            target = consumed if isinstance(consumed, str) else _stringify(consumed)
+            for needle in numeric_variants:
+                if _contains_number(target, needle):
+                    return True
+            return False
+
         if isinstance(consumed, str):
             return produced in consumed
         serialized = _stringify(consumed)
@@ -691,6 +702,40 @@ def _value_matches(produced, consumed) -> bool:
         return needle in serialized
 
     return False
+
+
+_NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
+
+
+def _numeric_string_variants(value: str) -> list[str]:
+    """Return alternative string representations for a numeric literal.
+
+    E.g. ``"231317.0"`` → ``["231317.0", "231317"]`` so substring
+    searches match both ``"a": 231317`` (int-encoded) and
+    ``"a": 231317.0`` (float-encoded) downstream forms.
+    """
+    stripped = value.strip()
+    if not _NUMERIC_PATTERN.match(stripped):
+        return []
+    variants: list[str] = [stripped]
+    # Once the regex matches, ``float`` parsing is guaranteed to succeed.
+    as_float = float(stripped)
+    if as_float.is_integer():
+        as_int = int(as_float)
+        if str(as_int) != stripped:
+            variants.append(str(as_int))
+    return variants
+
+
+def _contains_number(target: str, needle: str) -> bool:
+    """Substring search with word boundaries on digit/sign boundaries.
+
+    Avoids false positives like ``"231"`` matching inside ``"1231"``.
+    """
+    if not needle:
+        return False
+    pattern = rf"(?<![\d.]){re.escape(needle)}(?![\d])"
+    return re.search(pattern, target) is not None
 
 
 def _stringify(value) -> str:

@@ -1086,3 +1086,102 @@ class TestAssertStepUsesResultFromPrimitiveProduced:
         ])
         with pytest.raises(StepDependencyError):
             assert_step_uses_result_from(result, step=1, depends_on=0)
+
+# ---------------------------------------------------------------------------
+# Numeric-string dataflow (added in v0.3.x for the LangGraph multi-agent
+# supervisor example, where tool results arrive as strings like "231317.0"
+# but downstream steps consume them as ints.)
+# ---------------------------------------------------------------------------
+
+
+class TestAssertStepUsesResultFromNumericString:
+    def test_numeric_string_result_matches_int_consumed(self):
+        """A tool result serialized as ``"231317.0"`` should match when
+        the next step consumes ``231317`` as an int.
+        """
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_results=["231317.0"]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("add", {"a": 231317, "b": 1551000}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_numeric_string_result_matches_float_consumed(self):
+        """``"231317.0"`` also matches a float-encoded downstream arg."""
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_results=["231317.0"]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("add", {"a": 231317.0, "b": 1551000.0}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_numeric_string_does_not_match_substring_of_larger_number(self):
+        """A ``"231"`` produced value must not falsely match ``1231``."""
+        from agentverify.errors import StepDependencyError
+
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_results=["231"]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("x", {"v": 1231}),
+            ]),
+        ])
+        with pytest.raises(StepDependencyError):
+            assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_non_numeric_string_unchanged(self):
+        """Non-numeric strings follow the regular substring-match path."""
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_results=["hello world"]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("echo", {"msg": "hello world, friend"}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_numeric_string_in_plain_string_consumed(self):
+        """Numeric string produced matches the same numeric value
+        appearing inside a plain string consumed argument.
+        """
+        result = ExecutionResult(steps=[
+            Step(index=0, source="llm", tool_results=["231317.0"]),
+            Step(index=1, source="llm", tool_calls=[
+                ToolCall("log", {"msg": "sum so far: 231317"}),
+            ]),
+        ])
+        assert_step_uses_result_from(result, step=1, depends_on=0)
+
+    def test_numeric_variants_helper_negative(self):
+        """``_numeric_string_variants`` returns [] for non-numeric input."""
+        from agentverify.assertions import _numeric_string_variants
+
+        assert _numeric_string_variants("hello") == []
+        assert _numeric_string_variants("") == []
+        assert _numeric_string_variants("12.3.4") == []
+
+    def test_numeric_variants_helper_negative_numbers(self):
+        """Negative numbers are recognized as numeric literals."""
+        from agentverify.assertions import _numeric_string_variants
+
+        assert _numeric_string_variants("-42") == ["-42"]
+        assert _numeric_string_variants("-42.0") == ["-42.0", "-42"]
+
+    def test_numeric_variants_helper_non_integer_float(self):
+        """Non-integer floats only keep their original representation."""
+        from agentverify.assertions import _numeric_string_variants
+
+        assert _numeric_string_variants("3.14") == ["3.14"]
+
+    def test_contains_number_rejects_empty_needle(self):
+        """``_contains_number`` handles the empty needle safely."""
+        from agentverify.assertions import _contains_number
+
+        assert _contains_number("123", "") is False
+
+    def test_contains_number_respects_decimal_boundary(self):
+        """``231317`` must not match the middle of ``1231317.9``."""
+        from agentverify.assertions import _contains_number
+
+        assert _contains_number("1231317.9", "231317") is False
+        assert _contains_number("sum 231317, next", "231317") is True
