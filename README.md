@@ -185,7 +185,7 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 
 1. **From a dict** — convenient for quick tests and fixtures, as in the [Quick Start](#quick-start--no-llm-required).
 2. **From a built-in adapter** — one-liner for Strands Agents, LangChain, LangGraph, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
-3. **From a custom converter** — for other frameworks, map your output to the schema below. See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for ~50-line reference implementations.
+3. **From a custom converter** — for other frameworks, map your output to the schema below. See [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for a ~50-line reference implementation.
 
 `ExecutionResult.from_dict()` accepts these keys:
 
@@ -493,7 +493,7 @@ execution_result = from_langchain(result, messages=memory.chat_memory.messages)
 
 ### Custom Converters
 
-For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/strands-file-organizer/converter.py`](examples/strands-file-organizer/converter.py) and [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for ~50-line reference implementations.
+For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for a ~50-line reference implementation.
 
 ## Supported LLM Providers
 
@@ -608,7 +608,6 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 | Example | Framework | Description |
 |---|---|---|
 | [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Fetches weather via HTTP, verifies tool sequence and safety |
-| [`strands-file-organizer`](examples/strands-file-organizer/) | Strands Agents + Bedrock | Scans a directory via Filesystem MCP, suggests organization |
 | [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP |
 | [`mcp-server`](examples/mcp-server/) | — | Mock GitHub MCP server for token-free testing |
 

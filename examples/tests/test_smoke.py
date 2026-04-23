@@ -23,25 +23,24 @@ class TestDirectoryStructure:
         assert (EXAMPLES_DIR / "mcp-server" / "README.md").is_file()
 
     def test_strands_agent(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "agent.py").is_file()
-
-    def test_strands_converter(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "converter.py").is_file()
+        assert (EXAMPLES_DIR / "strands-weather-forecaster" / "weather_agent.py").is_file()
 
     def test_strands_pyproject(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "pyproject.toml").is_file()
-
-    def test_strands_readme(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "README.md").is_file()
+        """strands-weather-forecaster uses the built-in from_strands adapter;
+        it doesn't ship its own pyproject.toml — the parent agentverify
+        [all] extras provide strands-agents.
+        """
+        # No pyproject.toml expected for this example.
+        pass
 
     def test_strands_conftest(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "tests" / "conftest.py").is_file()
+        assert (EXAMPLES_DIR / "strands-weather-forecaster" / "tests" / "conftest.py").is_file()
 
     def test_strands_test_file(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "tests" / "test_file_organizer.py").is_file()
+        assert (EXAMPLES_DIR / "strands-weather-forecaster" / "tests" / "test_weather_forecaster.py").is_file()
 
     def test_strands_cassette(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "tests" / "cassettes" / "file_organizer.yaml").is_file()
+        assert (EXAMPLES_DIR / "strands-weather-forecaster" / "tests" / "cassettes" / "weather_seattle.yaml").is_file()
 
     def test_langchain_agent(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "agent.py").is_file()
@@ -72,7 +71,7 @@ class TestCassetteYamlValidity:
     """Verify cassette files are loadable as YAML with expected keys."""
 
     def test_strands_cassette_yaml(self):
-        path = EXAMPLES_DIR / "strands-file-organizer" / "tests" / "cassettes" / "file_organizer.yaml"
+        path = EXAMPLES_DIR / "strands-weather-forecaster" / "tests" / "cassettes" / "weather_seattle.yaml"
         with open(path) as f:
             data = yaml.safe_load(f)
         assert "metadata" in data
@@ -97,7 +96,10 @@ class TestReadmeFiles:
     """Verify all README.md files exist."""
 
     def test_strands_readme_exists(self):
-        assert (EXAMPLES_DIR / "strands-file-organizer" / "README.md").is_file()
+        # strands-weather-forecaster doesn't ship its own README — it's
+        # documented entirely in the main README's "Real-World Examples"
+        # section. Intentionally a no-op.
+        pass
 
     def test_langchain_readme_exists(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "README.md").is_file()
