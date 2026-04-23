@@ -31,6 +31,7 @@ except ImportError:  # pragma: no cover
     _openai_module = None  # type: ignore[assignment]
 
 _PATCH_TARGET = "openai.resources.chat.completions.Completions.create"
+_ASYNC_PATCH_TARGET = "openai.resources.chat.completions.AsyncCompletions.create"
 
 
 def _ensure_openai_installed() -> None:
@@ -228,7 +229,13 @@ class OpenAIAdapter(LLMProviderAdapter):
 
     @contextmanager
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
-        """Monkey-patch ``openai.resources.chat.completions.Completions.create``.
+        """Monkey-patch OpenAI's sync and async chat completion entry points.
+
+        Patches both ``openai.resources.chat.completions.Completions.create``
+        and ``...AsyncCompletions.create`` so that agents built on either
+        the sync ``OpenAI`` client or the ``AsyncOpenAI`` client (used
+        by, e.g., OpenAI Agents SDK internals even when driven via
+        ``Runner.run_sync``) are recorded and replayed transparently.
 
         In **record** mode the real API is called, the response is normalised,
         recorded into the cassette, and the original response is returned.
@@ -240,67 +247,102 @@ class OpenAIAdapter(LLMProviderAdapter):
 
         adapter = self
 
-        def _patched_create(original_fn):  # type: ignore[no-untyped-def]
-            """Return a wrapper that intercepts ``create()`` calls."""
+        def _is_raw_response_call(kwargs: dict[str, Any]) -> bool:
+            """Detect whether the caller is the ``with_raw_response``
+            wrapper from openai SDK. langchain-openai v1.x routes
+            through this path and expects a ``LegacyAPIResponse``-like
+            object back.
 
-            def _is_raw_response_call(kwargs: dict[str, Any]) -> bool:
-                """Detect whether the caller is the ``with_raw_response``
-                wrapper from openai SDK. langchain-openai v1.x routes
-                through this path and expects a ``LegacyAPIResponse``-like
-                object back.
+            The openai SDK sets ``X-Stainless-Raw-Response`` to a
+            truthy string when routing through ``with_raw_response``;
+            the exact value has varied across SDK versions
+            (``"raw"`` / ``"true"``), so we accept any non-empty value.
+            """
+            extra = kwargs.get("extra_headers") or {}
+            return bool(extra.get("X-Stainless-Raw-Response"))
 
-                The openai SDK sets ``X-Stainless-Raw-Response`` to a
-                truthy string when routing through ``with_raw_response``;
-                the exact value has varied across SDK versions
-                (``"raw"`` / ``"true"``), so we accept any non-empty value.
-                """
-                extra = kwargs.get("extra_headers") or {}
-                return bool(extra.get("X-Stainless-Raw-Response"))
+        def _handle_replay(
+            norm_req: NormalizedRequest, original_fn, args, kwargs, raw_mode: bool
+        ):
+            """Common replay path for sync and async wrappers."""
+            from agentverify.cassette.recorder import OnMissingRequest
 
+            norm_resp = recorder.lookup(norm_req)
+            if norm_resp is None:
+                if recorder.on_missing == OnMissingRequest.FALLBACK:
+                    # Caller handles the fallback call itself; signal miss.
+                    return _REPLAY_MISS
+                from agentverify.errors import CassetteMissingRequestError
+
+                raise CassetteMissingRequestError(
+                    f"No matching cassette entry for request: model={norm_req.model}"
+                )
+            denormalized = adapter.denormalize_response(norm_resp)
+            if raw_mode:
+                return _RawResponseWrapper(denormalized)
+            return denormalized
+
+        def _patched_sync_create(original_fn):  # type: ignore[no-untyped-def]
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
+                from agentverify.cassette.recorder import CassetteMode
 
                 norm_req = adapter.normalize_request(kwargs)
                 raw_mode = _is_raw_response_call(kwargs)
 
                 if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                    # Call the real API and record the interaction
                     response = original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
 
-                # REPLAY mode
-                norm_resp = recorder.lookup(norm_req)
-                if norm_resp is None:
-                    # FALLBACK: call real API when cassette is exhausted
-                    if recorder.on_missing == OnMissingRequest.FALLBACK:
-                        response = original_fn(*args, **kwargs)
-                        norm_resp = adapter.normalize_response(response)
-                        recorder.record(norm_req, norm_resp)
-                        return response
-                    from agentverify.errors import CassetteMissingRequestError
-
-                    raise CassetteMissingRequestError(
-                        f"No matching cassette entry for request: model={norm_req.model}"
-                    )
-                denormalized = adapter.denormalize_response(norm_resp)
-                # When the caller is openai's with_raw_response wrapper
-                # (used by langchain-openai v1.x), wrap the synthesized
-                # ChatCompletion in a LegacyAPIResponse-compatible shell so
-                # the caller's ``raw_response.parse()`` call succeeds.
-                if raw_mode:
-                    return _RawResponseWrapper(denormalized)
-                return denormalized
+                # REPLAY
+                result = _handle_replay(norm_req, original_fn, args, kwargs, raw_mode)
+                if result is _REPLAY_MISS:  # FALLBACK
+                    response = original_fn(*args, **kwargs)
+                    norm_resp = adapter.normalize_response(response)
+                    recorder.record(norm_req, norm_resp)
+                    return response
+                return result
 
             return wrapper
 
-        # Use unittest.mock.patch to ensure clean teardown
-        with patch(
-            _PATCH_TARGET,
-            new=_patched_create(
-                # Grab the real function *before* patching
-                __import__("openai").resources.chat.completions.Completions.create
-            ),
+        def _patched_async_create(original_fn):  # type: ignore[no-untyped-def]
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+                from agentverify.cassette.recorder import CassetteMode
+
+                norm_req = adapter.normalize_request(kwargs)
+                raw_mode = _is_raw_response_call(kwargs)
+
+                if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
+                    response = await original_fn(*args, **kwargs)
+                    norm_resp = adapter.normalize_response(response)
+                    recorder.record(norm_req, norm_resp)
+                    return response
+
+                # REPLAY
+                result = _handle_replay(norm_req, original_fn, args, kwargs, raw_mode)
+                if result is _REPLAY_MISS:  # FALLBACK
+                    response = await original_fn(*args, **kwargs)
+                    norm_resp = adapter.normalize_response(response)
+                    recorder.record(norm_req, norm_resp)
+                    return response
+                return result
+
+            return wrapper
+
+        openai_mod = __import__("openai")
+        sync_original = openai_mod.resources.chat.completions.Completions.create
+        async_original = openai_mod.resources.chat.completions.AsyncCompletions.create
+
+        # Patch both sync and async entry points. ``unittest.mock.patch``
+        # restores the originals on context exit even if the body raises.
+        with patch(_PATCH_TARGET, new=_patched_sync_create(sync_original)), patch(
+            _ASYNC_PATCH_TARGET, new=_patched_async_create(async_original)
         ):
             yield
+
+
+# Sentinel used by the shared replay helper to signal a cassette miss
+# when ``on_missing=FALLBACK`` so the (sync or async) caller can drive
+# the real API call itself.
+_REPLAY_MISS: Any = object()

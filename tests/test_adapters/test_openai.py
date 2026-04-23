@@ -427,3 +427,174 @@ class TestLegacyAPIResponseHandling:
         assert isinstance(wrapped.headers, dict)
         parsed = wrapped.parse()
         assert parsed.choices[0].message.content == "raw-replayed"
+
+
+# ---------------------------------------------------------------------------
+# Async chat-completions patching (AsyncOpenAI clients used by the
+# OpenAI Agents SDK and any async-native agent framework)
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncPatch:
+    """Cover the AsyncCompletions.create patching path."""
+
+    def test_async_record_mode(self, adapter: OpenAIAdapter) -> None:
+        """In RECORD mode, the async path awaits the real call and records it."""
+        from agentverify.cassette.recorder import CassetteMode
+
+        recorder = MagicMock()
+        recorder.mode = CassetteMode.RECORD
+
+        fake_response = _make_openai_response(content="async recorded")
+
+        async def _fake_async_create(*args, **kwargs):  # noqa: ARG001
+            return fake_response
+
+        with unittest_mock_patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new=_fake_async_create,
+        ):
+            with adapter.patch(recorder):
+                import asyncio
+
+                import openai
+
+                async def go():
+                    return await openai.resources.chat.completions.AsyncCompletions.create(
+                        messages=[{"role": "user", "content": "hi"}],
+                        model="gpt-4.1",
+                    )
+
+                result = asyncio.run(go())
+
+        assert result.choices[0].message.content == "async recorded"
+        recorder.record.assert_called_once()
+
+    def test_async_replay_mode(self, adapter: OpenAIAdapter) -> None:
+        """In REPLAY mode, the async path returns the denormalised cassette entry."""
+        from agentverify.cassette.recorder import CassetteMode
+
+        recorder = MagicMock()
+        recorder.mode = CassetteMode.REPLAY
+        recorder.lookup.return_value = NormalizedResponse(
+            content="async replayed",
+            token_usage=TokenUsage(input_tokens=5, output_tokens=3),
+        )
+
+        async def _fake_async_create(*args, **kwargs):  # noqa: ARG001
+            return MagicMock()
+
+        with unittest_mock_patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new=_fake_async_create,
+        ):
+            with adapter.patch(recorder):
+                import asyncio
+
+                import openai
+
+                async def go():
+                    return await openai.resources.chat.completions.AsyncCompletions.create(
+                        messages=[{"role": "user", "content": "hi"}],
+                        model="gpt-4.1",
+                    )
+
+                result = asyncio.run(go())
+
+        assert result.choices[0].message.content == "async replayed"
+        recorder.lookup.assert_called_once()
+
+    def test_async_replay_missing_raises(self, adapter: OpenAIAdapter) -> None:
+        """In REPLAY mode, cassette miss on the async path raises CassetteMissingRequestError."""
+        from agentverify.cassette.recorder import CassetteMode
+        from agentverify.errors import CassetteMissingRequestError
+
+        recorder = MagicMock()
+        recorder.mode = CassetteMode.REPLAY
+        recorder.lookup.return_value = None
+
+        async def _fake_async_create(*args, **kwargs):  # noqa: ARG001
+            return MagicMock()
+
+        with unittest_mock_patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new=_fake_async_create,
+        ):
+            with adapter.patch(recorder):
+                import asyncio
+
+                import openai
+
+                async def go():
+                    return await openai.resources.chat.completions.AsyncCompletions.create(
+                        messages=[{"role": "user", "content": "hi"}],
+                        model="gpt-4.1",
+                    )
+
+                with pytest.raises(CassetteMissingRequestError):
+                    asyncio.run(go())
+
+    def test_async_replay_fallback(self, adapter: OpenAIAdapter) -> None:
+        """In REPLAY mode with FALLBACK, the async path re-runs the real call and records it."""
+        from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
+
+        recorder = MagicMock()
+        recorder.mode = CassetteMode.REPLAY
+        recorder.lookup.return_value = None
+        recorder.on_missing = OnMissingRequest.FALLBACK
+
+        fake_response = _make_openai_response(content="async fallback")
+
+        async def _fake_async_create(*args, **kwargs):  # noqa: ARG001
+            return fake_response
+
+        with unittest_mock_patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new=_fake_async_create,
+        ):
+            with adapter.patch(recorder):
+                import asyncio
+
+                import openai
+
+                async def go():
+                    return await openai.resources.chat.completions.AsyncCompletions.create(
+                        messages=[{"role": "user", "content": "hi"}],
+                        model="gpt-4.1",
+                    )
+
+                result = asyncio.run(go())
+
+        assert result.choices[0].message.content == "async fallback"
+        recorder.record.assert_called_once()
+
+    def test_async_auto_mode(self, adapter: OpenAIAdapter) -> None:
+        """AUTO mode on the async path behaves like RECORD."""
+        from agentverify.cassette.recorder import CassetteMode
+
+        recorder = MagicMock()
+        recorder.mode = CassetteMode.AUTO
+
+        fake_response = _make_openai_response(content="async auto")
+
+        async def _fake_async_create(*args, **kwargs):  # noqa: ARG001
+            return fake_response
+
+        with unittest_mock_patch(
+            "openai.resources.chat.completions.AsyncCompletions.create",
+            new=_fake_async_create,
+        ):
+            with adapter.patch(recorder):
+                import asyncio
+
+                import openai
+
+                async def go():
+                    return await openai.resources.chat.completions.AsyncCompletions.create(
+                        messages=[{"role": "user", "content": "hi"}],
+                        model="gpt-4.1",
+                    )
+
+                asyncio.run(go())
+
+        recorder.record.assert_called_once()
