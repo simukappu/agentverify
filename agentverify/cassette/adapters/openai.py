@@ -10,6 +10,7 @@ openai extra is installed (``pip install agentverify[openai]``).
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
@@ -42,75 +43,28 @@ def _ensure_openai_installed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Lightweight response objects used by denormalize_response so that callers
-# can access ``response.choices[0].message.content`` etc. without needing a
-# real ``openai.types.chat.ChatCompletion`` instance.
+# Lightweight wrappers used for replay responses.
 # ---------------------------------------------------------------------------
 
 
-class _Usage:
-    """Minimal stand-in for ``openai.types.CompletionUsage``."""
+class _RawResponseWrapper:
+    """Minimal stand-in for ``openai._legacy_response.LegacyAPIResponse``.
 
-    def __init__(self, prompt_tokens: int, completion_tokens: int) -> None:
-        self.prompt_tokens = prompt_tokens
-        self.completion_tokens = completion_tokens
-        self.total_tokens = prompt_tokens + completion_tokens
+    langchain-openai v1.x calls ``client.with_raw_response.create(...)``
+    which returns an object that exposes ``.parse()`` and ``.headers``.
+    When the underlying ``create`` is intercepted via our monkey-patch we
+    detect the raw-response code path (via the ``X-Stainless-Raw-Response``
+    extra header) and wrap the synthesized ``ChatCompletion`` so the
+    caller can ``.parse()`` it.
+    """
 
+    def __init__(self, parsed: Any) -> None:
+        self._parsed = parsed
+        self.headers: dict[str, str] = {}
+        self.http_response = None
 
-class _FunctionCall:
-    """Minimal stand-in for ``openai.types.chat.ChatCompletionMessageToolCall.Function``."""
-
-    def __init__(self, name: str, arguments: str) -> None:
-        self.name = name
-        self.arguments = arguments
-
-
-class _ToolCall:
-    """Minimal stand-in for ``openai.types.chat.ChatCompletionMessageToolCall``."""
-
-    def __init__(self, id: str, type: str, function: _FunctionCall) -> None:
-        self.id = id
-        self.type = type
-        self.function = function
-
-
-class _Message:
-    """Minimal stand-in for ``openai.types.chat.ChatCompletionMessage``."""
-
-    def __init__(
-        self,
-        content: str | None,
-        tool_calls: list[_ToolCall] | None,
-        role: str = "assistant",
-    ) -> None:
-        self.content = content
-        self.tool_calls = tool_calls
-        self.role = role
-
-
-class _Choice:
-    """Minimal stand-in for ``openai.types.chat.chat_completion.Choice``."""
-
-    def __init__(self, index: int, message: _Message, finish_reason: str) -> None:
-        self.index = index
-        self.message = message
-        self.finish_reason = finish_reason
-
-
-class _ChatCompletion:
-    """Minimal stand-in for ``openai.types.chat.ChatCompletion``."""
-
-    def __init__(
-        self,
-        choices: list[_Choice],
-        usage: _Usage | None,
-        model: str = "",
-        id: str = "",
-    ) -> None:
-        self.choices = choices
-        self.usage = usage
-        self.model = model
-        self.id = id
+    def parse(self) -> Any:  # noqa: D401 — mimics openai SDK
+        return self._parsed
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +113,19 @@ class OpenAIAdapter(LLMProviderAdapter):
         )
 
     def normalize_response(self, raw_response: Any) -> NormalizedResponse:
-        """Convert an OpenAI ``ChatCompletion`` object to *NormalizedResponse*."""
+        """Convert an OpenAI ``ChatCompletion`` object to *NormalizedResponse*.
+
+        Also handles ``LegacyAPIResponse`` objects returned by
+        ``with_raw_response.create()`` (used internally by
+        langchain-openai v1.x); these are unwrapped via ``.parse()``.
+        """
+        # langchain-openai v1.x calls ``client.with_raw_response.create(...)``
+        # which returns a ``LegacyAPIResponse`` wrapping the real
+        # ``ChatCompletion``. Unwrap it here so recording works across
+        # both the plain and raw-response paths.
+        if not hasattr(raw_response, "choices") and hasattr(raw_response, "parse"):
+            raw_response = raw_response.parse()
+
         choice = raw_response.choices[0]
         message = choice.message
 
@@ -190,46 +156,73 @@ class OpenAIAdapter(LLMProviderAdapter):
         )
 
     def denormalize_response(self, normalized: NormalizedResponse) -> Any:
-        """Build a lightweight object that mimics ``ChatCompletion`` attribute access."""
-        tool_calls: list[_ToolCall] | None = None
+        """Build an ``openai.types.chat.ChatCompletion`` instance from a normalized response.
+
+        Returns a genuine SDK object (constructed via ``model_validate``) so
+        that callers which rely on ``model_dump``, ``.parse()``, or other
+        pydantic features — e.g. langchain-openai v1.x — interoperate
+        correctly.
+        """
+        from openai.types.chat import ChatCompletion as _ChatCompletionType
+
+        tool_calls_data: list[dict[str, Any]] | None = None
         if normalized.tool_calls:
-            tool_calls = []
+            tool_calls_data = []
             for i, tc in enumerate(normalized.tool_calls):
-                tool_calls.append(
-                    _ToolCall(
-                        id=f"call_{i}",
-                        type="function",
-                        function=_FunctionCall(
-                            name=tc["name"],
-                            arguments=tc["arguments"],
-                        ),
-                    )
+                # OpenAI's ChatCompletion schema requires ``arguments`` to be
+                # a JSON-encoded string. Normalized representations sometimes
+                # carry a dict — serialize it to match the SDK shape.
+                args = tc["arguments"]
+                if isinstance(args, (dict, list)):
+                    args = json.dumps(args, ensure_ascii=False)
+                tool_calls_data.append(
+                    {
+                        "id": f"call_{i}",
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": args,
+                        },
+                    }
                 )
 
-        finish_reason = "tool_calls" if tool_calls else "stop"
+        finish_reason = "tool_calls" if tool_calls_data else "stop"
 
-        message = _Message(
-            content=normalized.content,
-            tool_calls=tool_calls,
-        )
-        choice = _Choice(index=0, message=message, finish_reason=finish_reason)
-
-        usage: _Usage | None = None
+        usage_data: dict[str, int] | None = None
         if normalized.token_usage is not None:
-            usage = _Usage(
-                prompt_tokens=normalized.token_usage.input_tokens,
-                completion_tokens=normalized.token_usage.output_tokens,
-            )
+            usage_data = {
+                "prompt_tokens": normalized.token_usage.input_tokens,
+                "completion_tokens": normalized.token_usage.output_tokens,
+                "total_tokens": (
+                    normalized.token_usage.input_tokens
+                    + normalized.token_usage.output_tokens
+                ),
+            }
 
-        model = normalized.raw_metadata.get("model", "")
-        completion_id = normalized.raw_metadata.get("id", "")
+        model = normalized.raw_metadata.get("model", "") or "gpt-4o-mini"
+        completion_id = normalized.raw_metadata.get("id", "") or "chatcmpl-replayed"
 
-        return _ChatCompletion(
-            choices=[choice],
-            usage=usage,
-            model=model,
-            id=completion_id,
-        )
+        payload: dict[str, Any] = {
+            "id": completion_id,
+            "object": "chat.completion",
+            "created": 0,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": normalized.content,
+                        "tool_calls": tool_calls_data,
+                    },
+                    "finish_reason": finish_reason,
+                }
+            ],
+        }
+        if usage_data is not None:
+            payload["usage"] = usage_data
+
+        return _ChatCompletionType.model_validate(payload)
 
     # -- monkey-patching -----------------------------------------------------
 
@@ -250,10 +243,25 @@ class OpenAIAdapter(LLMProviderAdapter):
         def _patched_create(original_fn):  # type: ignore[no-untyped-def]
             """Return a wrapper that intercepts ``create()`` calls."""
 
+            def _is_raw_response_call(kwargs: dict[str, Any]) -> bool:
+                """Detect whether the caller is the ``with_raw_response``
+                wrapper from openai SDK. langchain-openai v1.x routes
+                through this path and expects a ``LegacyAPIResponse``-like
+                object back.
+
+                The openai SDK sets ``X-Stainless-Raw-Response`` to a
+                truthy string when routing through ``with_raw_response``;
+                the exact value has varied across SDK versions
+                (``"raw"`` / ``"true"``), so we accept any non-empty value.
+                """
+                extra = kwargs.get("extra_headers") or {}
+                return bool(extra.get("X-Stainless-Raw-Response"))
+
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
 
                 norm_req = adapter.normalize_request(kwargs)
+                raw_mode = _is_raw_response_call(kwargs)
 
                 if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
                     # Call the real API and record the interaction
@@ -276,7 +284,14 @@ class OpenAIAdapter(LLMProviderAdapter):
                     raise CassetteMissingRequestError(
                         f"No matching cassette entry for request: model={norm_req.model}"
                     )
-                return adapter.denormalize_response(norm_resp)
+                denormalized = adapter.denormalize_response(norm_resp)
+                # When the caller is openai's with_raw_response wrapper
+                # (used by langchain-openai v1.x), wrap the synthesized
+                # ChatCompletion in a LegacyAPIResponse-compatible shell so
+                # the caller's ``raw_response.parse()`` call succeeds.
+                if raw_mode:
+                    return _RawResponseWrapper(denormalized)
+                return denormalized
 
             return wrapper
 

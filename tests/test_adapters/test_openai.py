@@ -12,7 +12,7 @@ from unittest.mock import patch as unittest_mock_patch
 import pytest
 
 from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
-from agentverify.cassette.adapters.openai import OpenAIAdapter, _ChatCompletion
+from agentverify.cassette.adapters.openai import OpenAIAdapter
 from agentverify.models import TokenUsage
 
 
@@ -359,3 +359,71 @@ class TestPatch:
                 )
 
         recorder.record.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# LegacyAPIResponse / with_raw_response handling (langchain-openai v1.x path)
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyAPIResponseHandling:
+    """langchain-openai v1.x calls ``client.with_raw_response.create(...)``.
+
+    The wrapper sets an ``X-Stainless-Raw-Response`` extra header and
+    expects a ``LegacyAPIResponse``-shaped object back that exposes
+    ``.parse()``. These tests cover both the record-side unwrap and the
+    replay-side re-wrap.
+    """
+
+    def test_normalize_response_unwraps_legacy_api_response(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """``normalize_response`` must call ``.parse()`` on
+        ``LegacyAPIResponse``-like wrappers so recording works via the
+        ``with_raw_response`` code path.
+        """
+        inner = _make_openai_response(content="wrapped answer")
+
+        class _LegacyLike:
+            """Stand-in with ``.parse()`` but no ``.choices`` attribute."""
+
+            def parse(self):
+                return inner
+
+        result = adapter.normalize_response(_LegacyLike())
+        assert result.content == "wrapped answer"
+
+    def test_replay_via_raw_response_returns_wrapper(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """In REPLAY mode, when the caller went through ``with_raw_response``
+        (as indicated by the ``X-Stainless-Raw-Response`` header), the
+        adapter returns a ``LegacyAPIResponse``-compatible wrapper.
+        """
+        from agentverify.cassette.recorder import CassetteMode
+
+        recorder = MagicMock()
+        recorder.mode = CassetteMode.REPLAY
+        recorder.lookup.return_value = NormalizedResponse(
+            content="raw-replayed",
+            token_usage=TokenUsage(input_tokens=1, output_tokens=1),
+        )
+
+        with unittest_mock_patch(
+            "openai.resources.chat.completions.Completions.create",
+            return_value=MagicMock(),
+        ):
+            with adapter.patch(recorder):
+                import openai
+
+                wrapped = openai.resources.chat.completions.Completions.create(
+                    messages=[{"role": "user", "content": "hi"}],
+                    model="gpt-4.1",
+                    extra_headers={"X-Stainless-Raw-Response": "true"},
+                )
+
+        # Caller should be able to .parse() the wrapper
+        assert hasattr(wrapped, "parse")
+        assert isinstance(wrapped.headers, dict)
+        parsed = wrapped.parse()
+        assert parsed.choices[0].message.content == "raw-replayed"
