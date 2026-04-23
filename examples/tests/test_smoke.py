@@ -66,6 +66,30 @@ class TestDirectoryStructure:
     def test_langchain_cassette_real(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "tests" / "cassettes" / "issue_triage_real.yaml").is_file()
 
+    def test_langgraph_supervisor_agent(self):
+        assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "agent.py").is_file()
+
+    def test_langgraph_supervisor_pyproject(self):
+        assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "pyproject.toml").is_file()
+
+    def test_langgraph_supervisor_readme(self):
+        assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "README.md").is_file()
+
+    def test_langgraph_supervisor_conftest(self):
+        assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "tests" / "conftest.py").is_file()
+
+    def test_langgraph_supervisor_test_file(self):
+        assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "tests" / "test_supervisor.py").is_file()
+
+    def test_langgraph_supervisor_cassette(self):
+        assert (
+            EXAMPLES_DIR
+            / "langgraph-multi-agent-supervisor"
+            / "tests"
+            / "cassettes"
+            / "supervisor_faang.yaml"
+        ).is_file()
+
 
 class TestCassetteYamlValidity:
     """Verify cassette files are loadable as YAML with expected keys."""
@@ -91,6 +115,19 @@ class TestCassetteYamlValidity:
         assert "metadata" in data
         assert "interactions" in data
 
+    def test_langgraph_supervisor_cassette_yaml(self):
+        path = (
+            EXAMPLES_DIR
+            / "langgraph-multi-agent-supervisor"
+            / "tests"
+            / "cassettes"
+            / "supervisor_faang.yaml"
+        )
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        assert "metadata" in data
+        assert "interactions" in data
+
 
 class TestReadmeFiles:
     """Verify all README.md files exist."""
@@ -103,6 +140,9 @@ class TestReadmeFiles:
 
     def test_langchain_readme_exists(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "README.md").is_file()
+
+    def test_langgraph_supervisor_readme_exists(self):
+        assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "README.md").is_file()
 
     def test_mcp_server_readme_exists(self):
         assert (EXAMPLES_DIR / "mcp-server" / "README.md").is_file()

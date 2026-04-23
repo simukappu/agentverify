@@ -1,0 +1,1844 @@
+metadata:
+  agentverify_version: 0.2.0
+  recorded_at: '2026-04-23T05:55:00.620486+00:00'
+  provider: openai
+  model: gpt-4o-mini
+interactions:
+- request:
+    messages:
+    - content: 'You are a team supervisor managing a research expert and a math expert.
+        Always delegate: use research_expert to gather raw data and use math_expert
+        to perform any arithmetic. Never compute sums or totals yourself — route to
+        math_expert.'
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    model: gpt-4o-mini
+    tools:
+    - name: transfer_to_research_expert
+      parameters:
+        properties: {}
+        type: object
+    - name: transfer_to_math_expert
+      parameters:
+        properties: {}
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      parallel_tool_calls: false
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: transfer_to_research_expert
+      arguments: '{}'
+    token_usage:
+      input_tokens: 129
+      output_tokens: 14
+- request:
+    messages:
+    - content: You are a world class researcher with access to web search. Your job
+        is to find raw data only. Do not do any math and do not summarize numerical
+        totals — leave all arithmetic to the math expert.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    model: gpt-4o-mini
+    tools:
+    - name: web_search
+      parameters:
+        properties:
+          query:
+            type: string
+        required:
+        - query
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: web_search
+      arguments: '{"query": "FAANG companies headcount 2024"}'
+    - name: web_search
+      arguments: '{"query": "Facebook headcount 2024"}'
+    - name: web_search
+      arguments: '{"query": "Apple headcount 2024"}'
+    - name: web_search
+      arguments: '{"query": "Amazon headcount 2024"}'
+    - name: web_search
+      arguments: '{"query": "Netflix headcount 2024"}'
+    - name: web_search
+      arguments: '{"query": "Google headcount 2024"}'
+    token_usage:
+      input_tokens: 171
+      output_tokens: 132
+- request:
+    messages:
+    - content: You are a world class researcher with access to web search. Your job
+        is to find raw data only. Do not do any math and do not summarize numerical
+        totals — leave all arithmetic to the math expert.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    model: gpt-4o-mini
+    tools:
+    - name: web_search
+      parameters:
+        properties:
+          query:
+            type: string
+        required:
+        - query
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+      1. Facebook (Meta): 67,317 employees
+
+      2. Apple: 164,000 employees
+
+      3. Amazon: 1,551,000 employees
+
+      4. Netflix: 14,000 employees
+
+      5. Google (Alphabet): 181,269 employees'
+    tool_calls: null
+    token_usage:
+      input_tokens: 792
+      output_tokens: 73
+- request:
+    messages:
+    - content: 'You are a team supervisor managing a research expert and a math expert.
+        Always delegate: use research_expert to gather raw data and use math_expert
+        to perform any arithmetic. Never compute sums or totals yourself — route to
+        math_expert.'
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    model: gpt-4o-mini
+    tools:
+    - name: transfer_to_research_expert
+      parameters:
+        properties: {}
+        type: object
+    - name: transfer_to_math_expert
+      parameters:
+        properties: {}
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      parallel_tool_calls: false
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: transfer_to_math_expert
+      arguments: '{}'
+    token_usage:
+      input_tokens: 912
+      output_tokens: 13
+- request:
+    messages:
+    - content: You are a math expert. Always use one tool at a time. When adding multiple
+        numbers, call the add tool repeatedly to accumulate the sum.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+        function:
+          name: transfer_to_math_expert
+          arguments: '{}'
+    - content: Successfully transferred to math_expert
+      role: tool
+      tool_call_id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+    model: gpt-4o-mini
+    tools:
+    - name: add
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    - name: multiply
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: add
+      arguments: '{"a":67317,"b":164000}'
+    token_usage:
+      input_tokens: 925
+      output_tokens: 19
+- request:
+    messages:
+    - content: You are a math expert. Always use one tool at a time. When adding multiple
+        numbers, call the add tool repeatedly to accumulate the sum.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+        function:
+          name: transfer_to_math_expert
+          arguments: '{}'
+    - content: Successfully transferred to math_expert
+      role: tool
+      tool_call_id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+        function:
+          name: add
+          arguments: '{"a": 67317, "b": 164000}'
+    - content: '231317.0'
+      role: tool
+      tool_call_id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+    model: gpt-4o-mini
+    tools:
+    - name: add
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    - name: multiply
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: add
+      arguments: '{"a":231317,"b":1551000}'
+    token_usage:
+      input_tokens: 959
+      output_tokens: 20
+- request:
+    messages:
+    - content: You are a math expert. Always use one tool at a time. When adding multiple
+        numbers, call the add tool repeatedly to accumulate the sum.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+        function:
+          name: transfer_to_math_expert
+          arguments: '{}'
+    - content: Successfully transferred to math_expert
+      role: tool
+      tool_call_id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+        function:
+          name: add
+          arguments: '{"a": 67317, "b": 164000}'
+    - content: '231317.0'
+      role: tool
+      tool_call_id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_RsnSO7xCc4gBueNElpIkHYly
+        function:
+          name: add
+          arguments: '{"a": 231317, "b": 1551000}'
+    - content: '1782317.0'
+      role: tool
+      tool_call_id: call_RsnSO7xCc4gBueNElpIkHYly
+    model: gpt-4o-mini
+    tools:
+    - name: add
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    - name: multiply
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: add
+      arguments: '{"a":1782317,"b":14000}'
+    token_usage:
+      input_tokens: 995
+      output_tokens: 20
+- request:
+    messages:
+    - content: You are a math expert. Always use one tool at a time. When adding multiple
+        numbers, call the add tool repeatedly to accumulate the sum.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+        function:
+          name: transfer_to_math_expert
+          arguments: '{}'
+    - content: Successfully transferred to math_expert
+      role: tool
+      tool_call_id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+        function:
+          name: add
+          arguments: '{"a": 67317, "b": 164000}'
+    - content: '231317.0'
+      role: tool
+      tool_call_id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_RsnSO7xCc4gBueNElpIkHYly
+        function:
+          name: add
+          arguments: '{"a": 231317, "b": 1551000}'
+    - content: '1782317.0'
+      role: tool
+      tool_call_id: call_RsnSO7xCc4gBueNElpIkHYly
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_fpDeFAUCyhpbTzhbizHIE1jj
+        function:
+          name: add
+          arguments: '{"a": 1782317, "b": 14000}'
+    - content: '1796317.0'
+      role: tool
+      tool_call_id: call_fpDeFAUCyhpbTzhbizHIE1jj
+    model: gpt-4o-mini
+    tools:
+    - name: add
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    - name: multiply
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: null
+    tool_calls:
+    - name: add
+      arguments: '{"a":1796317,"b":181269}'
+    token_usage:
+      input_tokens: 1031
+      output_tokens: 20
+- request:
+    messages:
+    - content: You are a math expert. Always use one tool at a time. When adding multiple
+        numbers, call the add tool repeatedly to accumulate the sum.
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+        function:
+          name: transfer_to_math_expert
+          arguments: '{}'
+    - content: Successfully transferred to math_expert
+      role: tool
+      tool_call_id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+        function:
+          name: add
+          arguments: '{"a": 67317, "b": 164000}'
+    - content: '231317.0'
+      role: tool
+      tool_call_id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_RsnSO7xCc4gBueNElpIkHYly
+        function:
+          name: add
+          arguments: '{"a": 231317, "b": 1551000}'
+    - content: '1782317.0'
+      role: tool
+      tool_call_id: call_RsnSO7xCc4gBueNElpIkHYly
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_fpDeFAUCyhpbTzhbizHIE1jj
+        function:
+          name: add
+          arguments: '{"a": 1782317, "b": 14000}'
+    - content: '1796317.0'
+      role: tool
+      tool_call_id: call_fpDeFAUCyhpbTzhbizHIE1jj
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_ZlXMC0fN0coDE0GYrE4WC1Qy
+        function:
+          name: add
+          arguments: '{"a": 1796317, "b": 181269}'
+    - content: '1977586.0'
+      role: tool
+      tool_call_id: call_ZlXMC0fN0coDE0GYrE4WC1Qy
+    model: gpt-4o-mini
+    tools:
+    - name: add
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    - name: multiply
+      parameters:
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: The combined headcount of the FAANG companies in 2024 is 1,977,586 employees.
+    tool_calls: null
+    token_usage:
+      input_tokens: 1067
+      output_tokens: 23
+- request:
+    messages:
+    - content: 'You are a team supervisor managing a research expert and a math expert.
+        Always delegate: use research_expert to gather raw data and use math_expert
+        to perform any arithmetic. Never compute sums or totals yourself — route to
+        math_expert.'
+      role: system
+    - content: What's the combined headcount of the FAANG companies in 2024?
+      role: user
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+        function:
+          name: transfer_to_research_expert
+          arguments: '{}'
+    - content: Successfully transferred to research_expert
+      role: tool
+      tool_call_id: call_B3bHvFBYxcpMpCmXXTP1F4vV
+    - content: null
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+        function:
+          name: web_search
+          arguments: '{"query": "FAANG companies headcount 2024"}'
+      - type: function
+        id: call_s7zhLRDhezdEZKYCbMDJX6dB
+        function:
+          name: web_search
+          arguments: '{"query": "Facebook headcount 2024"}'
+      - type: function
+        id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+        function:
+          name: web_search
+          arguments: '{"query": "Apple headcount 2024"}'
+      - type: function
+        id: call_eMbqmfkSEmr315lFpF2jso2I
+        function:
+          name: web_search
+          arguments: '{"query": "Amazon headcount 2024"}'
+      - type: function
+        id: call_k72gYhDl9kHy2jqyO8y2W22b
+        function:
+          name: web_search
+          arguments: '{"query": "Netflix headcount 2024"}'
+      - type: function
+        id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+        function:
+          name: web_search
+          arguments: '{"query": "Google headcount 2024"}'
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_vHgvCRQ0sQcZvGdhVIU2mtDh
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_s7zhLRDhezdEZKYCbMDJX6dB
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_tMhqPGxdSFzq3j0Qv7MB9N4D
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_eMbqmfkSEmr315lFpF2jso2I
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_k72gYhDl9kHy2jqyO8y2W22b
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+        1. Facebook (Meta): 67,317 employees.
+
+        2. Apple: 164,000 employees.
+
+        3. Amazon: 1,551,000 employees.
+
+        4. Netflix: 14,000 employees.
+
+        5. Google (Alphabet): 181,269 employees.'
+      role: tool
+      tool_call_id: call_6wCFQHaQ5N6FQbvigA3R4P9H
+    - content: 'Here are the headcounts for each of the FAANG companies in 2024:
+
+
+        1. Facebook (Meta): 67,317 employees
+
+        2. Apple: 164,000 employees
+
+        3. Amazon: 1,551,000 employees
+
+        4. Netflix: 14,000 employees
+
+        5. Google (Alphabet): 181,269 employees'
+      name: research_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: research_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: e5b74fc2-5b13-444c-8f8b-fd657ae1b39f
+    - content: null
+      name: supervisor
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+        function:
+          name: transfer_to_math_expert
+          arguments: '{}'
+    - content: Successfully transferred to math_expert
+      role: tool
+      tool_call_id: call_MSBIHPAJJDZR3IuH8E5SEjIO
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+        function:
+          name: add
+          arguments: '{"a": 67317, "b": 164000}'
+    - content: '231317.0'
+      role: tool
+      tool_call_id: call_1EsGsYHRbFDnyLnmLUZH3HdF
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_RsnSO7xCc4gBueNElpIkHYly
+        function:
+          name: add
+          arguments: '{"a": 231317, "b": 1551000}'
+    - content: '1782317.0'
+      role: tool
+      tool_call_id: call_RsnSO7xCc4gBueNElpIkHYly
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_fpDeFAUCyhpbTzhbizHIE1jj
+        function:
+          name: add
+          arguments: '{"a": 1782317, "b": 14000}'
+    - content: '1796317.0'
+      role: tool
+      tool_call_id: call_fpDeFAUCyhpbTzhbizHIE1jj
+    - content: null
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: call_ZlXMC0fN0coDE0GYrE4WC1Qy
+        function:
+          name: add
+          arguments: '{"a": 1796317, "b": 181269}'
+    - content: '1977586.0'
+      role: tool
+      tool_call_id: call_ZlXMC0fN0coDE0GYrE4WC1Qy
+    - content: The combined headcount of the FAANG companies in 2024 is 1,977,586
+        employees.
+      name: math_expert
+      role: assistant
+    - content: Transferring back to supervisor
+      name: math_expert
+      role: assistant
+      tool_calls:
+      - type: function
+        id: 460e01dd-5455-44bb-8b57-cb69efaaed9d
+        function:
+          name: transfer_back_to_supervisor
+          arguments: '{}'
+    - content: Successfully transferred back to supervisor
+      role: tool
+      tool_call_id: 460e01dd-5455-44bb-8b57-cb69efaaed9d
+    model: gpt-4o-mini
+    tools:
+    - name: transfer_to_research_expert
+      parameters:
+        properties: {}
+        type: object
+    - name: transfer_to_math_expert
+      parameters:
+        properties: {}
+        type: object
+    parameters:
+      stream: false
+      temperature: 0.0
+      parallel_tool_calls: false
+      extra_headers:
+        X-Stainless-Raw-Response: 'true'
+  response:
+    content: The combined headcount of the FAANG companies in 2024 is 1,977,586 employees.
+    tool_calls: null
+    token_usage:
+      input_tokens: 1164
+      output_tokens: 23

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langgraph-multi-agent-supervisor"
+version = "0.1.0"
+description = "LangGraph multi-agent supervisor example for agentverify"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph",
+    "langgraph-supervisor",
+    "langchain-openai",
+    "agentverify",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["agent"]

@@ -609,6 +609,7 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 |---|---|---|
 | [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Fetches weather via HTTP, verifies tool sequence and safety |
 | [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP |
+| [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with step-level data flow |
 | [`mcp-server`](examples/mcp-server/) | — | Mock GitHub MCP server for token-free testing |
 
 See each example's README for setup and recording mode details.

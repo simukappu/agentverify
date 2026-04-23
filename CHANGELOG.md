@@ -9,6 +9,12 @@
 - **Regex argument matcher**: `MATCHES(pattern)` for verifying string tool call arguments against a regex — the same `ANY` wildcard semantics, constrained to a regex match.
 - **Tool mocking**: `MockLLM` + `mock_response(...)` replay predefined LLM responses in-memory — test agent routing without a cassette or real LLM call.
 - **Latency assertion**: `assert_latency(result, max_ms=...)` enforces response time SLAs. `ExecutionResult.duration_ms` is captured automatically by the cassette fixture and `MockLLM`.
+- **LangGraph multi-agent supervisor example** demonstrates step-level + cross-step data flow testing on a research + math agent handoff (see `examples/langgraph-multi-agent-supervisor/`).
+
+### Improvements
+
+- **Numeric-string data flow** in `assert_step_uses_result_from`: tool results returned as strings like `"231317.0"` now correctly match downstream steps that consume them as ints or floats. Uses digit-boundary matching to avoid false positives (e.g. `"231"` no longer matches inside `1231`).
+- **langchain-openai v1.x compatibility** in the OpenAI cassette adapter: intercepts the `with_raw_response.create` code path (which langchain-openai v1.x routes through) and returns a `LegacyAPIResponse`-compatible wrapper on replay. Also unwraps `LegacyAPIResponse` during recording.
 
 ### Breaking Changes
 
