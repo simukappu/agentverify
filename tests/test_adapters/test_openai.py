@@ -598,3 +598,152 @@ class TestAsyncPatch:
                 asyncio.run(go())
 
         recorder.record.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# openai sentinel filtering (Omit / NotGiven appear when OpenAI Agents SDK
+# or any native openai caller passes through absent kwargs)
+# ---------------------------------------------------------------------------
+
+
+class TestSentinelFiltering:
+    """Cover _is_openai_sentinel / _strip_message_sentinels and their
+    integration with normalize_request."""
+
+    def test_sentinel_detector_identifies_omit(self) -> None:
+        from openai import omit
+
+        from agentverify.cassette.adapters.openai import _is_openai_sentinel
+
+        assert _is_openai_sentinel(omit) is True
+
+    def test_sentinel_detector_identifies_not_given(self) -> None:
+        from openai import NOT_GIVEN
+
+        from agentverify.cassette.adapters.openai import _is_openai_sentinel
+
+        assert _is_openai_sentinel(NOT_GIVEN) is True
+
+    def test_sentinel_detector_rejects_regular_values(self) -> None:
+        from agentverify.cassette.adapters.openai import _is_openai_sentinel
+
+        assert _is_openai_sentinel(None) is False
+        assert _is_openai_sentinel("string") is False
+        assert _is_openai_sentinel({"key": "value"}) is False
+        assert _is_openai_sentinel(0) is False
+
+    def test_strip_message_sentinels_passes_through_non_dict(self) -> None:
+        from agentverify.cassette.adapters.openai import _strip_message_sentinels
+
+        # Strings, numbers, and other non-dicts should pass through unchanged.
+        assert _strip_message_sentinels("not a dict") == "not a dict"
+        assert _strip_message_sentinels(42) == 42
+        assert _strip_message_sentinels(None) is None
+
+    def test_strip_message_sentinels_removes_sentinel_values(self) -> None:
+        from openai import omit
+
+        from agentverify.cassette.adapters.openai import _strip_message_sentinels
+
+        stripped = _strip_message_sentinels(
+            {"role": "user", "content": "hello", "name": omit}
+        )
+        assert stripped == {"role": "user", "content": "hello"}
+
+    def test_normalize_request_drops_sentinel_tools(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """``tools=omit`` (sent by native openai callers) must be treated
+        as "no tools"."""
+        from openai import omit
+
+        raw = {
+            "messages": [{"role": "user", "content": "hi"}],
+            "model": "gpt-4o-mini",
+            "tools": omit,
+        }
+        result = adapter.normalize_request(raw)
+        assert result.tools is None
+
+    def test_normalize_request_skips_non_dict_tool_entries(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """Defensive: malformed ``tools`` list entries must be skipped
+        rather than raising."""
+        raw = {
+            "messages": [{"role": "user", "content": "hi"}],
+            "model": "gpt-4o-mini",
+            "tools": [
+                "not a dict",  # skipped
+                {"type": "function", "function": {"name": "ok"}},
+            ],
+        }
+        result = adapter.normalize_request(raw)
+        assert result.tools == [{"name": "ok", "parameters": {}}]
+
+    def test_normalize_request_drops_sentinel_parameter_values(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """Parameters set to ``omit`` must not leak into the cassette."""
+        from openai import NOT_GIVEN, omit
+
+        raw = {
+            "messages": [{"role": "user", "content": "hi"}],
+            "model": "gpt-4o-mini",
+            "temperature": 0.2,      # real value kept
+            "top_p": omit,           # sentinel dropped
+            "presence_penalty": NOT_GIVEN,  # sentinel dropped
+        }
+        result = adapter.normalize_request(raw)
+        assert result.parameters == {"temperature": 0.2}
+
+    def test_normalize_request_non_list_messages_passthrough(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """Messages that aren't a list are returned as-is — defensive
+        branch against future SDK shapes."""
+        raw = {
+            "messages": "not-a-list",
+            "model": "gpt-4o-mini",
+        }
+        result = adapter.normalize_request(raw)
+        assert result.messages == "not-a-list"
+
+    def test_normalize_request_strips_sentinels_from_messages(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """Per-message sentinel fields are stripped so the cassette
+        records clean ``{"role", "content"}`` dicts."""
+        from openai import omit
+
+        raw = {
+            "messages": [
+                {"role": "user", "content": "hello", "name": omit},
+                {"role": "assistant", "content": "hi back"},
+            ],
+            "model": "gpt-4o-mini",
+        }
+        result = adapter.normalize_request(raw)
+        assert result.messages == [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi back"},
+        ]
+
+    def test_normalize_request_handles_tool_function_none(
+        self, adapter: OpenAIAdapter
+    ) -> None:
+        """``tool["function"]`` can be missing or explicitly None."""
+        raw = {
+            "messages": [{"role": "user", "content": "hi"}],
+            "model": "gpt-4o-mini",
+            "tools": [
+                {"type": "function", "function": None},
+                {"type": "function"},  # no function key at all
+            ],
+        }
+        result = adapter.normalize_request(raw)
+        # Both entries produce a ToolSpec with empty name/parameters.
+        assert result.tools == [
+            {"name": "", "parameters": {}},
+            {"name": "", "parameters": {}},
+        ]

@@ -34,6 +34,29 @@ _PATCH_TARGET = "openai.resources.chat.completions.Completions.create"
 _ASYNC_PATCH_TARGET = "openai.resources.chat.completions.AsyncCompletions.create"
 
 
+def _is_openai_sentinel(value: Any) -> bool:
+    """Return ``True`` if ``value`` is an openai ``Omit`` / ``NotGiven`` sentinel.
+
+    The openai SDK passes these in place of absent keyword arguments so
+    they propagate through to provider calls.  We drop them on the way
+    into the cassette so YAML stays clean and deterministic.
+    """
+    if _openai_module is None:  # pragma: no cover — skipped when openai missing
+        return False
+    for cls_name in ("Omit", "NotGiven"):
+        cls = getattr(_openai_module, cls_name, None)
+        if cls is not None and isinstance(value, cls):
+            return True
+    return False
+
+
+def _strip_message_sentinels(message: Any) -> Any:
+    """Return ``message`` with openai sentinels removed from top-level keys."""
+    if not isinstance(message, dict):
+        return message
+    return {k: v for k, v in message.items() if not _is_openai_sentinel(v)}
+
+
 def _ensure_openai_installed() -> None:
     """Raise a clear error when the openai package is missing."""
     if _openai_module is None:  # pragma: no cover
@@ -89,12 +112,17 @@ class OpenAIAdapter(LLMProviderAdapter):
 
         # Normalise tools: OpenAI format wraps each tool in
         # {"type": "function", "function": {"name": ..., "parameters": ...}}
+        # OpenAI Agents SDK (and any native ``openai`` caller) may pass
+        # ``openai.omit`` / ``openai.NOT_GIVEN`` sentinels for absent
+        # arguments instead of ``None`` — treat those as "no tools".
         raw_tools = raw_request.get("tools")
         tools: list[dict[str, Any]] | None = None
-        if raw_tools is not None:
+        if isinstance(raw_tools, list):
             tools = []
             for t in raw_tools:
-                func = t.get("function", {})
+                if not isinstance(t, dict):
+                    continue
+                func = t.get("function", {}) or {}
                 tools.append(
                     {
                         "name": func.get("name", ""),
@@ -102,9 +130,20 @@ class OpenAIAdapter(LLMProviderAdapter):
                     }
                 )
 
-        # Everything else goes into parameters
+        # Everything else goes into parameters.  Filter out openai
+        # sentinel values so the cassette YAML stays clean.
         _reserved = {"messages", "model", "tools"}
-        parameters = {k: v for k, v in raw_request.items() if k not in _reserved}
+        parameters = {
+            k: v
+            for k, v in raw_request.items()
+            if k not in _reserved and not _is_openai_sentinel(v)
+        }
+
+        # Normalise messages so ``role="user"`` / ``"system"`` dicts
+        # without a ``content`` key (sent by the Agents SDK with
+        # ``content=omit``) don't leak sentinels into the cassette.
+        if isinstance(messages, list):
+            messages = [_strip_message_sentinels(m) for m in messages]
 
         return NormalizedRequest(
             messages=messages,
