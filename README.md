@@ -653,7 +653,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Contributing
 
-Contributions welcome. Please open an issue first to discuss what you'd like to change.
+Contributions welcome. Please open an issue first to discuss what you'd like to change. See [CONTRIBUTING.md](CONTRIBUTING.md) for commit, CHANGELOG, and coverage conventions.
 
 Development setup:
 

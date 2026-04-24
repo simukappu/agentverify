@@ -4,19 +4,19 @@
 
 ### Features
 
-- **Step-level assertions** for agents that make multiple LLM calls per run (ReAct, Plan-and-Execute, workflow-style). New `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow on the new `Step` data model. See README "Step-Level Assertions".
-- **`step_probe` context manager** lets you mark logical step boundaries in agent code (including LLM-free steps like cache hits, state management, validation) so tests can assert on workflow logic. Zero-cost no-op outside of recorder/MockLLM contexts — safe to leave in production code.
-- **Regex argument matcher**: `MATCHES(pattern)` for verifying string tool call arguments against a regex — the same `ANY` wildcard semantics, constrained to a regex match.
-- **Tool mocking**: `MockLLM` + `mock_response(...)` replay predefined LLM responses in-memory — test agent routing without a cassette or real LLM call.
-- **Latency assertion**: `assert_latency(result, max_ms=...)` enforces response time SLAs. `ExecutionResult.duration_ms` is captured automatically by the cassette fixture and `MockLLM`.
+- **Step-level assertions** for agents that make multiple LLM calls per run (ReAct, Plan-and-Execute, workflow-style). `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow on the new `Step` data model. See README "Step-Level Assertions".
+- **`step_probe` context manager** to mark logical step boundaries in agent code, including LLM-free steps like cache hits, state management, and validation. Zero-cost no-op outside of recorder/MockLLM contexts — safe to leave in production code.
+- **Data-flow matching** in `assert_step_uses_result_from` tolerates common serialization differences: numeric tool results encoded as strings (e.g. `"231317.0"`) match int/float consumers with digit-boundary checks, and multi-line produced strings match consumers that embed them in containers where JSON would otherwise escape the newlines.
+- **`MATCHES(pattern)` regex matcher** for verifying string tool-call arguments against a regex, with the same semantics as `ANY`.
+- **`MockLLM` + `mock_response(...)`** replay predefined LLM responses in-memory — test agent routing without a cassette or real LLM call.
+- **`assert_latency(result, max_ms=...)`** enforces response-time SLAs. `ExecutionResult.duration_ms` is captured automatically by the cassette fixture and `MockLLM`.
 - **LangGraph multi-agent supervisor example** demonstrates step-level + cross-step data flow testing on a research + math agent handoff (see `examples/langgraph-multi-agent-supervisor/`).
 
 ### Improvements
 
-- **Numeric-string data flow** in `assert_step_uses_result_from`: tool results returned as strings like `"231317.0"` now correctly match downstream steps that consume them as ints or floats. Uses digit-boundary matching to avoid false positives (e.g. `"231"` no longer matches inside `1231`).
-- **langchain-openai v1.x compatibility** in the OpenAI cassette adapter: intercepts the `with_raw_response.create` code path (which langchain-openai v1.x routes through) and returns a `LegacyAPIResponse`-compatible wrapper on replay. Also unwraps `LegacyAPIResponse` during recording.
-- **AsyncOpenAI client support** in the OpenAI cassette adapter: patches `AsyncCompletions.create` in addition to the sync entry point so agent frameworks that drive the OpenAI SDK through an async client (including OpenAI Agents SDK internals, even when run via the sync `Runner.run_sync`) are recorded and replayed transparently.
-- **Openai sentinel filtering** in the OpenAI cassette adapter: `openai.omit` / `openai.NOT_GIVEN` values passed as keyword arguments (common when native `openai` callers route through the SDK) are now stripped from `tools`, per-message dicts, and extra parameters before they reach the cassette YAML.
+- **OpenAI cassette adapter** now also intercepts `AsyncCompletions.create`, so agent frameworks that drive the SDK through `AsyncOpenAI` internally (including OpenAI Agents SDK, even when run via the sync `Runner.run_sync`) are recorded and replayed transparently.
+- **OpenAI cassette adapter** strips `openai.omit` / `openai.NOT_GIVEN` sentinels from `tools`, per-message dicts, and extra parameters before they reach the cassette YAML.
+- **OpenAI cassette adapter** handles the `with_raw_response.create` code path used by langchain-openai v1.x, unwrapping `LegacyAPIResponse` on record and re-wrapping the synthesised `ChatCompletion` on replay.
 
 ### Breaking Changes
 
