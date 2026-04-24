@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "custom-converter-python-agent"
+version = "0.1.0"
+description = "Custom converter reference example for agentverify (Anthropic SDK, no framework)"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic",
+    "agentverify",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["agent", "converter"]

@@ -1,0 +1,175 @@
+metadata:
+  agentverify_version: 0.2.0
+  recorded_at: '2026-04-24T14:46:25.049920+00:00'
+  provider: anthropic
+  model: claude-haiku-4-5
+interactions:
+- request:
+    messages:
+    - role: user
+      content: What's 100 + 200 with 10% tax added?
+    model: claude-haiku-4-5
+    tools:
+    - name: add
+      parameters:
+        type: object
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+    - name: apply_tax
+      parameters:
+        type: object
+        properties:
+          amount:
+            type: number
+          rate:
+            type: number
+        required:
+        - amount
+        - rate
+    parameters:
+      max_tokens: 1024
+      system: You are a precise arithmetic assistant. When the user asks a question
+        that requires a calculation, use the provided tools step by step rather than
+        computing the answer yourself. Always call ``add`` first to compute the pre-tax
+        total, then call ``apply_tax`` with that total and the tax rate from the query.
+        Finish with a one-sentence summary that includes the final post-tax amount.
+  response:
+    content: null
+    tool_calls:
+    - name: add
+      arguments: '{"a": 100, "b": 200}'
+    token_usage:
+      input_tokens: 760
+      output_tokens: 69
+- request:
+    messages:
+    - role: user
+      content: What's 100 + 200 with 10% tax added?
+    - role: assistant
+      content:
+      - type: tool_use
+        id: toolu_0183YAFchrTMkZPXDFNUwW1o
+        name: add
+        input:
+          a: 100
+          b: 200
+    - role: user
+      content:
+      - type: tool_result
+        tool_use_id: toolu_0183YAFchrTMkZPXDFNUwW1o
+        content: '300'
+    model: claude-haiku-4-5
+    tools:
+    - name: add
+      parameters:
+        type: object
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+    - name: apply_tax
+      parameters:
+        type: object
+        properties:
+          amount:
+            type: number
+          rate:
+            type: number
+        required:
+        - amount
+        - rate
+    parameters:
+      max_tokens: 1024
+      system: You are a precise arithmetic assistant. When the user asks a question
+        that requires a calculation, use the provided tools step by step rather than
+        computing the answer yourself. Always call ``add`` first to compute the pre-tax
+        total, then call ``apply_tax`` with that total and the tax rate from the query.
+        Finish with a one-sentence summary that includes the final post-tax amount.
+  response:
+    content: 'Now let me apply the 10% tax to that total:'
+    tool_calls:
+    - name: apply_tax
+      arguments: '{"amount": 300, "rate": 0.1}'
+    token_usage:
+      input_tokens: 842
+      output_tokens: 86
+- request:
+    messages:
+    - role: user
+      content: What's 100 + 200 with 10% tax added?
+    - role: assistant
+      content:
+      - type: tool_use
+        id: toolu_0183YAFchrTMkZPXDFNUwW1o
+        name: add
+        input:
+          a: 100
+          b: 200
+    - role: user
+      content:
+      - type: tool_result
+        tool_use_id: toolu_0183YAFchrTMkZPXDFNUwW1o
+        content: '300'
+    - role: assistant
+      content:
+      - type: text
+        text: 'Now let me apply the 10% tax to that total:'
+      - type: tool_use
+        id: toolu_018sT2713Bms3oJpEJxz7mgq
+        name: apply_tax
+        input:
+          amount: 300
+          rate: 0.1
+    - role: user
+      content:
+      - type: tool_result
+        tool_use_id: toolu_018sT2713Bms3oJpEJxz7mgq
+        content: '330.0'
+    model: claude-haiku-4-5
+    tools:
+    - name: add
+      parameters:
+        type: object
+        properties:
+          a:
+            type: number
+          b:
+            type: number
+        required:
+        - a
+        - b
+    - name: apply_tax
+      parameters:
+        type: object
+        properties:
+          amount:
+            type: number
+          rate:
+            type: number
+        required:
+        - amount
+        - rate
+    parameters:
+      max_tokens: 1024
+      system: You are a precise arithmetic assistant. When the user asks a question
+        that requires a calculation, use the provided tools step by step rather than
+        computing the answer yourself. Always call ``add`` first to compute the pre-tax
+        total, then call ``apply_tax`` with that total and the tax rate from the query.
+        Finish with a one-sentence summary that includes the final post-tax amount.
+  response:
+    content: The sum of 100 + 200 equals 300, and with 10% tax added, the final amount
+      is **330.00**.
+    tool_calls: null
+    token_usage:
+      input_tokens: 943
+      output_tokens: 34
