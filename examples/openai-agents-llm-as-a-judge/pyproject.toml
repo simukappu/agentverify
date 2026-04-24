@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openai-agents-llm-as-a-judge"
+version = "0.1.0"
+description = "OpenAI Agents SDK LLM-as-a-judge example for agentverify"
+requires-python = ">=3.10"
+dependencies = [
+    "openai-agents",
+    "agentverify",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["agent"]

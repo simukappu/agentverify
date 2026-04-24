@@ -1,0 +1,491 @@
+metadata:
+  agentverify_version: 0.2.0
+  recorded_at: '2026-04-23T15:27:29.482462+00:00'
+  provider: openai
+  model: gpt-4o-mini
+interactions:
+- request:
+    messages:
+    - content: You generate a very short story outline based on the user's input.
+        If there is any feedback provided, use it to improve the outline.
+      role: system
+    - role: user
+      content: A detective story in space.
+    model: gpt-4o-mini
+    parameters:
+      store: true
+      extra_headers:
+        User-Agent: Agents/Python 0.14.5
+      extra_query: null
+      extra_body: null
+      prompt_cache_key: agents-sdk:run:1294a149af3543f5abff53f280039fb0
+  response:
+    content: '**Outline for "Galactic Shadows"**
+
+
+      1. **Setting the Scene**: In a sprawling space station orbiting a distant planet,
+      a wealthy mining corporation operates under a veil of secrecy. The station is
+      a hub for intergalactic trade and a melting pot of diverse species.
+
+
+      2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
+      with a reputation for solving the toughest cases, is called in after a high-profile
+      corporate executive is found dead under mysterious circumstances.
+
+
+      3. **The Investigation Begins**: Mira interviews a range of suspects, including
+      colleagues, security personnel, and alien traders, each revealing fragments
+      of a larger conspiracy involving illegal mining operations and stolen technology.
+
+
+      4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
+      deceit that suggests corporate espionage intertwined with a personal vendetta,
+      leading her to question her own motives and loyalties.
+
+
+      5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
+      murder—a rival corporate agent who will stop at nothing to control the station''s
+      lucrative resources.
+
+
+      6. **Resolution**: With the culprit apprehended, Mira reflects on the gray morality
+      of justice amidst corporate greed and considers what comes next in a universe
+      where nothing is ever truly black and white.
+
+
+      7. **Final Hook**: As she departs the station, an encrypted message arrives,
+      hinting at an even larger threat lurking in the shadows of the galaxy, setting
+      the stage for her next adventure.
+
+
+      Would you like to adjust any elements or add more depth to certain characters?'
+    tool_calls: null
+    token_usage:
+      input_tokens: 44
+      output_tokens: 320
+- request:
+    messages:
+    - content: You evaluate a story outline and decide if it's good enough. If it's
+        not good enough, you provide feedback on what needs to be improved. Never
+        give it a pass on the first try; return ``needs_improvement`` with concrete,
+        actionable feedback. On the second attempt, if the outline has clearly incorporated
+        your earlier feedback, return ``pass`` — do not go for perfection.
+      role: system
+    - role: user
+      content: A detective story in space.
+    - role: assistant
+      content: '**Outline for "Galactic Shadows"**
+
+
+        1. **Setting the Scene**: In a sprawling space station orbiting a distant
+        planet, a wealthy mining corporation operates under a veil of secrecy. The
+        station is a hub for intergalactic trade and a melting pot of diverse species.
+
+
+        2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
+        with a reputation for solving the toughest cases, is called in after a high-profile
+        corporate executive is found dead under mysterious circumstances.
+
+
+        3. **The Investigation Begins**: Mira interviews a range of suspects, including
+        colleagues, security personnel, and alien traders, each revealing fragments
+        of a larger conspiracy involving illegal mining operations and stolen technology.
+
+
+        4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
+        deceit that suggests corporate espionage intertwined with a personal vendetta,
+        leading her to question her own motives and loyalties.
+
+
+        5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
+        murder—a rival corporate agent who will stop at nothing to control the station''s
+        lucrative resources.
+
+
+        6. **Resolution**: With the culprit apprehended, Mira reflects on the gray
+        morality of justice amidst corporate greed and considers what comes next in
+        a universe where nothing is ever truly black and white.
+
+
+        7. **Final Hook**: As she departs the station, an encrypted message arrives,
+        hinting at an even larger threat lurking in the shadows of the galaxy, setting
+        the stage for her next adventure.
+
+
+        Would you like to adjust any elements or add more depth to certain characters?'
+    model: gpt-4o-mini
+    parameters:
+      response_format:
+        type: json_schema
+        json_schema:
+          name: final_output
+          strict: true
+          schema:
+            $defs:
+              EvaluationFeedback:
+                properties:
+                  feedback:
+                    title: Feedback
+                    type: string
+                  score:
+                    enum:
+                    - pass
+                    - needs_improvement
+                    - fail
+                    title: Score
+                    type: string
+                required:
+                - feedback
+                - score
+                title: EvaluationFeedback
+                type: object
+                additionalProperties: false
+            properties:
+              response:
+                $ref: '#/$defs/EvaluationFeedback'
+            required:
+            - response
+            title: OutputType
+            type: object
+            additionalProperties: false
+      store: true
+      extra_headers:
+        User-Agent: Agents/Python 0.14.5
+      extra_query: null
+      extra_body: null
+      prompt_cache_key: agents-sdk:run:5b48b03dda5148ea83988e1f2e1df700
+  response:
+    content: '{"response":{"feedback":"This outline has potential for an engaging
+      detective story in space, but it needs improvement in several areas:\n\n1. **Character
+      Development**: Give Mira Fox more depth. What are her personal struggles or
+      motivations beyond being a detective? Consider adding a backstory that influences
+      her actions and decisions.\n\n2. **Suspense and Intrigue**: The investigation
+      feels somewhat linear; introduce unexpected twists or red herrings to maintain
+      suspense. Perhaps one suspect provides false information, leading Mira down
+      a false path.\n\n3. **World-Building**: Flesh out the setting more. What are
+      the social dynamics on the space station? How do different species interact,
+      and how does this affect Mira''s investigation?\n\n4. **Conflict and Stakes**:
+      Clarify the stakes involved in the murder beyond corporate greed. What does
+      it mean for the locals or the broader galaxy if the murderer isn''t caught?
+      \n\n5. **Ending and Continuation**: While the final hook sets up for a sequel,
+      ensure that the resolution of this story is satisfying. Mira''s arc should provide
+      closure, yet also leave room for further adventures without feeling incomplete.","score":"needs_improvement"}}'
+    tool_calls: null
+    token_usage:
+      input_tokens: 509
+      output_tokens: 244
+- request:
+    messages:
+    - content: You generate a very short story outline based on the user's input.
+        If there is any feedback provided, use it to improve the outline.
+      role: system
+    - role: user
+      content: A detective story in space.
+    - role: assistant
+      content: '**Outline for "Galactic Shadows"**
+
+
+        1. **Setting the Scene**: In a sprawling space station orbiting a distant
+        planet, a wealthy mining corporation operates under a veil of secrecy. The
+        station is a hub for intergalactic trade and a melting pot of diverse species.
+
+
+        2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
+        with a reputation for solving the toughest cases, is called in after a high-profile
+        corporate executive is found dead under mysterious circumstances.
+
+
+        3. **The Investigation Begins**: Mira interviews a range of suspects, including
+        colleagues, security personnel, and alien traders, each revealing fragments
+        of a larger conspiracy involving illegal mining operations and stolen technology.
+
+
+        4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
+        deceit that suggests corporate espionage intertwined with a personal vendetta,
+        leading her to question her own motives and loyalties.
+
+
+        5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
+        murder—a rival corporate agent who will stop at nothing to control the station''s
+        lucrative resources.
+
+
+        6. **Resolution**: With the culprit apprehended, Mira reflects on the gray
+        morality of justice amidst corporate greed and considers what comes next in
+        a universe where nothing is ever truly black and white.
+
+
+        7. **Final Hook**: As she departs the station, an encrypted message arrives,
+        hinting at an even larger threat lurking in the shadows of the galaxy, setting
+        the stage for her next adventure.
+
+
+        Would you like to adjust any elements or add more depth to certain characters?'
+    - role: user
+      content: "Feedback: This outline has potential for an engaging detective story\
+        \ in space, but it needs improvement in several areas:\n\n1. **Character Development**:\
+        \ Give Mira Fox more depth. What are her personal struggles or motivations\
+        \ beyond being a detective? Consider adding a backstory that influences her\
+        \ actions and decisions.\n\n2. **Suspense and Intrigue**: The investigation\
+        \ feels somewhat linear; introduce unexpected twists or red herrings to maintain\
+        \ suspense. Perhaps one suspect provides false information, leading Mira down\
+        \ a false path.\n\n3. **World-Building**: Flesh out the setting more. What\
+        \ are the social dynamics on the space station? How do different species interact,\
+        \ and how does this affect Mira's investigation?\n\n4. **Conflict and Stakes**:\
+        \ Clarify the stakes involved in the murder beyond corporate greed. What does\
+        \ it mean for the locals or the broader galaxy if the murderer isn't caught?\
+        \ \n\n5. **Ending and Continuation**: While the final hook sets up for a sequel,\
+        \ ensure that the resolution of this story is satisfying. Mira's arc should\
+        \ provide closure, yet also leave room for further adventures without feeling\
+        \ incomplete."
+    model: gpt-4o-mini
+    parameters:
+      store: true
+      extra_headers:
+        User-Agent: Agents/Python 0.14.5
+      extra_query: null
+      extra_body: null
+      prompt_cache_key: agents-sdk:run:b9d319e755e9486ba896ccbb3ede049f
+  response:
+    content: '**Revised Outline for "Galactic Shadows"**
+
+
+      1. **Setting the Scene**: A bustling space station, **Orbital Nexus**, is the
+      central hub for interstellar trade. It features diverse habitats for various
+      alien species, with clear social hierarchies and tensions due to cultural differences.
+      Rumors of corporate corruption stir discontent among the lower-class residents
+      who struggle against the powerful mining corporations.
+
+
+      2. **Introduction of Protagonist**: Detective Mira Fox, a half-human, half-Celestian
+      (a species known for their telepathic abilities), battles personal demons stemming
+      from her troubled past. After losing her partner in a previous case gone wrong,
+      she is haunted by guilt and struggles to connect with others emotionally. Her
+      motivation now extends beyond her job; she seeks redemption by solving cases
+      that matter to those overlooked.
+
+
+      3. **The Investigation Begins**: After the murder of executive **Ralan Garde**,
+      Mira dives into a complex web of deceit. Interactions with suspects reveal diverse
+      perspectives on the corporate landscape. One suspect, a low-level technician,
+      misleads her with a fabricated alibi, planting the seeds of distrust and sending
+      her on a wild goose chase.
+
+
+      4. **Unraveling the Mystery**: Mira discovers that Garde was involved in a secretive
+      project that threatened local communities. As she investigates, she faces pressure
+      from the corporate board to drop the case, introducing an element of danger.
+      Tension escalates when Mira’s inquiries lead to threats against her life, coming
+      from both the corporate elite and local crime syndicates.
+
+
+      5. **Twists and Revelations**: Mira learns that the murder may be linked to
+      a broader rebellion against the mining corporation, with unexpected allies emerging
+      in the form of local activists. A shocking twist reveals that Garde was planning
+      to expose the corporation’s illegal activities, complicating Mira''s understanding
+      of right and wrong.
+
+
+      6. **Climax**: In a tense showdown in the station’s underbelly, where the different
+      factions collide, Mira confronts the real murderer—an undercover operative working
+      for a rival corporation, fueled by revenge against Garde for exposing corrupt
+      practices. Their confrontation delves into themes of loyalty and betrayal.
+
+
+      7. **Resolution**: With the murderer captured, Mira finds closure in her personal
+      journey, having finally confronted her past. She gains the trust of the local
+      community, initiating a dialogue for reform in the mining operations. The corporate
+      breach is revealed, causing ripples in the industry, highlighting the importance
+      of accountability.
+
+
+      8. **Final Hook**: As Mira prepares to leave Orbital Nexus for a new assignment,
+      she receives a mysterious communication hinting at an intergalactic conspiracy
+      involving more powerful entities. While she takes the step toward healing, the
+      galaxy''s instability pulls her back into action, setting the stage for her
+      next thrilling adventure.
+
+
+      Does this revised outline align better with your vision, or are there further
+      adjustments you would like to explore?'
+    tool_calls: null
+    token_usage:
+      input_tokens: 597
+      output_tokens: 594
+- request:
+    messages:
+    - content: You evaluate a story outline and decide if it's good enough. If it's
+        not good enough, you provide feedback on what needs to be improved. Never
+        give it a pass on the first try; return ``needs_improvement`` with concrete,
+        actionable feedback. On the second attempt, if the outline has clearly incorporated
+        your earlier feedback, return ``pass`` — do not go for perfection.
+      role: system
+    - role: user
+      content: A detective story in space.
+    - role: assistant
+      content: '**Outline for "Galactic Shadows"**
+
+
+        1. **Setting the Scene**: In a sprawling space station orbiting a distant
+        planet, a wealthy mining corporation operates under a veil of secrecy. The
+        station is a hub for intergalactic trade and a melting pot of diverse species.
+
+
+        2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
+        with a reputation for solving the toughest cases, is called in after a high-profile
+        corporate executive is found dead under mysterious circumstances.
+
+
+        3. **The Investigation Begins**: Mira interviews a range of suspects, including
+        colleagues, security personnel, and alien traders, each revealing fragments
+        of a larger conspiracy involving illegal mining operations and stolen technology.
+
+
+        4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
+        deceit that suggests corporate espionage intertwined with a personal vendetta,
+        leading her to question her own motives and loyalties.
+
+
+        5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
+        murder—a rival corporate agent who will stop at nothing to control the station''s
+        lucrative resources.
+
+
+        6. **Resolution**: With the culprit apprehended, Mira reflects on the gray
+        morality of justice amidst corporate greed and considers what comes next in
+        a universe where nothing is ever truly black and white.
+
+
+        7. **Final Hook**: As she departs the station, an encrypted message arrives,
+        hinting at an even larger threat lurking in the shadows of the galaxy, setting
+        the stage for her next adventure.
+
+
+        Would you like to adjust any elements or add more depth to certain characters?'
+    - role: user
+      content: "Feedback: This outline has potential for an engaging detective story\
+        \ in space, but it needs improvement in several areas:\n\n1. **Character Development**:\
+        \ Give Mira Fox more depth. What are her personal struggles or motivations\
+        \ beyond being a detective? Consider adding a backstory that influences her\
+        \ actions and decisions.\n\n2. **Suspense and Intrigue**: The investigation\
+        \ feels somewhat linear; introduce unexpected twists or red herrings to maintain\
+        \ suspense. Perhaps one suspect provides false information, leading Mira down\
+        \ a false path.\n\n3. **World-Building**: Flesh out the setting more. What\
+        \ are the social dynamics on the space station? How do different species interact,\
+        \ and how does this affect Mira's investigation?\n\n4. **Conflict and Stakes**:\
+        \ Clarify the stakes involved in the murder beyond corporate greed. What does\
+        \ it mean for the locals or the broader galaxy if the murderer isn't caught?\
+        \ \n\n5. **Ending and Continuation**: While the final hook sets up for a sequel,\
+        \ ensure that the resolution of this story is satisfying. Mira's arc should\
+        \ provide closure, yet also leave room for further adventures without feeling\
+        \ incomplete."
+    - role: assistant
+      content: '**Revised Outline for "Galactic Shadows"**
+
+
+        1. **Setting the Scene**: A bustling space station, **Orbital Nexus**, is
+        the central hub for interstellar trade. It features diverse habitats for various
+        alien species, with clear social hierarchies and tensions due to cultural
+        differences. Rumors of corporate corruption stir discontent among the lower-class
+        residents who struggle against the powerful mining corporations.
+
+
+        2. **Introduction of Protagonist**: Detective Mira Fox, a half-human, half-Celestian
+        (a species known for their telepathic abilities), battles personal demons
+        stemming from her troubled past. After losing her partner in a previous case
+        gone wrong, she is haunted by guilt and struggles to connect with others emotionally.
+        Her motivation now extends beyond her job; she seeks redemption by solving
+        cases that matter to those overlooked.
+
+
+        3. **The Investigation Begins**: After the murder of executive **Ralan Garde**,
+        Mira dives into a complex web of deceit. Interactions with suspects reveal
+        diverse perspectives on the corporate landscape. One suspect, a low-level
+        technician, misleads her with a fabricated alibi, planting the seeds of distrust
+        and sending her on a wild goose chase.
+
+
+        4. **Unraveling the Mystery**: Mira discovers that Garde was involved in a
+        secretive project that threatened local communities. As she investigates,
+        she faces pressure from the corporate board to drop the case, introducing
+        an element of danger. Tension escalates when Mira’s inquiries lead to threats
+        against her life, coming from both the corporate elite and local crime syndicates.
+
+
+        5. **Twists and Revelations**: Mira learns that the murder may be linked to
+        a broader rebellion against the mining corporation, with unexpected allies
+        emerging in the form of local activists. A shocking twist reveals that Garde
+        was planning to expose the corporation’s illegal activities, complicating
+        Mira''s understanding of right and wrong.
+
+
+        6. **Climax**: In a tense showdown in the station’s underbelly, where the
+        different factions collide, Mira confronts the real murderer—an undercover
+        operative working for a rival corporation, fueled by revenge against Garde
+        for exposing corrupt practices. Their confrontation delves into themes of
+        loyalty and betrayal.
+
+
+        7. **Resolution**: With the murderer captured, Mira finds closure in her personal
+        journey, having finally confronted her past. She gains the trust of the local
+        community, initiating a dialogue for reform in the mining operations. The
+        corporate breach is revealed, causing ripples in the industry, highlighting
+        the importance of accountability.
+
+
+        8. **Final Hook**: As Mira prepares to leave Orbital Nexus for a new assignment,
+        she receives a mysterious communication hinting at an intergalactic conspiracy
+        involving more powerful entities. While she takes the step toward healing,
+        the galaxy''s instability pulls her back into action, setting the stage for
+        her next thrilling adventure.
+
+
+        Does this revised outline align better with your vision, or are there further
+        adjustments you would like to explore?'
+    model: gpt-4o-mini
+    parameters:
+      response_format:
+        type: json_schema
+        json_schema:
+          name: final_output
+          strict: true
+          schema:
+            $defs:
+              EvaluationFeedback:
+                properties:
+                  feedback:
+                    title: Feedback
+                    type: string
+                  score:
+                    enum:
+                    - pass
+                    - needs_improvement
+                    - fail
+                    title: Score
+                    type: string
+                required:
+                - feedback
+                - score
+                title: EvaluationFeedback
+                type: object
+                additionalProperties: false
+            properties:
+              response:
+                $ref: '#/$defs/EvaluationFeedback'
+            required:
+            - response
+            title: OutputType
+            type: object
+            additionalProperties: false
+      store: true
+      extra_headers:
+        User-Agent: Agents/Python 0.14.5
+      extra_query: null
+      extra_body: null
+      prompt_cache_key: agents-sdk:run:bb3e53e1a6414a96b09f4f175f9097c1
+  response:
+    content: '{"response":{"feedback":"","score":"pass"}}'
+    tool_calls: null
+    token_usage:
+      input_tokens: 1340
+      output_tokens: 9

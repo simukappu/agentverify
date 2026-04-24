@@ -90,6 +90,37 @@ class TestDirectoryStructure:
             / "supervisor_faang.yaml"
         ).is_file()
 
+    def test_openai_agents_llm_as_a_judge_agent(self):
+        assert (EXAMPLES_DIR / "openai-agents-llm-as-a-judge" / "agent.py").is_file()
+
+    def test_openai_agents_llm_as_a_judge_pyproject(self):
+        assert (EXAMPLES_DIR / "openai-agents-llm-as-a-judge" / "pyproject.toml").is_file()
+
+    def test_openai_agents_llm_as_a_judge_readme(self):
+        assert (EXAMPLES_DIR / "openai-agents-llm-as-a-judge" / "README.md").is_file()
+
+    def test_openai_agents_llm_as_a_judge_conftest(self):
+        assert (
+            EXAMPLES_DIR / "openai-agents-llm-as-a-judge" / "tests" / "conftest.py"
+        ).is_file()
+
+    def test_openai_agents_llm_as_a_judge_test_file(self):
+        assert (
+            EXAMPLES_DIR
+            / "openai-agents-llm-as-a-judge"
+            / "tests"
+            / "test_llm_as_a_judge.py"
+        ).is_file()
+
+    def test_openai_agents_llm_as_a_judge_cassette(self):
+        assert (
+            EXAMPLES_DIR
+            / "openai-agents-llm-as-a-judge"
+            / "tests"
+            / "cassettes"
+            / "detective_in_space.yaml"
+        ).is_file()
+
 
 class TestCassetteYamlValidity:
     """Verify cassette files are loadable as YAML with expected keys."""
@@ -128,6 +159,19 @@ class TestCassetteYamlValidity:
         assert "metadata" in data
         assert "interactions" in data
 
+    def test_openai_agents_llm_as_a_judge_cassette_yaml(self):
+        path = (
+            EXAMPLES_DIR
+            / "openai-agents-llm-as-a-judge"
+            / "tests"
+            / "cassettes"
+            / "detective_in_space.yaml"
+        )
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        assert "metadata" in data
+        assert "interactions" in data
+
 
 class TestReadmeFiles:
     """Verify all README.md files exist."""
@@ -143,6 +187,9 @@ class TestReadmeFiles:
 
     def test_langgraph_supervisor_readme_exists(self):
         assert (EXAMPLES_DIR / "langgraph-multi-agent-supervisor" / "README.md").is_file()
+
+    def test_openai_agents_llm_as_a_judge_readme_exists(self):
+        assert (EXAMPLES_DIR / "openai-agents-llm-as-a-judge" / "README.md").is_file()
 
     def test_mcp_server_readme_exists(self):
         assert (EXAMPLES_DIR / "mcp-server" / "README.md").is_file()
