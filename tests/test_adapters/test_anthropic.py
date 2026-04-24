@@ -478,3 +478,202 @@ class TestPatch:
                 )
 
         recorder.record.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Content-block normalisation (assistant messages echoed back into later
+# requests by ReAct-style agents carry SDK pydantic objects that must be
+# flattened to plain dicts before they reach the cassette YAML)
+# ---------------------------------------------------------------------------
+
+
+class TestContentBlockNormalisation:
+    def test_content_block_to_dict_passes_through_primitives(self) -> None:
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        assert _content_block_to_dict("plain string") == "plain string"
+        assert _content_block_to_dict(42) == 42
+        assert _content_block_to_dict(None) is None
+
+    def test_content_block_to_dict_passes_through_dict(self) -> None:
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        original = {"type": "text", "text": "hello"}
+        assert _content_block_to_dict(original) == original
+
+    def test_content_block_to_dict_flattens_text_object(self) -> None:
+        from unittest.mock import MagicMock
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        obj = MagicMock()
+        obj.type = "text"
+        obj.text = "hello from SDK"
+        assert _content_block_to_dict(obj) == {"type": "text", "text": "hello from SDK"}
+
+    def test_content_block_to_dict_flattens_tool_use_object(self) -> None:
+        from unittest.mock import MagicMock
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        obj = MagicMock()
+        obj.type = "tool_use"
+        obj.id = "toolu_123"
+        obj.name = "add"
+        obj.input = {"a": 1, "b": 2}
+        assert _content_block_to_dict(obj) == {
+            "type": "tool_use",
+            "id": "toolu_123",
+            "name": "add",
+            "input": {"a": 1, "b": 2},
+        }
+
+    def test_content_block_to_dict_flattens_tool_use_with_none_input(self) -> None:
+        """``getattr(block, "input", None) or {}`` means None input → empty dict."""
+        from unittest.mock import MagicMock
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        obj = MagicMock()
+        obj.type = "tool_use"
+        obj.id = "toolu_xyz"
+        obj.name = "noop"
+        obj.input = None
+        assert _content_block_to_dict(obj) == {
+            "type": "tool_use",
+            "id": "toolu_xyz",
+            "name": "noop",
+            "input": {},
+        }
+
+    def test_content_block_to_dict_flattens_tool_result_object(self) -> None:
+        from unittest.mock import MagicMock
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        obj = MagicMock()
+        obj.type = "tool_result"
+        obj.tool_use_id = "toolu_123"
+        obj.content = "42"
+        assert _content_block_to_dict(obj) == {
+            "type": "tool_result",
+            "tool_use_id": "toolu_123",
+            "content": "42",
+        }
+
+    def test_content_block_to_dict_unknown_type_uses_model_dump(self) -> None:
+        """Unknown block types fall back to ``.model_dump()`` if available."""
+
+        class _FakeBlock:
+            type = "reasoning"
+
+            def model_dump(self):
+                return {"type": "reasoning", "text": "from model_dump"}
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        assert _content_block_to_dict(_FakeBlock()) == {
+            "type": "reasoning",
+            "text": "from model_dump",
+        }
+
+    def test_content_block_to_dict_unknown_type_without_model_dump_stringifies(
+        self,
+    ) -> None:
+        """Unknown block types with no ``model_dump`` fall back to ``str``."""
+
+        class _FakeBlock:
+            type = "weird"
+
+            def __str__(self) -> str:
+                return "<weird block>"
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        assert _content_block_to_dict(_FakeBlock()) == "<weird block>"
+
+    def test_content_block_to_dict_object_without_type_attribute(self) -> None:
+        """Objects with no ``type`` attribute also fall through to
+        ``model_dump`` or ``str``."""
+
+        class _NoType:
+            def model_dump(self):
+                return {"flattened": True}
+
+        from agentverify.cassette.adapters.anthropic import _content_block_to_dict
+
+        assert _content_block_to_dict(_NoType()) == {"flattened": True}
+
+    def test_normalise_anthropic_message_passes_through_non_dict(self) -> None:
+        from agentverify.cassette.adapters.anthropic import _normalise_anthropic_message
+
+        assert _normalise_anthropic_message("not a dict") == "not a dict"
+        assert _normalise_anthropic_message(42) == 42
+
+    def test_normalise_anthropic_message_leaves_string_content_alone(self) -> None:
+        from agentverify.cassette.adapters.anthropic import _normalise_anthropic_message
+
+        # User messages often carry a plain string — those bypass the
+        # content-block flattening entirely.
+        original = {"role": "user", "content": "Hello"}
+        assert _normalise_anthropic_message(original) == original
+
+    def test_normalise_anthropic_message_flattens_list_of_blocks(
+        self, adapter: AnthropicAdapter
+    ) -> None:
+        """End-to-end: mixed list of SDK-like and dict-like blocks all
+        reach the NormalizedRequest as plain dicts."""
+        from unittest.mock import MagicMock
+
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "thinking..."
+
+        tool_use_block = MagicMock()
+        tool_use_block.type = "tool_use"
+        tool_use_block.id = "toolu_a"
+        tool_use_block.name = "add"
+        tool_use_block.input = {"a": 1, "b": 2}
+
+        raw = {
+            "model": "claude-haiku-4-5",
+            "messages": [
+                {"role": "user", "content": "1 + 2?"},
+                {"role": "assistant", "content": [text_block, tool_use_block]},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "toolu_a", "content": "3"},
+                    ],
+                },
+            ],
+        }
+        result = adapter.normalize_request(raw)
+        # Assistant message's content is now a list of plain dicts.
+        assistant_content = result.messages[1]["content"]
+        assert assistant_content == [
+            {"type": "text", "text": "thinking..."},
+            {
+                "type": "tool_use",
+                "id": "toolu_a",
+                "name": "add",
+                "input": {"a": 1, "b": 2},
+            },
+        ]
+        # The trailing user tool_result list is left as-is because it's
+        # already in dict form.
+        assert result.messages[2]["content"] == [
+            {"type": "tool_result", "tool_use_id": "toolu_a", "content": "3"},
+        ]
+
+    def test_normalise_anthropic_message_ignores_non_list_messages(
+        self, adapter: AnthropicAdapter
+    ) -> None:
+        """Defensive: a stray non-list ``messages`` field (shouldn't
+        happen, but hardening the boundary) is passed through."""
+        raw = {
+            "model": "claude-haiku-4-5",
+            "messages": "not a list",
+        }
+        result = adapter.normalize_request(raw)
+        assert result.messages == "not a list"

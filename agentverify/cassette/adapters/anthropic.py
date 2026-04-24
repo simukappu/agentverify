@@ -98,6 +98,58 @@ class _Message:
 # ---------------------------------------------------------------------------
 
 
+def _content_block_to_dict(block: Any) -> Any:
+    """Convert an Anthropic content block (SDK object or dict) to a plain dict.
+
+    Keeps raw strings and plain dicts as-is; reshapes SDK objects by
+    reading the fields we care about for every supported block type
+    (``text`` / ``tool_use`` / ``tool_result``) and falls back to
+    ``model_dump`` for anything else.
+    """
+    if isinstance(block, (str, int, float, bool)) or block is None:
+        return block
+    if isinstance(block, dict):
+        return block
+
+    block_type = getattr(block, "type", None)
+    if block_type == "text":
+        return {"type": "text", "text": getattr(block, "text", "")}
+    if block_type == "tool_use":
+        return {
+            "type": "tool_use",
+            "id": getattr(block, "id", ""),
+            "name": getattr(block, "name", ""),
+            "input": getattr(block, "input", {}) or {},
+        }
+    if block_type == "tool_result":
+        return {
+            "type": "tool_result",
+            "tool_use_id": getattr(block, "tool_use_id", ""),
+            "content": getattr(block, "content", ""),
+        }
+
+    # Unknown block type — try pydantic's ``model_dump`` if available,
+    # otherwise stringify so the YAML stays parseable.
+    model_dump = getattr(block, "model_dump", None)
+    if callable(model_dump):
+        try:
+            return model_dump()
+        except Exception:  # pragma: no cover — defensive
+            pass
+    return str(block)
+
+
+def _normalise_anthropic_message(message: Any) -> Any:
+    """Flatten SDK content-block objects inside a single message dict."""
+    if not isinstance(message, dict):
+        return message
+    content = message.get("content")
+    if isinstance(content, list):
+        message = dict(message)
+        message["content"] = [_content_block_to_dict(b) for b in content]
+    return message
+
+
 class AnthropicAdapter(LLMProviderAdapter):
     """Adapter for the Anthropic Python SDK (``anthropic>=0.20``)."""
 
@@ -129,6 +181,17 @@ class AnthropicAdapter(LLMProviderAdapter):
         # Everything else goes into parameters
         _reserved = {"messages", "model", "tools"}
         parameters = {k: v for k, v in raw_request.items() if k not in _reserved}
+
+        # Normalise messages: ReAct-style agents append the SDK's own
+        # content-block objects (``TextBlock`` / ``ToolUseBlock``) back
+        # into the conversation history so the next turn's request
+        # carries them verbatim.  Dumping those pydantic objects into
+        # the cassette YAML would embed Python-class tags
+        # (``!!python/object:anthropic.types...``) that can't be loaded
+        # on a machine with a different anthropic SDK version.  Flatten
+        # them to plain dicts on the way in.
+        if isinstance(messages, list):
+            messages = [_normalise_anthropic_message(m) for m in messages]
 
         return NormalizedRequest(
             messages=messages,
