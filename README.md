@@ -10,18 +10,24 @@
 
 agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once, replay them in CI with zero cost, and assert exactly what your agent did — which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
 
-## Why agentverify?
-
 Prompt engineering and eval frameworks tell you whether an LLM said the right thing. Production agents fail for a different set of reasons: they call the wrong tool, skip a step, hallucinate a parameter that was supposed to come from the previous tool's output, or quietly burn through your token budget. Those are deterministic bugs, and they deserve deterministic tests.
 
-agentverify records real LLM SDK calls once and replays them in CI with zero cost. On the recording you can assert:
+On a recording you can assert:
 
 - **Tool call sequences** — exact order, subsequence, or set membership, with regex / wildcard argument matching
 - **Step-level execution** — each LLM call is a step; assert what tool was called at step N, what the step's output was, and that step N's input references data produced by step M
 - **Budgets** — token counts, cost in USD, end-to-end latency
 - **Safety** — a list of tools that must never be called, no matter what the LLM decides
 
-It ships with built-in adapters for LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and supports OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM as LLM providers. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
+Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
+
+## Who is this for?
+
+- You've shipped an agent with LangChain / LangGraph / Strands / OpenAI Agents SDK and need CI-safe regression tests for it
+- Your agent calls multiple tools and you've hit bugs like "it ignored the tool result" or "it called the wrong tool"
+- You want prompt and tool changes reviewed in PRs via a concrete diff, not an informal "looks fine locally" signoff
+- You're building on MCP servers and need to pin down which tools get called with which arguments
+- You want token, cost, and latency budgets enforced in CI, not caught only on the billing dashboard
 
 ## Install
 
@@ -29,9 +35,9 @@ It ships with built-in adapters for LangChain, LangGraph, Strands Agents, and Op
 pip install agentverify
 ```
 
-## Quick Start — No LLM Required
+## Quick Start
 
-Copy this into `test_agent.py` and run `pytest`. No API keys, no cassettes — just pure assertions.
+Copy this into `test_agent.py` and run `pytest`. No LLM calls, no API keys, no cassettes needed — just pure assertions on an `ExecutionResult`.
 
 ```python
 from agentverify import (
@@ -66,7 +72,7 @@ def test_output():
     assert_final_output(result, contains="Tokyo")
 ```
 
-> **Using a real agent framework?** The [Real-World Examples](#real-world-examples) below show how to test actual agents with built-in adapters for LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK.
+> **Using a real agent framework?** Walk through the [Real-World Examples](#real-world-examples) below for end-to-end tests with cassettes, or jump straight to the [Examples](#examples) table for the full list of runnable samples.
 
 ```
 $ pytest test_agent.py -v
@@ -174,7 +180,7 @@ def test_generator_consumes_evaluator_feedback(cassette):
     assert_step_uses_result_from(result, step=2, depends_on=1)
 ```
 
-`assert_step_uses_result_from` walks the multi-line evaluator feedback into the next step's user message even though JSON serialisation would escape the newlines; the match succeeds across that boundary. Because each `Runner.run` call is recorded individually, the example builds the `ExecutionResult` straight off the cassette recorder — `from_openai_agents` is the right adapter for single-run agents, but the cassette layer is the natural single source of truth when the workflow spans several runs.
+`assert_step_uses_result_from` finds the multi-line evaluator feedback inside the next step's user message even when JSON serialization would escape the newlines; the match succeeds across that boundary. Because each `Runner.run` call is recorded individually, the example builds the `ExecutionResult` straight off the cassette recorder — `from_openai_agents` is the right adapter for single-run agents, but the cassette layer is the natural single source of truth when the workflow spans several runs.
 
 See [`examples/openai-agents-llm-as-a-judge/`](examples/openai-agents-llm-as-a-judge/) for the full loop, the cassette, and the remaining flat + step-level assertions (budget, safety, pass-verdict reached).
 
@@ -191,7 +197,7 @@ Each example ships with its own pre-recorded cassette, a detailed `README.md`, a
 
 Every agentverify assertion takes an `ExecutionResult`. You can build one three ways:
 
-1. **From a dict** — convenient for quick tests and fixtures, as in the [Quick Start](#quick-start--no-llm-required).
+1. **From a dict** — convenient for quick tests and fixtures, as in the [Quick Start](#quick-start).
 2. **From a built-in adapter** — one-liner for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
 3. **From a custom converter** — for other frameworks, map your output to the schema below. See [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for a ~50-line reference implementation.
 
@@ -200,7 +206,7 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 | Key | Type | Description |
 |---|---|---|
 | `steps` | `list[dict]` | Each step dict has `index` (int), `source` (`"llm"` / `"probe"` / `"tool"`), `tool_calls` (list), `tool_results` (list), `output` (str or None), `input_context` (dict or None), `name` (str or None). See [Step-Level Assertions](#step-level-assertions) |
-| `tool_calls` | `list[dict]` | **Legacy v0.2.0 form** — when `steps` is absent, a flat `tool_calls` list is wrapped into a single synthetic step. Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional) |
+| `tool_calls` | `list[dict]` | **Shortcut for single-step cases** — when `steps` is absent, a flat `tool_calls` list is wrapped into a single synthetic step. Used throughout the [Quick Start](#quick-start). Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional) |
 | `token_usage` | `dict` or `None` | `{"input_tokens": int, "output_tokens": int}` |
 | `total_cost_usd` | `float` or `None` | Total cost in USD (must be set manually — not auto-calculated from tokens or populated from cassettes) |
 | `duration_ms` | `float` or `None` | Wall-clock duration in milliseconds (auto-populated by the `cassette` fixture and `MockLLM`) |
@@ -253,9 +259,9 @@ Cassettes are human-readable YAML (or JSON). Commit them to git, review in PRs.
 | `RECORD` | Always call real LLM API and save to cassette file. |
 | `REPLAY` | Always replay from cassette file. Raises error if file is missing. |
 
-### Request Matching (Stale Cassette Detection)
+### Stale Cassette Detection
 
-Cassette replay verifies request content by default. Each replay request is compared against the recorded request:
+Cassette replay verifies request content by default so a stale cassette fails loudly instead of returning the old response. Each replay request is compared against the recorded request:
 - **Model name**: must match exactly (empty model in either side skips the check)
 - **Tool names**: the sorted list of tool names must match (empty tools in either side skips the check)
 
@@ -273,6 +279,15 @@ pytest --no-cassette-match-requests
 with cassette("my_test.yaml", provider="openai", match_requests=False) as rec:
     run_my_agent("What's the weather?")
 ```
+
+### Keeping Cassettes Current
+
+Cassettes drift when your prompts, tool schemas, or model versions change. agentverify's stale detection catches model-name and tool-name mismatches automatically (see [Stale Cassette Detection](#stale-cassette-detection)); a prompt-only change won't invalidate the cassette unless the model's tool-call output differs. In practice:
+
+- Re-record on major prompt rewrites or tool schema changes
+- Pin model versions (`gpt-4o-2024-08-06`, not `gpt-4o`) in your agent code so cassettes don't silently shift underneath you
+- Treat cassette diffs as part of the PR review — a YAML diff next to the prompt diff is a feature, not noise
+- Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments, so small wording changes in LLM outputs don't cascade into test failures
 
 ### Cassette Sanitization
 
@@ -326,8 +341,8 @@ assert_tool_calls(result, expected=[
 # MATCHES regex — verify a string argument follows a pattern
 # (re.search semantics — use ^/$ anchors for full match)
 assert_tool_calls(result, expected=[
-    ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/points/")}),
-    ToolCall("http_request", {"method": "GET", "url": MATCHES(r"/forecast")}),
+    ToolCall("send_email", {"to": MATCHES(r"^[\w.+-]+@example\.com$")}),
+    ToolCall("log_event", {"event_id": MATCHES(r"^evt_[a-f0-9]{16}$")}),
 ])
 ```
 
@@ -344,6 +359,25 @@ assert_all(
     lambda r: assert_final_output(r, contains="Tokyo"),
 )
 ```
+
+### Cost Assertions
+
+`assert_cost()` enforces token and dollar budgets on an agent run. Either bound is optional — pass `max_tokens` only, `max_cost_usd` only, or both together:
+
+```python
+from agentverify import assert_cost
+
+# Token budget only
+assert_cost(result, max_tokens=500)
+
+# Dollar budget only
+assert_cost(result, max_cost_usd=0.01)
+
+# Both — fail if either is exceeded
+assert_cost(result, max_tokens=500, max_cost_usd=0.01)
+```
+
+`result.token_usage` is populated automatically by the `cassette` fixture, `MockLLM`, and every built-in framework adapter. `result.total_cost_usd` must be set manually (see [Build an ExecutionResult](#build-an-executionresult)) — agentverify does not compute dollar costs from tokens, since the pricing table would need per-model maintenance and get stale quickly.
 
 ### Latency Assertions
 
@@ -399,7 +433,7 @@ For agents that make multiple LLM calls per execution (ReAct, Plan-and-Execute, 
 
 `ExecutionResult.steps` is the single source of truth; `result.tool_calls` remains as a derived flat view for simpler cases.
 
-> The [Real-World Examples](#real-world-examples) above show `assert_step` and `assert_step_uses_result_from` in action on Strands and LangGraph. This section covers the full API.
+> The [Real-World Examples](#real-world-examples) above show `assert_step` and `assert_step_uses_result_from` in action on Strands and the OpenAI Agents SDK, with the LangGraph and LangChain examples linked below them. This section covers the full API.
 
 ```python
 from agentverify import assert_step, assert_step_output, ToolCall, MATCHES
@@ -407,7 +441,7 @@ from agentverify import assert_step, assert_step_output, ToolCall, MATCHES
 @pytest.mark.agentverify
 def test_plan_and_execute(cassette):
     with cassette("trip_planner.yaml", provider="openai") as rec:
-        plan_trip("2 days in Tokyo")
+        plan_trip("2 nights in Shibuya, Tokyo")
     result = rec.to_execution_result()
 
     # Step 0: agent plans what to search for
@@ -416,11 +450,11 @@ def test_plan_and_execute(cassette):
     # Step 1: agent calls the flight search tool
     assert_step(result, step=1, expected_tool=ToolCall("search_flights", {"city": "Tokyo"}))
 
-    # Step 2: agent calls the hotel search with a location string it discovered
-    assert_step(result, step=2, expected_tool=ToolCall("search_hotels", {"area": MATCHES(r"Shibuya|Shinjuku")}))
+    # Step 2: agent calls the hotel search with the neighborhood the user asked for
+    assert_step(result, step=2, expected_tool=ToolCall("search_hotels", {"area": MATCHES(r"Shibuya")}))
 ```
 
-### Assert step-to-step data flow
+### Assert Step-to-Step Data Flow
 
 `assert_step_uses_result_from()` verifies that one step's input references data produced by another — catches "agent ignored the tool result" bugs.
 
@@ -436,11 +470,11 @@ assert_step_uses_result_from(result, step=2, depends_on=1, via="tool_result")
 
 The check searches for any produced value (step M's `tool_results`, `tool_calls[*].result`, or `output`) inside step N's `input_context` or `tool_calls[*].arguments`. Strings are substring-matched; primitives (numbers, booleans) are matched structurally inside containers; JSON-encoded tool results are descended automatically.
 
-Concretely, if step 0's `list_issues` tool returned `[{"number": 1}, {"number": 2}]` and step 1 called `get_issue(issue_number=2)`, the check finds that the number `2` produced by step 0 shows up in step 1's arguments — data flows correctly.
+To see this concretely with a different example: if step 0's `list_issues` tool returned `[{"number": 1}, {"number": 2}]` and step 1 called `get_issue(issue_number=2)`, the check finds that the number `2` produced by step 0 shows up in step 1's arguments — data flows correctly. This is exactly the pattern the [LangChain GitHub issue triage example](examples/langchain-issue-triage/) verifies.
 
 **Works on cassette replay.** Cassette recorders don't record tool execution results directly, but agentverify backfills them from the next step's `input_context` so you can assert data flow without any special adapter setup.
 
-### Workflow-style Agents with `step_probe`
+### Workflow-Style Agents with `step_probe`
 
 Many production agents aren't pure ReAct loops — they mix LLM calls with caching, state management, validation, and conditional branches. `step_probe()` lets you mark logical step boundaries in your agent code so tests can assert on those non-LLM steps.
 
@@ -467,7 +501,7 @@ def test_cache_miss_path():
         run_agent("what's the answer?")
     result = rec.to_execution_result()
     assert_step(result, name="fetch_cache", expected_tools=[])  # probe with no tool calls
-    assert_step(result, name="call_llm", ...)
+    assert_step_output(result, name="call_llm", contains="42")  # the LLM step returned the answer
     assert_step_output(result, name="postprocess", equals="formatted")
 ```
 
@@ -494,17 +528,21 @@ from agentverify.frameworks.langchain import from_langchain
 execution_result = from_langchain(result, messages=memory.chat_memory.messages)
 ```
 
-LangGraph and Strands adapters take the raw agent output directly:
+LangGraph, Strands, and OpenAI Agents adapters take the raw agent output directly:
 
 ```python
 from agentverify.frameworks.langgraph import from_langgraph
 from agentverify.frameworks.strands import from_strands
+from agentverify.frameworks.openai_agents import from_openai_agents
 
 # LangGraph: create_react_agent / create_supervisor result
 execution_result = from_langgraph(app.invoke({"messages": [...]}))
 
 # Strands: agent call result
 execution_result = from_strands(weather_agent("What's the weather in Seattle?"))
+
+# OpenAI Agents SDK: Runner.run_sync() / await Runner.run() result
+execution_result = from_openai_agents(Runner.run_sync(agent, "your prompt"))
 ```
 
 ### Custom Converters
@@ -522,9 +560,9 @@ For other frameworks, build an `ExecutionResult` from your agent's output using 
 | LiteLLM | `pip install agentverify[litellm]` |
 | All providers | `pip install agentverify[all]` |
 
-## Tool Mocking — Test Routing Without an LLM
+## Tool Mocking
 
-`MockLLM` replays a list of predefined LLM responses that you define in code. No cassette file, no real API call. Useful when you want to test your agent's routing logic — does it call the right tools, in the right order, given a specific LLM response — without recording a cassette first.
+`MockLLM` replays a list of predefined LLM responses that you define in code. Test your agent's routing logic without a cassette or a real LLM call — useful when you haven't recorded yet, or when you want to drive the agent through hypothetical responses (errors, edge cases) that would be awkward to elicit from a real model.
 
 ```python
 import pytest
@@ -553,7 +591,7 @@ def test_agent_routes_to_weather_tool():
 
 Provide one `mock_response(...)` per LLM call your agent is expected to make. If your agent makes more calls than you've queued, `MockLLM` raises `CassetteMissingRequestError` so under-specified tests fail loudly.
 
-### When to use MockLLM vs cassettes
+### When to Use MockLLM vs Cassettes
 
 | Use MockLLM when | Use cassettes when |
 |---|---|
@@ -579,7 +617,9 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
+      # Shown separately here for clarity — in practice, list agentverify
+      # alongside the rest of your project's deps in requirements.txt.
       - run: pip install "agentverify[all]"
       - run: pip install -r requirements.txt  # your project's deps
       - run: pytest --tb=short -v
@@ -604,19 +644,19 @@ Actual:
 ```
 
 ```
-LatencyBudgetError: Latency budget exceeded
-
-  Actual:  3,450.0 ms
-  Limit:   3,000.0 ms
-  Exceeded by: 450.0 ms (15.0%)
-```
-
-```
 CostBudgetError: Token budget exceeded
 
   Actual:  1,100 tokens
   Limit:   1,000 tokens
   Exceeded by: 100 tokens (10.0%)
+```
+
+```
+LatencyBudgetError: Latency budget exceeded
+
+  Actual:  3,450.0 ms
+  Limit:   3,000.0 ms
+  Exceeded by: 450.0 ms (15.0%)
 ```
 
 Other error types follow the same pattern: `SafetyRuleViolationError`, `FinalOutputError`.
@@ -642,10 +682,13 @@ See each example's README for setup and recording mode details.
 
 ## Roadmap
 
+We want agentverify to become the way people regression-test agents in CI — tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
+
 - Async support — first-class `asyncio` testing for async agents and tools
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
+- Eval-framework bridges (exploring) — compose ragas / deepeval quality scores with agentverify's action assertions in a single test report
 
 ## Changelog
 
