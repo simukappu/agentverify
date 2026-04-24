@@ -22,7 +22,6 @@ from agentverify import (
     assert_no_tool_call,
     assert_tool_calls,
 )
-from agentverify.frameworks.strands import from_strands
 
 # Add parent directory to path so we can import weather_agent
 sys.path.insert(0, str(Path(__file__).parent.parent))

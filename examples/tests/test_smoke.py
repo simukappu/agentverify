@@ -45,9 +45,6 @@ class TestDirectoryStructure:
     def test_langchain_agent(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "agent.py").is_file()
 
-    def test_langchain_converter(self):
-        assert (EXAMPLES_DIR / "langchain-issue-triage" / "converter.py").is_file()
-
     def test_langchain_pyproject(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "pyproject.toml").is_file()
 

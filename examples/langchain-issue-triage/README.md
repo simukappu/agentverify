@@ -2,6 +2,8 @@
 
 A GitHub Issue triage agent built with [LangChain](https://python.langchain.com/) and the [GitHub MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/github). It lists issues, reads details, and suggests labels, priorities, and assignees — tested with [agentverify](https://github.com/simukappu/agentverify).
 
+The agent follows the official [`langchain-mcp-adapters` quickstart pattern](https://github.com/langchain-ai/langchain-mcp-adapters) — `MultiServerMCPClient` plus `create_react_agent` — applied to the GitHub MCP server. agentverify's built-in `from_langchain` adapter extracts the `ExecutionResult` in one call; no custom converter needed for this agent.
+
 ## Prerequisites
 
 - Python 3.10+
@@ -88,25 +90,3 @@ To re-record cassettes with real LLM and GitHub API calls:
    ```
    Cassette files are saved (or overwritten if they already exist).
 3. Commit the updated cassette files.
-
-## Conversion Helper
-
-> **Recommended**: Use the built-in adapter instead of the manual converter:
->
-> ```python
-> from agentverify.frameworks.langchain import from_langchain
->
-> result = agent_executor.invoke({"input": "Triage the issues"})
-> execution_result = from_langchain(result, messages=memory.chat_memory.messages)
-> ```
->
-> The built-in adapter performs the same conversion as `converter.py` below. The manual converter is kept as a reference for customization.
-
-`converter.py` provides `langchain_result_to_execution_result()` which converts a LangChain `AgentExecutor` output into an agentverify `ExecutionResult`. See the inline comments for the full mapping:
-
-| LangChain AgentExecutor Output | ExecutionResult |
-|---|---|
-| `intermediate_steps[*][0].tool` | `tool_calls[*].name` |
-| `intermediate_steps[*][0].tool_input` | `tool_calls[*].arguments` |
-| `AIMessage.usage_metadata` (summed) | `token_usage` |
-| `output` | `final_output` |

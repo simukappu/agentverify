@@ -19,4 +19,4 @@ dependencies = [
 dev = ["pytest", "hypothesis"]
 
 [tool.setuptools]
-py-modules = ["agent", "converter"]
+py-modules = ["agent"]

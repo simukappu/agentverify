@@ -199,7 +199,7 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 
 1. **From a dict** — convenient for quick tests and fixtures, as in the [Quick Start](#quick-start).
 2. **From a built-in adapter** — one-liner for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
-3. **From a custom converter** — for other frameworks, map your output to the schema below. See [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for a ~50-line reference implementation.
+3. **From a custom converter** — for frameworks or pure-Python agents not covered by a built-in adapter, map your output to the schema below. See [`examples/custom-converter-python-agent/`](examples/custom-converter-python-agent/) for a complete walkthrough with an Anthropic SDK agent, including a pre-recorded cassette and step-level tests.
 
 `ExecutionResult.from_dict()` accepts these keys:
 
@@ -433,7 +433,7 @@ For agents that make multiple LLM calls per execution (ReAct, Plan-and-Execute, 
 
 `ExecutionResult.steps` is the single source of truth; `result.tool_calls` remains as a derived flat view for simpler cases.
 
-> The [Real-World Examples](#real-world-examples) above show `assert_step` and `assert_step_uses_result_from` in action on Strands and the OpenAI Agents SDK, with the LangGraph and LangChain examples linked below them. This section covers the full API.
+> The [Real-World Examples](#real-world-examples) above show `assert_step` and `assert_step_uses_result_from` in action on Strands and the OpenAI Agents SDK; the LangGraph, LangChain, and pure-Python custom-converter examples linked from there exercise the same API on different agent shapes. This section covers the full API.
 
 ```python
 from agentverify import assert_step, assert_step_output, ToolCall, MATCHES
@@ -547,7 +547,7 @@ execution_result = from_openai_agents(Runner.run_sync(agent, "your prompt"))
 
 ### Custom Converters
 
-For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/langchain-issue-triage/converter.py`](examples/langchain-issue-triage/converter.py) for a ~50-line reference implementation.
+For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/custom-converter-python-agent/`](examples/custom-converter-python-agent/) for a complete reference — an Anthropic SDK ReAct agent paired with a ~80-line `converter.py`, a recorded cassette, and step-level tests.
 
 ## Supported LLM Providers
 
@@ -676,6 +676,7 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 | [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with running-total data flow |
 | [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it |
 | [`openai-agents-llm-as-a-judge`](examples/openai-agents-llm-as-a-judge/) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test with feedback-chain data flow |
+| [`custom-converter-python-agent`](examples/custom-converter-python-agent/) | Anthropic SDK (no framework) | Reference for writing a custom converter — a hand-rolled ReAct loop calling the Anthropic Messages API directly |
 | [`mcp-server`](examples/mcp-server/) | — | Mock GitHub MCP server for token-free testing |
 
 See each example's README for setup and recording mode details.
