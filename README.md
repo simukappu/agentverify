@@ -78,7 +78,7 @@ test_agent.py::test_output PASSED
 
 ## Real-World Examples
 
-Two end-to-end examples that showcase different agent patterns and testing angles. Both run with pre-recorded cassettes — no API keys needed.
+Three end-to-end examples that showcase different agent patterns and testing angles. All run with pre-recorded cassettes — no API keys needed.
 
 ### Strands Weather Forecaster — Two-Step ReAct
 
@@ -143,46 +143,49 @@ def test_weather_agent_steps(cassette):
 
 `MATCHES(pattern)` is a regex matcher — see [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`. Step assertions are covered in [Step-Level Assertions](#step-level-assertions).
 
-### LangGraph Multi-Agent Supervisor — Handoff with a Running Total
+### OpenAI Agents SDK LLM as a Judge — Freezing a Probabilistic Refinement Loop
 
-Test a multi-agent workflow built with [langgraph-supervisor](https://github.com/langchain-ai/langgraph-supervisor-py): a supervisor routes a query to a research expert, which calls `web_search`, then to a math expert, which adds up the numbers with a sequence of `add` calls. The interesting property here is the *running total* — each `add` must consume the previous `add`'s result, not a fresh number pulled out of thin air.
+Test the [OpenAI Agents SDK `agent_patterns/llm_as_a_judge.py`](https://github.com/openai/openai-agents-python/blob/main/examples/agent_patterns/llm_as_a_judge.py) sample: a generator writes a story outline, an evaluator grades it with a structured `{feedback, score}` verdict, and the loop re-runs the generator with that feedback until the evaluator accepts the draft. Everything about this agent is probabilistic — how many rounds it takes, what the feedback says, whether the rewrite incorporates it. Recording one run freezes all of it into a deterministic test.
+
+The headline assertion is the feedback chain: round 2's generator must actually consume round 1's evaluator feedback, not silently regenerate the same outline.
 
 ```python
 import pytest
-from agentverify import (
-    ToolCall,
-    assert_step, assert_step_uses_result_from,
-)
-from agentverify.frameworks.langgraph import from_langgraph
+from agentverify import assert_step_uses_result_from, assert_step_output
 
-# Import the supervisor from the example
-# (see examples/langgraph-multi-agent-supervisor/)
-from agent import run_supervisor
+# Import the judge loop from the example
+# (see examples/openai-agents-llm-as-a-judge/)
+from agent import run_judge_loop_sync
 
 
 @pytest.mark.agentverify
-def test_supervisor_running_total(cassette):
-    """The math expert must accumulate — each add step must consume the previous one's result."""
-    with cassette("supervisor_faang.yaml", provider="openai") as rec:
-        raw = run_supervisor(
-            "What's the combined headcount of the FAANG companies in 2024?"
-        )
-    result = from_langgraph(raw)
+def test_generator_consumes_evaluator_feedback(cassette):
+    """Round 2's regeneration must reference the evaluator's round 1 feedback."""
+    with cassette("detective_in_space.yaml", provider="openai") as rec:
+        run_judge_loop_sync("A detective story in space.", max_rounds=3)
+    result = rec.to_execution_result()
 
-    # Find the two sequential add steps the math expert emits
-    add_steps = [
-        s for s in result.steps if any(tc.name == "add" for tc in s.tool_calls)
-    ]
-
-    # The second add step must consume the first add step's numeric result
-    assert_step_uses_result_from(
-        result, step=add_steps[1].index, depends_on=add_steps[0].index,
+    # Step 1 is the evaluator's first verdict; it must reject on the first try.
+    assert_step_output(
+        result, step=1, matches=r'"score"\s*:\s*"(needs_improvement|fail)"'
     )
+    # Step 2 (generator, round 2) must actually consume step 1's feedback —
+    # catches "agent regenerated but ignored the judge" bugs.
+    assert_step_uses_result_from(result, step=2, depends_on=1)
 ```
 
-`assert_step_uses_result_from` catches the "agent dropped the running total and pulled a fresh number" bug — the math expert returns `231317.0` as a tool result string, and the next `add` must consume it as `231317` (int). agentverify matches the numeric value across type boundaries, with digit-boundary checks so `"231"` doesn't falsely match inside `1231`.
+`assert_step_uses_result_from` walks the multi-line evaluator feedback into the next step's user message even though JSON serialisation would escape the newlines; the match succeeds across that boundary. Because each `Runner.run` call is recorded individually, the example builds the `ExecutionResult` straight off the cassette recorder — `from_openai_agents` is the right adapter for single-run agents, but the cassette layer is the natural single source of truth when the workflow spans several runs.
 
-See [`examples/langgraph-multi-agent-supervisor/`](examples/langgraph-multi-agent-supervisor/) for the full workflow (supervisor routing, handoff tool calls, multi-hop data flow) and the cassette.
+See [`examples/openai-agents-llm-as-a-judge/`](examples/openai-agents-llm-as-a-judge/) for the full loop, the cassette, and the remaining flat + step-level assertions (budget, safety, pass-verdict reached).
+
+### LangGraph + LangChain — Multi-Agent Handoff and MCP Tool Loops
+
+Full-depth examples for the LangChain ecosystem live under [`examples/`](examples/):
+
+- **[LangGraph multi-agent supervisor](examples/langgraph-multi-agent-supervisor/)** — a supervisor routes to a research expert and a math expert; each `add` in the math chain must consume the previous `add`'s result. `assert_step_uses_result_from` matches the numeric running total (`"231317.0"` produced as a string, consumed as `231317` int/float) across type boundaries, with digit-boundary checks that keep `"231"` from falsely appearing inside `1231`.
+- **[LangChain GitHub issue triage](examples/langchain-issue-triage/)** — a `create_react_agent` drives the GitHub MCP server to list issues, read one, propose labels. The step-level tests verify that the `issue_number` passed to `get_issue` actually came from the preceding `list_issues` response, and that destructive tools like `close_issue` are never called.
+
+Each example ships with its own pre-recorded cassette, a detailed `README.md`, and a full test file — pick whichever framework fits your stack.
 
 ## Build an ExecutionResult
 
