@@ -667,9 +667,14 @@ def _value_matches(produced, consumed) -> bool:
 
     - Direct equality always matches.
     - String produced in string consumed → substring match.
-    - Primitive produced (str / int / float / bool) in any other
-      consumed → substring match on a JSON/repr serialization of
-      ``consumed``.
+    - String produced in a container consumed → recurse into each leaf
+      string of the container and substring-search there.  Recursing
+      rather than serialising the whole container avoids false
+      negatives introduced by JSON escaping (``\\n``, ``\\"``, etc).
+    - Numeric / boolean produced in any non-string consumed →
+      substring search on the container's JSON serialisation; this
+      catches values embedded in nested structures without the escape
+      hazard that strings face.
     - Non-primitive produced values are only matched via direct equality
       (callers are expected to pass leaves via :func:`_leaves`).
     """
@@ -683,23 +688,45 @@ def _value_matches(produced, consumed) -> bool:
         # e.g. ``"231"`` does not falsely appear inside ``1231``.
         numeric_variants = _numeric_string_variants(produced)
         if numeric_variants:
-            target = consumed if isinstance(consumed, str) else _stringify(consumed)
-            for needle in numeric_variants:
-                if _contains_number(target, needle):
-                    return True
+            if isinstance(consumed, str):
+                for needle in numeric_variants:
+                    if _contains_number(consumed, needle):
+                        return True
+                return False
+            # Walk leaves to avoid JSON escaping artefacts.
+            for leaf in _leaves(consumed):
+                if isinstance(leaf, str):
+                    for needle in numeric_variants:
+                        if _contains_number(leaf, needle):
+                            return True
+                elif isinstance(leaf, (int, float, bool)):
+                    # e.g. produced="231317" vs consumed leaf int 231317.
+                    for needle in numeric_variants:
+                        if str(leaf) == needle:
+                            return True
             return False
 
         if isinstance(consumed, str):
             return produced in consumed
-        serialized = _stringify(consumed)
-        return produced in serialized
+        # Walk leaf strings inside the container so escape artefacts
+        # from JSON serialisation don't break substring matches.
+        for leaf in _leaves(consumed):
+            if isinstance(leaf, str) and produced in leaf:
+                return True
+        return False
 
-    # Non-string primitives: JSON-serialize and substring-search the
-    # consumed container to catch values embedded in nested structures.
+    # Non-string primitives: walk leaves in the consumed container and
+    # compare against each leaf for structural (or numeric) equality.
     if isinstance(produced, (int, float, bool)) and not isinstance(consumed, str):
-        needle = _stringify(produced)
-        serialized = _stringify(consumed)
-        return needle in serialized
+        for leaf in _leaves(consumed):
+            if leaf == produced:
+                return True
+            if isinstance(leaf, str):
+                # Produced int 42 may appear as the string "42" inside
+                # a tool call argument; compare via the stringified form.
+                if str(produced) in leaf:
+                    return True
+        return False
 
     return False
 
@@ -738,31 +765,30 @@ def _contains_number(target: str, needle: str) -> bool:
     return re.search(pattern, target) is not None
 
 
-def _stringify(value) -> str:
-    """Serialize a nested value into a string for substring search.
-
-    Falls back to ``repr`` if JSON serialization fails (e.g. circular
-    references or non-serializable types with no default handler).
-    """
-    try:
-        return json.dumps(value, default=str, ensure_ascii=False)
-    except (TypeError, ValueError):
-        return repr(value)
-
-
-def _leaves(value):
+def _leaves(value, _seen: set[int] | None = None):
     """Yield leaf (non-container) values from a nested structure.
 
     Strings that successfully parse as JSON are recursively descended —
     this lets us extract primitive values embedded in JSON-serialized
     tool results (common in cassette-based tests).
+
+    A ``_seen`` set of ``id(container)`` values guards against circular
+    references in the input structure so we don't recurse forever.
     """
+    if _seen is None:
+        _seen = set()
+
+    if isinstance(value, (dict, list, tuple, set, frozenset)):
+        if id(value) in _seen:
+            return
+        _seen.add(id(value))
+
     if isinstance(value, dict):
         for v in value.values():
-            yield from _leaves(v)
-    elif isinstance(value, (list, tuple)):
+            yield from _leaves(v, _seen)
+    elif isinstance(value, (list, tuple, set, frozenset)):
         for v in value:
-            yield from _leaves(v)
+            yield from _leaves(v, _seen)
     elif isinstance(value, str):
         # Try to see if the string is JSON; if so, descend into it.
         stripped = value.strip()
@@ -773,7 +799,7 @@ def _leaves(value):
                 parsed = None
             if isinstance(parsed, (dict, list)):
                 yield value  # keep the raw string itself as a candidate too
-                yield from _leaves(parsed)
+                yield from _leaves(parsed, _seen)
                 return
         yield value
     else:

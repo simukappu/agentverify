@@ -813,8 +813,12 @@ class TestAssertStepEdgeCases:
         ])
         assert_step_uses_result_from(result, step=1, depends_on=0)
 
-    def test_stringify_handles_non_json_serializable(self):
-        """_stringify falls back to repr for non-JSON-serializable values."""
+    def test_produced_string_found_in_set_valued_consumed(self):
+        """Produced string matches a leaf inside a consumed ``set``.
+
+        ``_leaves`` walks dict / list / set / frozenset containers so
+        values stored in any iterable show up as candidates.
+        """
         # Using a set as consumed (not JSON serializable) with a string produced
         result = ExecutionResult(steps=[
             Step(index=0, source="llm", output="NEEDLE"),
@@ -886,27 +890,20 @@ class TestValueAppearsInBranches:
         ])
         assert_step_uses_result_from(result, step=1, depends_on=0)
 
-    def test_stringify_typeerror_fallback(self):
-        """_stringify falls back to repr when JSON raises.
-
-        Triggered when the consumed dict contains a circular reference
-        (ValueError) or a non-serializable non-string type (TypeError).
+    def test_circular_reference_in_consumed_does_not_recurse_forever(self):
+        """Circular references inside the consumed container don't blow
+        the stack — ``_leaves`` tracks visited container ids so cyclic
+        data structures terminate cleanly.
         """
-        # Construct a dict with a circular reference — json.dumps raises
         rec: dict = {}
-        rec["self"] = rec  # circular reference → raises ValueError
+        rec["self"] = rec  # circular reference
 
-        # Produced string must NOT appear in any dict VALUES directly
-        # (otherwise the dict values iteration finds it before _stringify
-        # runs).  Put it in a KEY so the fallback path fires.
+        # A sibling path holds the needle so there's a real match to
+        # reach once the walker stops recursing into the cycle.
         result = ExecutionResult(steps=[
-            Step(index=0, source="llm", output="KEY_HINT"),
+            Step(index=0, source="llm", output="CYCLE_NEEDLE"),
             Step(index=1, source="llm", tool_calls=[
-                ToolCall("x", {"payload": rec}),
-                # Second argument is a dict where the produced string
-                # appears only as a KEY — not a value, so the dict-values
-                # walk misses it and we fall back to _stringify.
-                ToolCall("y", {"KEY_HINT": "unrelated"}),
+                ToolCall("x", {"payload": rec, "other": "CYCLE_NEEDLE"}),
             ]),
         ])
         assert_step_uses_result_from(result, step=1, depends_on=0)
@@ -927,20 +924,107 @@ class TestValueMatchesStringNoMatch:
         assert _value_matches(42, "not a number") is False
         assert _value_matches(42, 43) is False
 
+    def test_numeric_string_produced_matches_string_leaf(self):
+        """Numeric-literal produced (e.g. ``"42"``) must find itself
+        inside a consumed container's string leaf, not just a direct
+        string ``consumed`` value.  Covers the string-leaf branch of
+        the numeric-variants walk.
+        """
+        from agentverify.assertions import _value_matches
 
+        # consumed is a dict; the leaf string contains the number with
+        # digit boundaries around it.
+        assert (
+            _value_matches("42", {"wrap": {"label": "code=42 found"}}) is True
+        )
 
-class TestStringifyFallback:
-    def test_json_failure_falls_back_to_repr(self):
-        """_stringify falls back to repr when JSON serialization fails."""
-        from agentverify.assertions import _stringify
+    def test_numeric_string_produced_matches_direct_string_consumed(self):
+        """Numeric-literal produced matches a plain-string ``consumed``
+        via boundary-aware numeric matching (no container traversal).
+        """
+        from agentverify.assertions import _value_matches
 
-        # Circular reference triggers ValueError inside json.dumps
-        rec: dict = {}
-        rec["self"] = rec
-        # default=str doesn't rescue circular references, so we fall
-        # back to repr().
-        result = _stringify(rec)
-        assert "..." in result or "self" in result  # repr shape
+        assert _value_matches("42", "status=42") is True
+
+    def test_numeric_string_produced_no_match_against_string_consumed(self):
+        """Numeric-literal produced that doesn't appear in ``consumed``
+        string returns False (negative direct-string branch).
+        """
+        from agentverify.assertions import _value_matches
+
+        assert _value_matches("42", "no numbers here") is False
+
+    def test_numeric_string_produced_skips_non_matching_string_leaves(self):
+        """Numeric-literal produced iterates over multiple string leaves;
+        the walk must skip non-matching ones and succeed on a later leaf.
+        """
+        from agentverify.assertions import _value_matches
+
+        # First leaf "code=99" doesn't match "42"; second leaf does.
+        assert _value_matches(
+            "42", {"a": "code=99", "b": "code=42"},
+        ) is True
+
+    def test_numeric_string_produced_skips_non_matching_primitive_leaves(self):
+        """Numeric-literal produced iterates over multiple primitive
+        leaves; the walk must skip non-matching ones and succeed on a
+        later leaf.
+        """
+        from agentverify.assertions import _value_matches
+
+        # First leaf 99 doesn't match, 42 does.
+        assert _value_matches("42", {"a": 99, "b": 42}) is True
+
+    def test_numeric_string_variant_produced_exhausts_all_primitive_leaves(self):
+        """Float-literal produced has two variants (e.g. ``"42.0"``
+        expands to ``["42.0", "42"]``).  Multiple leaves must be
+        iterated even when each leaf rejects every variant.  This
+        covers the "no match in primitive leaves" continuation edge.
+        """
+        from agentverify.assertions import _value_matches
+
+        # Two numeric variants tested against two primitive leaves —
+        # none match, so the walk must exhaust both leaves before
+        # returning False.
+        assert _value_matches(
+            "42.0", {"a": 99, "b": 17},
+        ) is False
+
+    def test_numeric_string_produced_skips_non_primitive_non_string_leaves(self):
+        """Leaves that are neither strings nor numeric primitives (e.g.
+        ``None``) fall through to the next iteration instead of
+        participating in the numeric walk.
+        """
+        from agentverify.assertions import _value_matches
+
+        # Leaf 1 is None (skipped), leaf 2 is 42 (matches).
+        assert _value_matches("42", {"a": None, "b": 42}) is True
+
+    def test_numeric_string_produced_matches_primitive_leaf(self):
+        """Numeric-literal produced matches a primitive numeric leaf
+        inside the consumed container (int 42 vs ``"42"`` needle).
+        """
+        from agentverify.assertions import _value_matches
+
+        assert _value_matches("42", {"wrap": {"n": 42}}) is True
+
+    def test_numeric_string_produced_no_match_in_container_returns_false(self):
+        """Numeric-literal produced with no matching leaf inside the
+        consumed container returns False (covers the numeric-variants
+        walk fall-through).
+        """
+        from agentverify.assertions import _value_matches
+
+        assert _value_matches("42", {"wrap": {"n": 17}}) is False
+
+    def test_non_string_primitive_found_inside_consumed_string_leaf(self):
+        """``int`` produced may appear as its string form inside a
+        container's string leaf — covers the int-in-str-leaf branch.
+        """
+        from agentverify.assertions import _value_matches
+
+        # 42 is inside the user-visible text "code=42"
+        assert _value_matches(42, {"msg": "code=42"}) is True
 
 
 
