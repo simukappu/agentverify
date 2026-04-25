@@ -63,7 +63,7 @@ jobs:
           # conflicting with openai-agents (litellm pins openai<2.25,
           # openai-agents requires openai>=2.26).
           pip install -e ".[dev]"
-          pip install strands-agents
+          pip install -e "examples/strands-weather-forecaster[dev]"
           pip install -e "examples/langchain-issue-triage[dev]"
           pip install -e "examples/langgraph-multi-agent-supervisor[dev]"
           pip install -e "examples/openai-agents-llm-as-a-judge[dev]"

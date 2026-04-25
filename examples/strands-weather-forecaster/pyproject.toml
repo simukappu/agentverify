@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strands-weather-forecaster"
+version = "0.1.0"
+description = "Strands Weather Forecaster example for agentverify"
+requires-python = ">=3.10"
+dependencies = [
+    "strands-agents",
+    "agentverify",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["weather_agent"]

@@ -26,12 +26,7 @@ class TestDirectoryStructure:
         assert (EXAMPLES_DIR / "strands-weather-forecaster" / "weather_agent.py").is_file()
 
     def test_strands_pyproject(self):
-        """strands-weather-forecaster uses the built-in from_strands adapter;
-        it doesn't ship its own pyproject.toml — the parent agentverify
-        [all] extras provide strands-agents.
-        """
-        # No pyproject.toml expected for this example.
-        pass
+        assert (EXAMPLES_DIR / "strands-weather-forecaster" / "pyproject.toml").is_file()
 
     def test_strands_conftest(self):
         assert (EXAMPLES_DIR / "strands-weather-forecaster" / "tests" / "conftest.py").is_file()
@@ -221,10 +216,7 @@ class TestReadmeFiles:
     """Verify all README.md files exist."""
 
     def test_strands_readme_exists(self):
-        # strands-weather-forecaster doesn't ship its own README — it's
-        # documented entirely in the main README's "Real-World Examples"
-        # section. Intentionally a no-op.
-        pass
+        assert (EXAMPLES_DIR / "strands-weather-forecaster" / "README.md").is_file()
 
     def test_langchain_readme_exists(self):
         assert (EXAMPLES_DIR / "langchain-issue-triage" / "README.md").is_file()
