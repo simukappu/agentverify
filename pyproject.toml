@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentverify"
 version = "0.2.0"
-description = "Deterministic testing for AI agents. Assert tool calls, not vibes."
+description = "Deterministic testing for AI agents. Assert agent actions, not vibes."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"

@@ -8,22 +8,20 @@
 
 **pytest for AI agents.** Assert agent actions, not vibes.
 
-agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once, replay them in CI with zero cost, and assert exactly what your agent did — which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
+agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once and replay them in CI with zero cost, or run against a live LLM with tolerance-aware assertions. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
 
-Prompt engineering and eval frameworks tell you whether an LLM said the right thing. Production agents fail for a different set of reasons: they call the wrong tool, skip a step, hallucinate a parameter that was supposed to come from the previous tool's output, or quietly burn through your token budget. Those are deterministic bugs, and they deserve deterministic tests.
-
-On a recording you can assert:
+Specifically:
 
 - **Tool call sequences** — exact order, subsequence, or set membership, with regex / wildcard argument matching
 - **Step-level execution** — each LLM call is a step; assert what tool was called at step N, what the step's output was, and that step N's input references data produced by step M
 - **Budgets** — token counts, cost in USD, end-to-end latency
 - **Safety** — a list of tools that must never be called, no matter what the LLM decides
 
-Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
+Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and a small custom converter plugs in anything else — pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, or frameworks not listed above. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
 
 ## Who is this for?
 
-- You've shipped an agent with LangChain / LangGraph / Strands / OpenAI Agents SDK and need CI-safe regression tests for it
+- You've shipped an agent that calls tools in a loop and need CI-safe regression tests for it
 - Your agent calls multiple tools and you've hit bugs like "it ignored the tool result" or "it called the wrong tool"
 - You want prompt and tool changes reviewed in PRs via a concrete diff, not an informal "looks fine locally" signoff
 - You're building on MCP servers and need to pin down which tools get called with which arguments
@@ -84,7 +82,7 @@ test_agent.py::test_output PASSED
 
 ## Real-World Examples
 
-Three end-to-end examples that showcase different agent patterns and testing angles. All run with pre-recorded cassettes — no API keys needed.
+End-to-end examples that showcase different agent patterns and testing angles. All run with pre-recorded cassettes — no API keys needed.
 
 ### Strands Weather Forecaster — Two-Step ReAct
 
@@ -689,7 +687,7 @@ We want agentverify to become the way people regression-test agents in CI — te
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
-- Eval-framework bridges (exploring) — compose ragas / deepeval quality scores with agentverify's action assertions in a single test report
+- Eval-framework bridges — compose ragas / deepeval quality scores with agentverify's action assertions in a single test report
 
 ## Changelog
 
