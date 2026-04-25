@@ -8,6 +8,14 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        pytest-version: [""]
+        include:
+          - python-version: "3.10"
+            pytest-version: "7.*"
+          - python-version: "3.12"
+            pytest-version: "8.*"
+          - python-version: "3.14"
+            pytest-version: "9.*"
 
     steps:
       - uses: actions/checkout@v5
@@ -22,12 +30,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[all,dev]"
 
+      - name: Pin pytest version
+        if: matrix.pytest-version != ''
+        run: pip install "pytest==${{ matrix.pytest-version }}"
+
       - name: Run tests with coverage
         run: |
           python -m pytest tests/ --cov=agentverify --cov-report=term-missing --cov-branch -p no:agentverify
 
       - name: Upload coverage to Coveralls
-        if: github.repository == 'simukappu/agentverify' && matrix.python-version == '3.14'
+        if: github.repository == 'simukappu/agentverify' && matrix.python-version == '3.14' && matrix.pytest-version == ''
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

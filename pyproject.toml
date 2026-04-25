@@ -38,7 +38,7 @@ classifiers = [
 ]
 dependencies = [
     "PyYAML",
-    "pytest",
+    "pytest>=7",
 ]
 
 [project.urls]
