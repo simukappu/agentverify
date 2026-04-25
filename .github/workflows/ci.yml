@@ -43,3 +43,46 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  examples:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install agentverify and example dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Install agentverify without [all] to avoid the litellm pin
+          # conflicting with openai-agents (litellm pins openai<2.25,
+          # openai-agents requires openai>=2.26).
+          pip install -e ".[dev]"
+          pip install strands-agents
+          pip install -e "examples/langchain-issue-triage[dev]"
+          pip install -e "examples/langgraph-multi-agent-supervisor[dev]"
+          pip install -e "examples/openai-agents-llm-as-a-judge[dev]"
+          pip install -e "examples/custom-converter-python-agent[dev]"
+
+      - name: Run examples smoke tests
+        run: python -m pytest examples/tests -v
+
+      - name: Run strands-weather-forecaster tests
+        run: python -m pytest examples/strands-weather-forecaster/tests -v
+
+      - name: Run langchain-issue-triage tests
+        run: python -m pytest examples/langchain-issue-triage/tests -v
+
+      - name: Run langgraph-multi-agent-supervisor tests
+        run: python -m pytest examples/langgraph-multi-agent-supervisor/tests -v
+
+      - name: Run openai-agents-llm-as-a-judge tests
+        run: python -m pytest examples/openai-agents-llm-as-a-judge/tests -v
+
+      - name: Run custom-converter-python-agent tests
+        run: python -m pytest examples/custom-converter-python-agent/tests -v
