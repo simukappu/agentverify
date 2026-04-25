@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-04-26)
 
 ### Features
 
@@ -10,7 +10,7 @@
 - **`MATCHES(pattern)` regex matcher** for verifying string tool-call arguments against a regex, with the same semantics as `ANY`.
 - **`MockLLM` + `mock_response(...)`** replay predefined LLM responses in-memory — test agent routing without a cassette or real LLM call.
 - **`assert_latency(result, max_ms=...)`** enforces response-time SLAs. `ExecutionResult.duration_ms` is captured automatically by the cassette fixture and `MockLLM`.
-- **LangGraph multi-agent supervisor example** demonstrates step-level + cross-step data flow testing on a research + math agent handoff (see `examples/langgraph-multi-agent-supervisor/`).
+- **Three new example suites** exercising step-level and data-flow testing on different agent shapes — OpenAI Agents SDK LLM-as-a-Judge, LangGraph multi-agent supervisor, and custom-converter-python-agent. See `examples/`.
 
 ### Improvements
 
@@ -18,6 +18,10 @@
 - **OpenAI cassette adapter** strips `openai.omit` / `openai.NOT_GIVEN` sentinels from `tools`, per-message dicts, and extra parameters before they reach the cassette YAML.
 - **OpenAI cassette adapter** handles the `with_raw_response.create` code path used by langchain-openai v1.x, unwrapping `LegacyAPIResponse` on record and re-wrapping the synthesised `ChatCompletion` on replay.
 - **Anthropic cassette adapter** flattens SDK content-block objects to plain dicts at record time, so cassettes recorded from ReAct-style agents load cleanly regardless of the installed Anthropic SDK version.
+
+### Dependency
+
+- **Minimum `pytest>=7`** is now declared in the runtime dependency so pip refuses to install on older pytest. CI tests against pytest 7, 8, and 9 majors on Python 3.10-3.14.
 
 ### Breaking Changes
 
