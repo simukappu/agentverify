@@ -96,6 +96,15 @@ leave empty headings.
 - **`ExecutionResult` is now step-centric.** `steps: list[Step]` is the single source of truth; `result.tool_calls` is a derived read-only property. All existing read-side code works unchanged. `result.to_dict()` now emits `steps: [...]` instead of `tool_calls: [...]`.
 ```
 
+## Release commits
+
+Each release ships as a single commit with subject `chore(release): X.Y.Z` and no body. The commit touches two files only:
+
+- `pyproject.toml` — bump `version` to `X.Y.Z`.
+- `CHANGELOG.md` — rename the `## Unreleased` heading to `## X.Y.Z (YYYY-MM-DD)`.
+
+Tag the release commit as `vX.Y.Z` (lightweight tag) and push both the commit and the tag. The CHANGELOG section is the single source of truth for what the release contains — don't repeat it in the commit body.
+
 ## Tests and coverage
 
 - The main test suite runs with `pytest tests/ --cov=agentverify --cov-branch -p no:agentverify`.
