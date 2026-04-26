@@ -8,7 +8,9 @@
 
 **pytest for AI agents.** Assert agent actions, not vibes.
 
-agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once and replay them in CI with zero cost, or run against a live LLM with tolerance-aware assertions. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
+agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once and replay them in CI with zero cost, or run against a live LLM with flexible matchers that tolerate prompt variation. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
+
+![agentverify failure output showing the exact mismatch between expected and actual tool calls](docs/screenshot-error-output.png)
 
 Specifically:
 
@@ -17,7 +19,7 @@ Specifically:
 - **Budgets** — token counts, cost in USD, end-to-end latency
 - **Safety** — a list of tools that must never be called, no matter what the LLM decides
 
-Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and a small custom converter plugs in anything else — pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, or frameworks not listed above. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
+Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and a small [custom converter](#custom-converters) plugs in anything else — pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, or frameworks not listed above. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML — commit them to git, review in PRs, run in CI without an API key.
 
 ## Who is this for?
 
@@ -27,6 +29,8 @@ Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents 
 - You're building on MCP servers and need to pin down which tools get called with which arguments
 - You want token, cost, and latency budgets enforced in CI, not caught only on the billing dashboard
 
+This is the **regression-test layer** for agents — deterministic assertions on what the agent did. It's distinct from quality evaluation (LLM-as-judge scoring on open-ended output) and production trace observability, both of which are often used alongside agentverify rather than instead of it.
+
 ## Install
 
 ```bash
@@ -35,7 +39,7 @@ pip install agentverify
 
 ## Quick Start
 
-Copy this into `test_agent.py` and run `pytest`. No LLM calls, no API keys, no cassettes needed — just pure assertions on an `ExecutionResult`.
+After [installing](#install), copy this into `test_agent.py` and run `pytest`. No LLM calls, no API keys, no cassettes needed — just pure assertions on an `ExecutionResult`.
 
 ```python
 from agentverify import (
@@ -70,8 +74,6 @@ def test_output():
     assert_final_output(result, contains="Tokyo")
 ```
 
-> **Using a real agent framework?** Walk through the [Real-World Examples](#real-world-examples) below for end-to-end tests with cassettes, or jump straight to the [Examples](#examples) table for the full list of runnable samples.
-
 ```
 $ pytest test_agent.py -v
 test_agent.py::test_tool_sequence PASSED
@@ -79,6 +81,8 @@ test_agent.py::test_budget PASSED
 test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
+
+> **Using a real agent framework?** Walk through the [Real-World Examples](#real-world-examples) below for in-depth walkthroughs with cassettes, or jump to the [Examples](#examples) table for a quick index of all runnable samples.
 
 ## Real-World Examples
 
@@ -178,7 +182,9 @@ def test_generator_consumes_evaluator_feedback(cassette):
     assert_step_uses_result_from(result, step=2, depends_on=1)
 ```
 
-`assert_step_uses_result_from` finds the multi-line evaluator feedback inside the next step's user message even when JSON serialization would escape the newlines; the match succeeds across that boundary. Because each `Runner.run` call is recorded individually, the example builds the `ExecutionResult` straight off the cassette recorder — `from_openai_agents` is the right adapter for single-run agents, but the cassette layer is the natural single source of truth when the workflow spans several runs.
+`assert_step_uses_result_from` matches across JSON-serialization boundaries — the multi-line evaluator feedback is found inside the next step's user message even when newlines are escaped during serialization.
+
+Because each `Runner.run` call is recorded individually and the workflow spans several runs, the test builds the `ExecutionResult` straight off the cassette recorder rather than the single-run `from_openai_agents` adapter. The cassette layer is the natural single source of truth when a test covers multiple agent runs.
 
 See [`examples/openai-agents-llm-as-a-judge/`](examples/openai-agents-llm-as-a-judge/) for the full loop, the cassette, and the remaining flat + step-level assertions (budget, safety, pass-verdict reached).
 
@@ -249,7 +255,7 @@ pytest
 
 Cassettes are human-readable YAML (or JSON). Commit them to git, review in PRs.
 
-**Cassette modes:**
+agentverify supports three cassette modes:
 
 | Mode | Behavior |
 |---|---|
@@ -470,7 +476,7 @@ The check searches for any produced value (step M's `tool_results`, `tool_calls[
 
 To see this concretely with a different example: if step 0's `list_issues` tool returned `[{"number": 1}, {"number": 2}]` and step 1 called `get_issue(issue_number=2)`, the check finds that the number `2` produced by step 0 shows up in step 1's arguments — data flows correctly. This is exactly the pattern the [LangChain GitHub issue triage example](examples/langchain-issue-triage/) verifies.
 
-**Works on cassette replay.** Cassette recorders don't record tool execution results directly, but agentverify backfills them from the next step's `input_context` so you can assert data flow without any special adapter setup.
+This works on cassette replay. Cassette recorders don't record tool execution results directly, but agentverify backfills them from the next step's `input_context` so you can assert data flow without any special adapter setup.
 
 ### Workflow-Style Agents with `step_probe`
 
@@ -551,14 +557,14 @@ For other frameworks, build an `ExecutionResult` from your agent's output using 
 
 | Provider | Extra |
 |---|---|
-| OpenAI | `pip install agentverify[openai]` |
-| Amazon Bedrock | `pip install agentverify[bedrock]` |
-| Google Gemini | `pip install agentverify[gemini]` |
-| Anthropic | `pip install agentverify[anthropic]` |
-| LiteLLM | `pip install agentverify[litellm]` |
-| All providers | `pip install agentverify[all]` |
+| OpenAI | `pip install "agentverify[openai]"` |
+| Amazon Bedrock | `pip install "agentverify[bedrock]"` |
+| Google Gemini | `pip install "agentverify[gemini]"` |
+| Anthropic | `pip install "agentverify[anthropic]"` |
+| LiteLLM | `pip install "agentverify[litellm]"` |
+| All providers | `pip install "agentverify[all]"` |
 
-## Tool Mocking
+## LLM Mocking with MockLLM
 
 `MockLLM` replays a list of predefined LLM responses that you define in code. Test your agent's routing logic without a cassette or a real LLM call — useful when you haven't recorded yet, or when you want to drive the agent through hypothetical responses (errors, edge cases) that would be awkward to elicit from a real model.
 
@@ -587,7 +593,7 @@ def test_agent_routes_to_weather_tool():
 - `tool_calls` — a list of `(name, arguments)` tuples or `{"name": ..., "arguments": ...}` dicts.
 - `input_tokens` / `output_tokens` — optional token usage to report.
 
-Provide one `mock_response(...)` per LLM call your agent is expected to make. If your agent makes more calls than you've queued, `MockLLM` raises `CassetteMissingRequestError` so under-specified tests fail loudly.
+Provide one `mock_response(...)` per LLM call your agent is expected to make. If your agent makes more calls than you've queued, `MockLLM` raises [`CassetteMissingRequestError`](#error-messages) so under-specified tests fail loudly.
 
 ### When to Use MockLLM vs Cassettes
 
@@ -630,7 +636,7 @@ Cassette files in `tests/cassettes/` are replayed automatically — no API keys 
 Clear, structured output when assertions fail:
 
 ```
-ToolCallSequenceError: Tool call sequence mismatch at index 1
+ToolCallSequenceError: Tool call sequence mismatch at index 1 (step 0)
 
 Expected:
   [0] get_location(city="Tokyo")
@@ -657,7 +663,7 @@ LatencyBudgetError: Latency budget exceeded
   Exceeded by: 450.0 ms (15.0%)
 ```
 
-Other error types follow the same pattern: `SafetyRuleViolationError`, `FinalOutputError`.
+Other error types follow the same pattern: `SafetyRuleViolationError`, `FinalOutputError`, `CassetteRequestMismatchError` (stale cassette detected), `CassetteMissingRequestError` (cassette or MockLLM ran out of queued responses), and the step-level `StepIndexError`, `StepNameNotFoundError`, `StepNameAmbiguousError`, `StepOutputError`, `StepDependencyError`. All inherit from `AgentVerifyError`, which itself extends `AssertionError` so pytest treats them as normal test failures.
 
 ## Requirements
 
@@ -687,7 +693,7 @@ We want agentverify to become the way people regression-test agents in CI — te
 - Responses API cassette adapter — record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Framework adapters for Google ADK and CrewAI — pending async support and stable tool-call APIs from these frameworks
 - Cost estimation from tokens — auto-calculate `total_cost_usd` from token usage and model pricing
-- Eval-framework bridges — compose ragas / deepeval quality scores with agentverify's action assertions in a single test report
+- Eval-framework bridges — compose quality scores from LLM-as-judge tools (ragas, deepeval) with agentverify's action assertions in a single test report
 
 ## Changelog
 
