@@ -5,16 +5,16 @@
 ### Features
 
 - **Step-level assertions** for agents making multiple LLM calls per run. New `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow. See README "Step-Level Assertions".
-- **`step_probe` context manager** to mark logical step boundaries in agent code, including LLM-free steps like cache hits, state management, and validation. Zero-cost no-op outside of recorder/MockLLM contexts — safe to leave in production code.
-- **Data-flow matching** in `assert_step_uses_result_from` tolerates common serialization differences — numeric tool results encoded as strings match their int/float consumers, and multi-line produced strings match consumers that hold them inside a container.
+- **`step_probe` context manager** to mark logical step boundaries in agent code, including LLM-free steps like cache hits, state management, and validation. Zero-cost no-op outside of recorder/MockLLM contexts, safe to leave in production code.
+- **Data-flow matching** in `assert_step_uses_result_from` tolerates common serialization differences: numeric tool results encoded as strings match their int/float consumers, and multi-line produced strings match consumers that hold them inside a container.
 - **`MATCHES(pattern)` regex matcher** for verifying string tool-call arguments against a regex, with the same semantics as `ANY`.
-- **`MockLLM` + `mock_response(...)`** replay predefined LLM responses in-memory — test agent routing without a cassette or real LLM call.
+- **`MockLLM` + `mock_response(...)`** replay predefined LLM responses in-memory. Test agent routing without a cassette or real LLM call.
 - **`assert_latency(result, max_ms=...)`** enforces response-time SLAs. `ExecutionResult.duration_ms` is captured automatically by the cassette fixture and `MockLLM`.
-- **Three new example suites** exercising step-level and data-flow testing on different agent shapes — OpenAI Agents SDK LLM-as-a-Judge, LangGraph multi-agent supervisor, and custom-converter-python-agent. See `examples/`.
+- **Three new example suites** exercising step-level and data-flow testing on different agent shapes: OpenAI Agents SDK LLM-as-a-Judge, LangGraph multi-agent supervisor, and custom-converter-python-agent. See `examples/`.
 
 ### Improvements
 
-- **OpenAI cassette adapter** now also intercepts `AsyncCompletions.create`, so agent frameworks that drive the SDK through `AsyncOpenAI` internally — including the OpenAI Agents SDK — are recorded and replayed transparently.
+- **OpenAI cassette adapter** now also intercepts `AsyncCompletions.create`, so agent frameworks that drive the SDK through `AsyncOpenAI` internally (including the OpenAI Agents SDK) are recorded and replayed transparently.
 - **OpenAI cassette adapter** strips `openai.omit` / `openai.NOT_GIVEN` sentinels from `tools`, per-message dicts, and extra parameters before they reach the cassette YAML.
 - **OpenAI cassette adapter** handles the `with_raw_response.create` code path used by langchain-openai v1.x, unwrapping `LegacyAPIResponse` on record and re-wrapping the synthesised `ChatCompletion` on replay.
 - **Anthropic cassette adapter** flattens SDK content-block objects to plain dicts at record time, so cassettes recorded from ReAct-style agents load cleanly regardless of the installed Anthropic SDK version.
