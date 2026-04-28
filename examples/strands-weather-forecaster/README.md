@@ -1,12 +1,12 @@
 # Strands Weather Forecaster Example
 
-A two-step ReAct agent built with [Strands Agents](https://strandsagents.com/) that calls the US National Weather Service API via the built-in `http_request` tool — first to discover the forecast office for a location, then to fetch the forecast itself. Tested with [agentverify](https://github.com/simukappu/agentverify).
+A two-step ReAct agent built with [Strands Agents](https://strandsagents.com/) that calls the US National Weather Service API via the built-in `http_request` tool: first to discover the forecast office for a location, then to fetch the forecast itself. Tested with [agentverify](https://github.com/simukappu/agentverify).
 
 Adapted from the official [Strands Weather Forecaster sample](https://strandsagents.com/docs/examples/python/weather_forecaster/).
 
 ## Why this example?
 
-Two LLM calls, one piece of data flowing between them — the simplest shape of a ReAct loop and the cleanest demonstration of:
+Two LLM calls, one piece of data flowing between them: the simplest shape of a ReAct loop and the cleanest demonstration of:
 
 - `assert_tool_calls` with `MATCHES(pattern)` for regex-based URL matching
 - `assert_step` for per-step tool verification
@@ -17,7 +17,7 @@ The main README's [Real-World Examples](../../README.md#real-world-examples) sec
 ## Prerequisites
 
 - Python 3.10+
-- AWS credentials configured for Amazon Bedrock (only for re-recording the cassette — not needed for replay)
+- AWS credentials configured for Amazon Bedrock (only for re-recording the cassette; not needed for replay)
 
 ## Setup
 
@@ -33,7 +33,7 @@ pip install -e "examples/strands-weather-forecaster[dev]"
 ```bash
 cd examples/strands-weather-forecaster
 
-# AWS credentials (profile or env vars — whatever boto3 picks up)
+# AWS credentials (profile or env vars, whatever boto3 picks up)
 python weather_agent.py
 ```
 
@@ -49,7 +49,7 @@ Tests ship with a pre-recorded Bedrock cassette under `tests/cassettes/`. Just r
 pytest examples/strands-weather-forecaster/tests
 ```
 
-The cassette replays deterministically — no Bedrock API calls, zero cost.
+The cassette replays deterministically. No Bedrock API calls, zero cost.
 
 ### What the Tests Verify
 

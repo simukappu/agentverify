@@ -1,14 +1,14 @@
 # LangChain Issue Triage Example
 
-A GitHub Issue triage agent built with [LangChain](https://python.langchain.com/) and the [GitHub MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/github). It lists issues, reads details, and suggests labels, priorities, and assignees — tested with [agentverify](https://github.com/simukappu/agentverify).
+A GitHub Issue triage agent built with [LangChain](https://python.langchain.com/) and the [GitHub MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/github). It lists issues, reads details, and suggests labels, priorities, and assignees. Tested with [agentverify](https://github.com/simukappu/agentverify).
 
-The agent follows the official [`langchain-mcp-adapters` quickstart pattern](https://github.com/langchain-ai/langchain-mcp-adapters) — `MultiServerMCPClient` plus `create_react_agent` — applied to the GitHub MCP server. agentverify's built-in `from_langchain` adapter extracts the `ExecutionResult` in one call; no custom converter needed for this agent.
+The agent follows the official [`langchain-mcp-adapters` quickstart pattern](https://github.com/langchain-ai/langchain-mcp-adapters) (`MultiServerMCPClient` plus `create_react_agent`) applied to the GitHub MCP server. agentverify's built-in `from_langchain` adapter extracts the `ExecutionResult` in one call; no custom converter needed for this agent.
 
 ## Prerequisites
 
 - Python 3.10+
 - Node.js (for the GitHub MCP server via `npx`)
-- OpenAI API key (required for running the agent — not needed for cassette replay tests)
+- OpenAI API key (required for running the agent; not needed for cassette replay tests)
 - GitHub personal access token (only when using the real GitHub MCP server)
 
 ## Setup
@@ -59,7 +59,7 @@ Tests ship with pre-recorded cassettes under `tests/cassettes/`. Just run:
 pytest
 ```
 
-Both mock and real MCP cassettes are replayed deterministically — no OpenAI or GitHub API calls, zero cost.
+Both mock and real MCP cassettes are replayed deterministically. No OpenAI or GitHub API calls, zero cost.
 
 ### What the Tests Verify
 
@@ -68,11 +68,11 @@ Both mock and real MCP cassettes are replayed deterministically — no OpenAI or
 | `TestIssueTriage_MockMCP` | `test_tool_call_sequence` | `assert_tool_calls()` | `list_issues` → `get_issue` ordering (IN_ORDER) |
 | `TestIssueTriage_MockMCP` | `test_safety_read_and_label_only` | `assert_no_tool_call()` | `close_issue`, `delete_comment`, `delete_issue`, `update_issue`, `create_issue` are never called |
 | `TestIssueTriage_RealMCP` | `test_tool_call_with_real_github` | `assert_tool_calls()` | `list_issues` call verified from real GitHub cassette |
-| `TestIssueTriageStepLevel` | `test_step_sequence` | `assert_step()` | Each of the four ReAct steps runs the expected tool — `list_issues`, `get_issue`, `list_labels`, then the summary step |
-| `TestIssueTriageStepLevel` | `test_step_1_uses_step_0_result` | `assert_step_uses_result_from()` | The `issue_number` passed to `get_issue` in step 1 actually came from step 0's `list_issues` response — catches "agent hallucinated an issue number" bugs |
+| `TestIssueTriageStepLevel` | `test_step_sequence` | `assert_step()` | Each of the four ReAct steps runs the expected tool: `list_issues`, `get_issue`, `list_labels`, then the summary step |
+| `TestIssueTriageStepLevel` | `test_step_1_uses_step_0_result` | `assert_step_uses_result_from()` | The `issue_number` passed to `get_issue` in step 1 actually came from step 0's `list_issues` response. Catches "agent hallucinated an issue number" bugs |
 | `TestIssueTriageStepLevel` | `test_final_step_reports_triage` | `assert_step_output()` | The final step (no tool calls) produces the triage summary text |
 
-The step-level tests work on cassette replay because agentverify automatically backfills tool results from the next step's LLM input — no adapter setup needed. See [Step-Level Assertions](../../README.md#step-level-assertions) in the main README for details.
+The step-level tests work on cassette replay because agentverify automatically backfills tool results from the next step's LLM input. No adapter setup needed. See [Step-Level Assertions](../../README.md#step-level-assertions) in the main README for details.
 
 ### Recording Mode (Real APIs)
 

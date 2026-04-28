@@ -10,7 +10,7 @@ A [FastMCP](https://github.com/modelcontextprotocol/python-sdk)-based mock GitHu
 | `get_issue(repo, issue_number)` | Returns details for a specific issue (or an error response for unknown issues) |
 | `list_labels(repo)` | Returns the list of available labels |
 
-The mock data includes three issue types: a feature request, a bug report, and a question — modeled after realistic agentverify issues.
+The mock data includes three issue types (a feature request, a bug report, and a question), modeled after realistic agentverify issues.
 
 ## Starting the Server
 
