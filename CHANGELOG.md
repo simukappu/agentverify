@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **Example test suites on Python 3.14**: `pytest examples/<name>/tests` no longer fails with a duplicate `--cassette-mode` registration during collection.
+
 ## 0.3.0 (2026-04-26)
 
 ### Features
