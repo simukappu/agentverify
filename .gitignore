@@ -20,6 +20,7 @@ env/
 .coverage
 htmlcov/
 .hypothesis/
+.deepeval/
 
 # IDE
 .idea/
@@ -35,3 +36,16 @@ Thumbs.db
 # Distribution
 *.tar.gz
 *.whl
+
+# AWS CDK (benchmarks/execution-model-trajectory/.../agentcore_evaluator_cdk/)
+cdk.out/
+cdk.context.json
+.cdk.staging/
+# CDK deploy --outputs-file artifacts (per-subject stack outputs read by the test driver)
+benchmarks/**/agentcore_evaluator_cdk/outputs.json
+
+# Node (when CDK is run via npx)
+node_modules/
+
+# Local scratch space (any depth — repo root, benchmarks subdirs, etc.)
+.scratch/

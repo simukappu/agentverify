@@ -1,0 +1,14 @@
+# Local pytest config for the benchmark.
+#
+# Two specifics matter here:
+#
+# 1. ``importmode = importlib`` avoids module-basename collisions across sibling subject directories (e.g. ``strands-weather-forecaster/agentverify_test.py`` and ``langgraph-multi-agent-supervisor/agentverify_test.py``) without requiring ``__init__.py`` files — the subject directory names contain hyphens and cannot be valid Python packages anyway.
+#
+# 2. ``addopts`` does NOT include ``-p no:agentverify`` here. The repo root's pyproject.toml uses that for the library's own tests; we rely on the agentverify pytest plugin (auto-registered via ``project.entry-points.pytest11``) to provide ``--cassette-mode``, fixtures, and the ``agentverify`` marker.
+
+[tool.pytest.ini_options]
+testpaths = ["strands-weather-forecaster", "langgraph-multi-agent-supervisor"]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "agentverify: mark test as an agentverify agent test",
+]

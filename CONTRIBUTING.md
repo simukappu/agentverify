@@ -26,6 +26,7 @@ agentverify follows [Conventional Commits](https://www.conventionalcommits.org/)
 | `perf:` | Performance improvements |
 | `docs:` | Root `README.md`, `CHANGELOG.md`, `.kiro/` contents, docstrings, comments |
 | `docs(examples):` | Anything under `examples/` — new example, example README, example tests, example cassette updates |
+| `docs(benchmarks):` | Anything under `benchmarks/` — new benchmark, benchmark README / DESIGN, results files |
 | `test:` | Test-only changes to the main `tests/` suite |
 | `style:` | Formatting / whitespace / docstring reflow that does not change behaviour |
 | `ci:` | CI / GitHub Actions configuration |
@@ -34,8 +35,8 @@ agentverify follows [Conventional Commits](https://www.conventionalcommits.org/)
 
 ### Scope rules
 
-- **`docs(examples):`** is the only scoped type. Use it for every change whose net effect is confined to the `examples/` tree — including example source, its dedicated tests, its README, and its cassette files.
-- If a change touches `examples/` **and** the library (`agentverify/` package), use the library-side type (`feat:`, `fix:`, `refactor:`). "Library change that also updates an example" is not an examples change.
+- **`docs(examples):`** and **`docs(benchmarks):`** are the only scoped types. Use them for changes whose net effect is confined to the `examples/` or `benchmarks/` tree, including source, dedicated tests, README, and any auxiliary files (e.g., cassettes, results artefacts).
+- If a change touches `examples/` or `benchmarks/` **and** the library (`agentverify/` package), use the library-side type (`feat:`, `fix:`, `refactor:`). "Library change that also updates an example" is not an examples change.
 - Do not invent other scopes. Any other area of the repo uses a bare type.
 
 ### Examples
@@ -44,6 +45,7 @@ agentverify follows [Conventional Commits](https://www.conventionalcommits.org/)
 feat: add MATCHES(pattern) regex matcher for string arguments
 fix: strip openai Omit/NotGiven sentinels from cassette requests
 docs(examples): add LangGraph multi-agent supervisor example
+docs(benchmarks): add execution-model comparison benchmark
 docs: rework README around step-level and data-flow messaging
 ci: skip Coveralls upload on forks
 ```
