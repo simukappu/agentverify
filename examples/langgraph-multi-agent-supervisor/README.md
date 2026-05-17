@@ -73,7 +73,7 @@ To re-record the cassette with real LLM calls:
    The cassette file is overwritten with a fresh recording.
 3. Commit the updated cassette.
 
-Note: the supervisor's exact routing and the number of `web_search` calls can vary between recordings because `gpt-4o-mini` is non-deterministic even at `temperature=0`. The test assertions are written to tolerate that variance: `OrderMode.IN_ORDER` for the flat sequence, `ANY_ORDER` for in-step parallel tool calls, and helper functions that locate steps by tool name rather than hard-coded indices.
+Note: the supervisor's exact routing and the number of `web_search` calls can vary between recordings because `gpt-5.4-mini` is a reasoning-style model whose internal sampling is not exposed via the ``temperature`` parameter (the API rejects any non-default value, so the example omits ``temperature`` for the GPT-5 series). The test assertions are written to tolerate that variance: `OrderMode.IN_ORDER` for the flat sequence, `ANY_ORDER` for in-step parallel tool calls, and helper functions that locate steps by tool name rather than hard-coded indices.
 
 ## Framework Adapter
 

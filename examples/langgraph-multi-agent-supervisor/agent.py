@@ -24,7 +24,7 @@ except ImportError:
     from langgraph.prebuilt import create_react_agent
 
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5.4-mini"
 
 
 # ---------------------------------------------------------------------------
@@ -66,12 +66,14 @@ def build_supervisor_app(model_name: str | None = None):
     """Build the supervisor workflow and return the compiled graph.
 
     Args:
-        model_name: OpenAI chat model name. Defaults to ``OPENAI_MODEL`` env var if set, otherwise ``gpt-4o-mini``.
+        model_name: OpenAI chat model name. Defaults to ``OPENAI_MODEL`` env var if set, otherwise ``gpt-5.4-mini``.
     """
     model_name = model_name or os.environ.get("OPENAI_MODEL", DEFAULT_MODEL)
-    # temperature=0 keeps the conversation deterministic enough to replay
-    # from a cassette reliably.
-    model = ChatOpenAI(model=model_name, temperature=0)
+    # GPT-5 reasoning-style models do not accept the ``temperature`` parameter (the API rejects any value other than the default). For pre-GPT-5 models we set ``temperature=0`` to keep the conversation deterministic enough to replay from a cassette; for GPT-5 series we omit the parameter and rely on the model's default sampling behaviour. Cassette replay still works because the recorded responses come from whatever sampling the model used at recording time.
+    if model_name.startswith("gpt-5"):
+        model = ChatOpenAI(model=model_name)
+    else:
+        model = ChatOpenAI(model=model_name, temperature=0)
 
     math_agent = create_react_agent(
         model=model,

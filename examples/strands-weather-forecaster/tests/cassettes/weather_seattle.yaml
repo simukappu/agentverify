@@ -1,14 +1,14 @@
 metadata:
-  agentverify_version: 0.1.0
-  recorded_at: '2026-04-17T15:23:49.387706+00:00'
+  agentverify_version: 0.3.0
+  recorded_at: '2026-05-17T16:32:42.298994+00:00'
   provider: bedrock
-  model: us.anthropic.claude-sonnet-4-20250514-v1:0
+  model: us.anthropic.claude-sonnet-4-6
 interactions:
 - request:
     messages:
     - role: user
       content: What's the weather in Seattle?
-    model: us.anthropic.claude-sonnet-4-20250514-v1:0
+    model: us.anthropic.claude-sonnet-4-6
     tools:
     - name: http_request
       parameters:
@@ -204,36 +204,35 @@ interactions:
           forecast.'
       inferenceConfig: {}
   response:
-    content: I'll help you get the weather forecast for Seattle. Let me start by getting
-      the grid information for Seattle's coordinates and then fetch the current forecast.
+    content: I'll look up the weather for Seattle! Let me start by getting the grid
+      information for Seattle's coordinates.
     tool_calls:
     - name: http_request
       arguments: '{"method": "GET", "url": "https://api.weather.gov/points/47.6062,-122.3321"}'
     token_usage:
-      input_tokens: 1607
-      output_tokens: 119
+      input_tokens: 1791
+      output_tokens: 111
 - request:
     messages:
     - role: user
       content: What's the weather in Seattle?
     - role: assistant
       content:
-      - text: I'll help you get the weather forecast for Seattle. Let me start by
-          getting the grid information for Seattle's coordinates and then fetch the
-          current forecast.
+      - text: I'll look up the weather for Seattle! Let me start by getting the grid
+          information for Seattle's coordinates.
       - toolUse:
           input:
             method: GET
             url: https://api.weather.gov/points/47.6062,-122.3321
           name: http_request
-          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+          toolUseId: tooluse_kJ0PkpLkMMX8C3xwApIOAc
     - role: user
       content:
       - toolResult:
           content:
           - text: 'Status Code: 200'
-          - text: 'Headers: {''Server'': ''nginx/1.20.1'', ''Content-Type'': ''application/geo+json'',
-              ''Content-Length'': ''1026'', ''Date'': ''Fri, 17 Apr 2026 15:23:33
+          - text: 'Headers: {''Server'': ''nginx/1.28.3'', ''Content-Type'': ''application/geo+json'',
+              ''Content-Length'': ''1028'', ''Date'': ''Sun, 17 May 2026 16:32:33
               GMT''}'
           - text: "Body: {\n    \"@context\": [\n        \"https://geojson.org/geojson-ld/geojson-context.jsonld\"\
               ,\n        {\n            \"@version\": \"1.1\",\n            \"wx\"\
@@ -282,22 +281,22 @@ interactions:
               ,\n        \"fireWeatherZone\": \"https://api.weather.gov/zones/fire/WAZ654\"\
               ,\n        \"timeZone\": \"America/Los_Angeles\",\n        \"radarStation\"\
               : \"KATX\",\n        \"astronomicalData\": {\n            \"sunrise\"\
-              : \"2026-04-16T06:16:06-07:00\",\n            \"sunset\": \"2026-04-16T20:01:59-07:00\"\
-              ,\n            \"transit\": \"2026-04-16T13:09:02-07:00\",\n       \
-              \     \"civilTwilightBegin\": \"2026-04-16T05:45:13-07:00\",\n     \
-              \       \"civilTwilightEnd\": \"2026-04-16T20:32:52-07:00\",\n     \
-              \       \"nauticalTwilightBegin\": \"2026-04-16T05:05:27-07:00\",\n\
-              \            \"nauticalTwilightEnd\": \"2026-04-16T21:12:38-07:00\"\
-              ,\n            \"astronomicalTwilightBegin\": \"2026-04-16T04:22:01-07:00\"\
-              ,\n            \"astronomicalTwilightEnd\": \"2026-04-16T21:56:04-07:00\"\
+              : \"2026-05-17T05:27:04-07:00\",\n            \"sunset\": \"2026-05-17T20:44:25-07:00\"\
+              ,\n            \"transit\": \"2026-05-17T13:05:45-07:00\",\n       \
+              \     \"civilTwilightBegin\": \"2026-05-17T04:51:48-07:00\",\n     \
+              \       \"civilTwilightEnd\": \"2026-05-17T21:19:41-07:00\",\n     \
+              \       \"nauticalTwilightBegin\": \"2026-05-17T04:03:23-07:00\",\n\
+              \            \"nauticalTwilightEnd\": \"2026-05-17T22:08:06-07:00\"\
+              ,\n            \"astronomicalTwilightBegin\": \"2026-05-17T03:02:19-07:00\"\
+              ,\n            \"astronomicalTwilightEnd\": \"2026-05-17T23:09:10-07:00\"\
               \n        },\n        \"nwr\": {\n            \"transmitter\": \"KHB60\"\
               ,\n            \"sameCode\": \"053033\",\n            \"areaBroadcast\"\
               : \"https://api.weather.gov/radio/KHB60/broadcast\",\n            \"\
               pointBroadcast\": \"https://api.weather.gov/points/47.6062,-122.3321/radio\"\
               \n        }\n    }\n}"
-          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+          toolUseId: tooluse_kJ0PkpLkMMX8C3xwApIOAc
           status: success
-    model: us.anthropic.claude-sonnet-4-20250514-v1:0
+    model: us.anthropic.claude-sonnet-4-6
     tools:
     - name: http_request
       parameters:
@@ -493,36 +492,34 @@ interactions:
           forecast.'
       inferenceConfig: {}
   response:
-    content: Great! Now let me get the detailed weather forecast for Seattle using
-      the forecast URL from the grid information.
+    content: Got the grid info! Now let me fetch the actual forecast.
     tool_calls:
     - name: http_request
       arguments: '{"method": "GET", "url": "https://api.weather.gov/gridpoints/SEW/125,68/forecast"}'
     token_usage:
-      input_tokens: 3102
-      output_tokens: 110
+      input_tokens: 3277
+      output_tokens: 102
 - request:
     messages:
     - role: user
       content: What's the weather in Seattle?
     - role: assistant
       content:
-      - text: I'll help you get the weather forecast for Seattle. Let me start by
-          getting the grid information for Seattle's coordinates and then fetch the
-          current forecast.
+      - text: I'll look up the weather for Seattle! Let me start by getting the grid
+          information for Seattle's coordinates.
       - toolUse:
           input:
             method: GET
             url: https://api.weather.gov/points/47.6062,-122.3321
           name: http_request
-          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+          toolUseId: tooluse_kJ0PkpLkMMX8C3xwApIOAc
     - role: user
       content:
       - toolResult:
           content:
           - text: 'Status Code: 200'
-          - text: 'Headers: {''Server'': ''nginx/1.20.1'', ''Content-Type'': ''application/geo+json'',
-              ''Content-Length'': ''1026'', ''Date'': ''Fri, 17 Apr 2026 15:23:33
+          - text: 'Headers: {''Server'': ''nginx/1.28.3'', ''Content-Type'': ''application/geo+json'',
+              ''Content-Length'': ''1028'', ''Date'': ''Sun, 17 May 2026 16:32:33
               GMT''}'
           - text: "Body: {\n    \"@context\": [\n        \"https://geojson.org/geojson-ld/geojson-context.jsonld\"\
               ,\n        {\n            \"@version\": \"1.1\",\n            \"wx\"\
@@ -571,38 +568,37 @@ interactions:
               ,\n        \"fireWeatherZone\": \"https://api.weather.gov/zones/fire/WAZ654\"\
               ,\n        \"timeZone\": \"America/Los_Angeles\",\n        \"radarStation\"\
               : \"KATX\",\n        \"astronomicalData\": {\n            \"sunrise\"\
-              : \"2026-04-16T06:16:06-07:00\",\n            \"sunset\": \"2026-04-16T20:01:59-07:00\"\
-              ,\n            \"transit\": \"2026-04-16T13:09:02-07:00\",\n       \
-              \     \"civilTwilightBegin\": \"2026-04-16T05:45:13-07:00\",\n     \
-              \       \"civilTwilightEnd\": \"2026-04-16T20:32:52-07:00\",\n     \
-              \       \"nauticalTwilightBegin\": \"2026-04-16T05:05:27-07:00\",\n\
-              \            \"nauticalTwilightEnd\": \"2026-04-16T21:12:38-07:00\"\
-              ,\n            \"astronomicalTwilightBegin\": \"2026-04-16T04:22:01-07:00\"\
-              ,\n            \"astronomicalTwilightEnd\": \"2026-04-16T21:56:04-07:00\"\
+              : \"2026-05-17T05:27:04-07:00\",\n            \"sunset\": \"2026-05-17T20:44:25-07:00\"\
+              ,\n            \"transit\": \"2026-05-17T13:05:45-07:00\",\n       \
+              \     \"civilTwilightBegin\": \"2026-05-17T04:51:48-07:00\",\n     \
+              \       \"civilTwilightEnd\": \"2026-05-17T21:19:41-07:00\",\n     \
+              \       \"nauticalTwilightBegin\": \"2026-05-17T04:03:23-07:00\",\n\
+              \            \"nauticalTwilightEnd\": \"2026-05-17T22:08:06-07:00\"\
+              ,\n            \"astronomicalTwilightBegin\": \"2026-05-17T03:02:19-07:00\"\
+              ,\n            \"astronomicalTwilightEnd\": \"2026-05-17T23:09:10-07:00\"\
               \n        },\n        \"nwr\": {\n            \"transmitter\": \"KHB60\"\
               ,\n            \"sameCode\": \"053033\",\n            \"areaBroadcast\"\
               : \"https://api.weather.gov/radio/KHB60/broadcast\",\n            \"\
               pointBroadcast\": \"https://api.weather.gov/points/47.6062,-122.3321/radio\"\
               \n        }\n    }\n}"
-          toolUseId: tooluse_F8rZnU7DZFExWaLJdfkI5l
+          toolUseId: tooluse_kJ0PkpLkMMX8C3xwApIOAc
           status: success
     - role: assistant
       content:
-      - text: Great! Now let me get the detailed weather forecast for Seattle using
-          the forecast URL from the grid information.
+      - text: Got the grid info! Now let me fetch the actual forecast.
       - toolUse:
           input:
             method: GET
             url: https://api.weather.gov/gridpoints/SEW/125,68/forecast
           name: http_request
-          toolUseId: tooluse_BKUOkLSUcyUmLxiSnHNJOz
+          toolUseId: tooluse_rlExEi8O74HcN1z2A6W9oc
     - role: user
       content:
       - toolResult:
           content:
           - text: 'Status Code: 200'
-          - text: 'Headers: {''Server'': ''nginx/1.20.1'', ''Content-Type'': ''application/geo+json'',
-              ''Content-Length'': ''1436'', ''Date'': ''Fri, 17 Apr 2026 15:23:38
+          - text: 'Headers: {''Server'': ''nginx/1.28.3'', ''Content-Type'': ''application/geo+json'',
+              ''Content-Length'': ''1278'', ''Date'': ''Sun, 17 May 2026 16:32:35
               GMT''}'
           - text: "Body: {\n    \"@context\": [\n        \"https://geojson.org/geojson-ld/geojson-context.jsonld\"\
               ,\n        {\n            \"@version\": \"1.1\",\n            \"wx\"\
@@ -621,193 +617,187 @@ interactions:
               \              47.5996\n                ]\n            ]\n        ]\n\
               \    },\n    \"properties\": {\n        \"units\": \"us\",\n       \
               \ \"forecastGenerator\": \"BaselineForecastGenerator\",\n        \"\
-              generatedAt\": \"2026-04-17T13:09:26+00:00\",\n        \"updateTime\"\
-              : \"2026-04-17T08:31:00+00:00\",\n        \"validTimes\": \"2026-04-17T02:00:00+00:00/P7DT23H\"\
+              generatedAt\": \"2026-05-17T13:45:38+00:00\",\n        \"updateTime\"\
+              : \"2026-05-17T09:43:10+00:00\",\n        \"validTimes\": \"2026-05-17T03:00:00+00:00/P7DT22H\"\
               ,\n        \"elevation\": {\n            \"unitCode\": \"wmoUnit:m\"\
               ,\n            \"value\": 73.152\n        },\n        \"periods\": [\n\
               \            {\n                \"number\": 1,\n                \"name\"\
-              : \"Today\",\n                \"startTime\": \"2026-04-17T06:00:00-07:00\"\
-              ,\n                \"endTime\": \"2026-04-17T18:00:00-07:00\",\n   \
+              : \"Today\",\n                \"startTime\": \"2026-05-17T06:00:00-07:00\"\
+              ,\n                \"endTime\": \"2026-05-17T18:00:00-07:00\",\n   \
               \             \"isDaytime\": true,\n                \"temperature\"\
-              : 56,\n                \"temperatureUnit\": \"F\",\n               \
+              : 63,\n                \"temperatureUnit\": \"F\",\n               \
               \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
               : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 0\n                },\n                \"\
-              windSpeed\": \"3 mph\",\n                \"windDirection\": \"ENE\"\
+              \              \"value\": 3\n                },\n                \"\
+              windSpeed\": \"3 mph\",\n                \"windDirection\": \"WSW\"\
               ,\n                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
               ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
-              \      \"detailedForecast\": \"Mostly sunny, with a high near 56. East\
-              \ northeast wind around 3 mph.\"\n            },\n            {\n  \
-              \              \"number\": 2,\n                \"name\": \"Tonight\"\
-              ,\n                \"startTime\": \"2026-04-17T18:00:00-07:00\",\n \
-              \               \"endTime\": \"2026-04-18T06:00:00-07:00\",\n      \
-              \          \"isDaytime\": false,\n                \"temperature\": 42,\n\
-              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
-              : null,\n                \"probabilityOfPrecipitation\": {\n       \
-              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
-              \   \"value\": 1\n                },\n                \"windSpeed\"\
-              : \"3 mph\",\n                \"windDirection\": \"N\",\n          \
-              \      \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
-              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
-              \       \"detailedForecast\": \"Mostly cloudy. Low around 42, with temperatures\
-              \ rising to around 44 overnight. North wind around 3 mph.\"\n      \
-              \      },\n            {\n                \"number\": 3,\n         \
-              \       \"name\": \"Saturday\",\n                \"startTime\": \"2026-04-18T06:00:00-07:00\"\
-              ,\n                \"endTime\": \"2026-04-18T18:00:00-07:00\",\n   \
-              \             \"isDaytime\": true,\n                \"temperature\"\
-              : 66,\n                \"temperatureUnit\": \"F\",\n               \
-              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
-              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 7\n                },\n                \"\
-              windSpeed\": \"3 mph\",\n                \"windDirection\": \"WSW\"\
-              ,\n                \"icon\": \"https://api.weather.gov/icons/land/day/bkn?size=medium\"\
-              ,\n                \"shortForecast\": \"Partly Sunny\",\n          \
-              \      \"detailedForecast\": \"Partly sunny, with a high near 66. West\
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 63. West\
               \ southwest wind around 3 mph.\"\n            },\n            {\n  \
-              \              \"number\": 4,\n                \"name\": \"Saturday\
-              \ Night\",\n                \"startTime\": \"2026-04-18T18:00:00-07:00\"\
-              ,\n                \"endTime\": \"2026-04-19T06:00:00-07:00\",\n   \
-              \             \"isDaytime\": false,\n                \"temperature\"\
-              : 50,\n                \"temperatureUnit\": \"F\",\n               \
-              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
-              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 13\n                },\n                \"\
-              windSpeed\": \"3 mph\",\n                \"windDirection\": \"ESE\"\
-              ,\n                \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
-              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
-              \       \"detailedForecast\": \"Mostly cloudy, with a low around 50.\
-              \ East southeast wind around 3 mph.\"\n            },\n            {\n\
-              \                \"number\": 5,\n                \"name\": \"Sunday\"\
-              ,\n                \"startTime\": \"2026-04-19T06:00:00-07:00\",\n \
-              \               \"endTime\": \"2026-04-19T18:00:00-07:00\",\n      \
-              \          \"isDaytime\": true,\n                \"temperature\": 68,\n\
-              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
-              : null,\n                \"probabilityOfPrecipitation\": {\n       \
-              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
-              \   \"value\": 11\n                },\n                \"windSpeed\"\
-              : \"2 to 7 mph\",\n                \"windDirection\": \"NNE\",\n   \
-              \             \"icon\": \"https://api.weather.gov/icons/land/day/bkn?size=medium\"\
-              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
-              \       \"detailedForecast\": \"Mostly cloudy, with a high near 68.\
-              \ North northeast wind 2 to 7 mph.\"\n            },\n            {\n\
-              \                \"number\": 6,\n                \"name\": \"Sunday\
-              \ Night\",\n                \"startTime\": \"2026-04-19T18:00:00-07:00\"\
-              ,\n                \"endTime\": \"2026-04-20T06:00:00-07:00\",\n   \
-              \             \"isDaytime\": false,\n                \"temperature\"\
-              : 50,\n                \"temperatureUnit\": \"F\",\n               \
-              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
-              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 8\n                },\n                \"\
-              windSpeed\": \"7 mph\",\n                \"windDirection\": \"N\",\n\
-              \                \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
-              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
-              \       \"detailedForecast\": \"Mostly cloudy, with a low around 50.\"\
-              \n            },\n            {\n                \"number\": 7,\n  \
-              \              \"name\": \"Monday\",\n                \"startTime\"\
-              : \"2026-04-20T06:00:00-07:00\",\n                \"endTime\": \"2026-04-20T18:00:00-07:00\"\
-              ,\n                \"isDaytime\": true,\n                \"temperature\"\
-              : 69,\n                \"temperatureUnit\": \"F\",\n               \
-              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
-              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 15\n                },\n                \"\
-              windSpeed\": \"7 mph\",\n                \"windDirection\": \"N\",\n\
-              \                \"icon\": \"https://api.weather.gov/icons/land/day/bkn/rain,20?size=medium\"\
-              ,\n                \"shortForecast\": \"Partly Sunny then Slight Chance\
-              \ Light Rain\",\n                \"detailedForecast\": \"A slight chance\
-              \ of rain after 5pm. Partly sunny, with a high near 69.\"\n        \
-              \    },\n            {\n                \"number\": 8,\n           \
-              \     \"name\": \"Monday Night\",\n                \"startTime\": \"\
-              2026-04-20T18:00:00-07:00\",\n                \"endTime\": \"2026-04-21T06:00:00-07:00\"\
-              ,\n                \"isDaytime\": false,\n                \"temperature\"\
-              : 50,\n                \"temperatureUnit\": \"F\",\n               \
-              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
-              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 30\n                },\n                \"\
-              windSpeed\": \"7 mph\",\n                \"windDirection\": \"WSW\"\
-              ,\n                \"icon\": \"https://api.weather.gov/icons/land/night/rain,20/rain,30?size=medium\"\
-              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
-              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
-              \ with a low around 50.\"\n            },\n            {\n         \
-              \       \"number\": 9,\n                \"name\": \"Tuesday\",\n   \
-              \             \"startTime\": \"2026-04-21T06:00:00-07:00\",\n      \
-              \          \"endTime\": \"2026-04-21T18:00:00-07:00\",\n           \
-              \     \"isDaytime\": true,\n                \"temperature\": 63,\n \
-              \               \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
-              : null,\n                \"probabilityOfPrecipitation\": {\n       \
-              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
-              \   \"value\": 40\n                },\n                \"windSpeed\"\
-              : \"8 mph\",\n                \"windDirection\": \"SSW\",\n        \
-              \        \"icon\": \"https://api.weather.gov/icons/land/day/rain,40?size=medium\"\
-              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
-              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
-              \ with a high near 63.\"\n            },\n            {\n          \
-              \      \"number\": 10,\n                \"name\": \"Tuesday Night\"\
-              ,\n                \"startTime\": \"2026-04-21T18:00:00-07:00\",\n \
-              \               \"endTime\": \"2026-04-22T06:00:00-07:00\",\n      \
+              \              \"number\": 2,\n                \"name\": \"Tonight\"\
+              ,\n                \"startTime\": \"2026-05-17T18:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-05-18T06:00:00-07:00\",\n      \
               \          \"isDaytime\": false,\n                \"temperature\": 49,\n\
               \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
               : null,\n                \"probabilityOfPrecipitation\": {\n       \
               \             \"unitCode\": \"wmoUnit:percent\",\n                 \
-              \   \"value\": 40\n                },\n                \"windSpeed\"\
-              : \"8 mph\",\n                \"windDirection\": \"SSW\",\n        \
-              \        \"icon\": \"https://api.weather.gov/icons/land/night/rain,40/rain,30?size=medium\"\
-              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
-              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
-              \ with a low around 49.\"\n            },\n            {\n         \
-              \       \"number\": 11,\n                \"name\": \"Wednesday\",\n\
-              \                \"startTime\": \"2026-04-22T06:00:00-07:00\",\n   \
-              \             \"endTime\": \"2026-04-22T18:00:00-07:00\",\n        \
-              \        \"isDaytime\": true,\n                \"temperature\": 59,\n\
+              \   \"value\": 0\n                },\n                \"windSpeed\"\
+              : \"2 mph\",\n                \"windDirection\": \"NE\",\n         \
+              \       \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Mostly cloudy, with a low around 49.\
+              \ Northeast wind around 2 mph.\"\n            },\n            {\n  \
+              \              \"number\": 3,\n                \"name\": \"Monday\"\
+              ,\n                \"startTime\": \"2026-05-18T06:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-05-18T18:00:00-07:00\",\n      \
+              \          \"isDaytime\": true,\n                \"temperature\": 66,\n\
               \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
               : null,\n                \"probabilityOfPrecipitation\": {\n       \
               \             \"unitCode\": \"wmoUnit:percent\",\n                 \
-              \   \"value\": 33\n                },\n                \"windSpeed\"\
-              : \"8 mph\",\n                \"windDirection\": \"SSW\",\n        \
-              \        \"icon\": \"https://api.weather.gov/icons/land/day/rain,30?size=medium\"\
-              ,\n                \"shortForecast\": \"Chance Light Rain\",\n     \
-              \           \"detailedForecast\": \"A chance of rain. Mostly cloudy,\
-              \ with a high near 59.\"\n            },\n            {\n          \
-              \      \"number\": 12,\n                \"name\": \"Wednesday Night\"\
-              ,\n                \"startTime\": \"2026-04-22T18:00:00-07:00\",\n \
-              \               \"endTime\": \"2026-04-23T06:00:00-07:00\",\n      \
-              \          \"isDaytime\": false,\n                \"temperature\": 45,\n\
+              \   \"value\": 0\n                },\n                \"windSpeed\"\
+              : \"1 to 6 mph\",\n                \"windDirection\": \"W\",\n     \
+              \           \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 66. West\
+              \ wind 1 to 6 mph.\"\n            },\n            {\n              \
+              \  \"number\": 4,\n                \"name\": \"Monday Night\",\n   \
+              \             \"startTime\": \"2026-05-18T18:00:00-07:00\",\n      \
+              \          \"endTime\": \"2026-05-19T06:00:00-07:00\",\n           \
+              \     \"isDaytime\": false,\n                \"temperature\": 49,\n\
               \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
               : null,\n                \"probabilityOfPrecipitation\": {\n       \
               \             \"unitCode\": \"wmoUnit:percent\",\n                 \
-              \   \"value\": 19\n                },\n                \"windSpeed\"\
-              : \"5 to 8 mph\",\n                \"windDirection\": \"SSW\",\n   \
-              \             \"icon\": \"https://api.weather.gov/icons/land/night/rain,20/bkn?size=medium\"\
-              ,\n                \"shortForecast\": \"Slight Chance Light Rain then\
-              \ Mostly Cloudy\",\n                \"detailedForecast\": \"A slight\
-              \ chance of rain before 11pm. Mostly cloudy, with a low around 45.\"\
-              \n            },\n            {\n                \"number\": 13,\n \
-              \               \"name\": \"Thursday\",\n                \"startTime\"\
-              : \"2026-04-23T06:00:00-07:00\",\n                \"endTime\": \"2026-04-23T18:00:00-07:00\"\
+              \   \"value\": 2\n                },\n                \"windSpeed\"\
+              : \"2 to 7 mph\",\n                \"windDirection\": \"ENE\",\n   \
+              \             \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Partly cloudy, with a low around 49.\
+              \ East northeast wind 2 to 7 mph.\"\n            },\n            {\n\
+              \                \"number\": 5,\n                \"name\": \"Tuesday\"\
+              ,\n                \"startTime\": \"2026-05-19T06:00:00-07:00\",\n \
+              \               \"endTime\": \"2026-05-19T18:00:00-07:00\",\n      \
+              \          \"isDaytime\": true,\n                \"temperature\": 63,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 4\n                },\n                \"windSpeed\"\
+              : \"5 mph\",\n                \"windDirection\": \"S\",\n          \
+              \      \"icon\": \"https://api.weather.gov/icons/land/day/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Sunny\",\n          \
+              \      \"detailedForecast\": \"Partly sunny, with a high near 63. South\
+              \ wind around 5 mph.\"\n            },\n            {\n            \
+              \    \"number\": 6,\n                \"name\": \"Tuesday Night\",\n\
+              \                \"startTime\": \"2026-05-19T18:00:00-07:00\",\n   \
+              \             \"endTime\": \"2026-05-20T06:00:00-07:00\",\n        \
+              \        \"isDaytime\": false,\n                \"temperature\": 51,\n\
+              \                \"temperatureUnit\": \"F\",\n                \"temperatureTrend\"\
+              : null,\n                \"probabilityOfPrecipitation\": {\n       \
+              \             \"unitCode\": \"wmoUnit:percent\",\n                 \
+              \   \"value\": 3\n                },\n                \"windSpeed\"\
+              : \"2 to 6 mph\",\n                \"windDirection\": \"NE\",\n    \
+              \            \"icon\": \"https://api.weather.gov/icons/land/night/bkn?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Mostly cloudy, with a low around 51.\"\
+              \n            },\n            {\n                \"number\": 7,\n  \
+              \              \"name\": \"Wednesday\",\n                \"startTime\"\
+              : \"2026-05-20T06:00:00-07:00\",\n                \"endTime\": \"2026-05-20T18:00:00-07:00\"\
               ,\n                \"isDaytime\": true,\n                \"temperature\"\
-              : 58,\n                \"temperatureUnit\": \"F\",\n               \
+              : 66,\n                \"temperatureUnit\": \"F\",\n               \
               \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
               : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
-              \              \"value\": 10\n                },\n                \"\
-              windSpeed\": \"7 mph\",\n                \"windDirection\": \"NW\",\n\
+              \              \"value\": 0\n                },\n                \"\
+              windSpeed\": \"1 to 8 mph\",\n                \"windDirection\": \"\
+              NE\",\n                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 66.\"\n\
+              \            },\n            {\n                \"number\": 8,\n   \
+              \             \"name\": \"Wednesday Night\",\n                \"startTime\"\
+              : \"2026-05-20T18:00:00-07:00\",\n                \"endTime\": \"2026-05-21T06:00:00-07:00\"\
+              ,\n                \"isDaytime\": false,\n                \"temperature\"\
+              : 51,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 0\n                },\n                \"\
+              windSpeed\": \"1 to 8 mph\",\n                \"windDirection\": \"\
+              NNE\",\n                \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Partly cloudy, with a low around 51.\"\
+              \n            },\n            {\n                \"number\": 9,\n  \
+              \              \"name\": \"Thursday\",\n                \"startTime\"\
+              : \"2026-05-21T06:00:00-07:00\",\n                \"endTime\": \"2026-05-21T18:00:00-07:00\"\
+              ,\n                \"isDaytime\": true,\n                \"temperature\"\
+              : 68,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 4\n                },\n                \"\
+              windSpeed\": \"1 to 7 mph\",\n                \"windDirection\": \"\
+              N\",\n                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 68.\"\n\
+              \            },\n            {\n                \"number\": 10,\n  \
+              \              \"name\": \"Thursday Night\",\n                \"startTime\"\
+              : \"2026-05-21T18:00:00-07:00\",\n                \"endTime\": \"2026-05-22T06:00:00-07:00\"\
+              ,\n                \"isDaytime\": false,\n                \"temperature\"\
+              : 53,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 4\n                },\n                \"\
+              windSpeed\": \"2 to 7 mph\",\n                \"windDirection\": \"\
+              ESE\",\n                \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Partly cloudy, with a low around 53.\"\
+              \n            },\n            {\n                \"number\": 11,\n \
+              \               \"name\": \"Friday\",\n                \"startTime\"\
+              : \"2026-05-22T06:00:00-07:00\",\n                \"endTime\": \"2026-05-22T18:00:00-07:00\"\
+              ,\n                \"isDaytime\": true,\n                \"temperature\"\
+              : 70,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 0\n                },\n                \"\
+              windSpeed\": \"5 mph\",\n                \"windDirection\": \"SW\",\n\
               \                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
               ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
-              \      \"detailedForecast\": \"Mostly sunny, with a high near 58.\"\n\
-              \            },\n            {\n                \"number\": 14,\n  \
-              \              \"name\": \"Thursday Night\",\n                \"startTime\"\
-              : \"2026-04-23T18:00:00-07:00\",\n                \"endTime\": \"2026-04-24T06:00:00-07:00\"\
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 70.\"\n\
+              \            },\n            {\n                \"number\": 12,\n  \
+              \              \"name\": \"Friday Night\",\n                \"startTime\"\
+              : \"2026-05-22T18:00:00-07:00\",\n                \"endTime\": \"2026-05-23T06:00:00-07:00\"\
               ,\n                \"isDaytime\": false,\n                \"temperature\"\
-              : 43,\n                \"temperatureUnit\": \"F\",\n               \
+              : 53,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 1\n                },\n                \"\
+              windSpeed\": \"5 mph\",\n                \"windDirection\": \"NNW\"\
+              ,\n                \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Partly Cloudy\",\n         \
+              \       \"detailedForecast\": \"Partly cloudy, with a low around 53.\"\
+              \n            },\n            {\n                \"number\": 13,\n \
+              \               \"name\": \"Saturday\",\n                \"startTime\"\
+              : \"2026-05-23T06:00:00-07:00\",\n                \"endTime\": \"2026-05-23T18:00:00-07:00\"\
+              ,\n                \"isDaytime\": true,\n                \"temperature\"\
+              : 70,\n                \"temperatureUnit\": \"F\",\n               \
+              \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
+              : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
+              \              \"value\": 2\n                },\n                \"\
+              windSpeed\": \"2 to 8 mph\",\n                \"windDirection\": \"\
+              WSW\",\n                \"icon\": \"https://api.weather.gov/icons/land/day/sct?size=medium\"\
+              ,\n                \"shortForecast\": \"Mostly Sunny\",\n          \
+              \      \"detailedForecast\": \"Mostly sunny, with a high near 70.\"\n\
+              \            },\n            {\n                \"number\": 14,\n  \
+              \              \"name\": \"Saturday Night\",\n                \"startTime\"\
+              : \"2026-05-23T18:00:00-07:00\",\n                \"endTime\": \"2026-05-24T06:00:00-07:00\"\
+              ,\n                \"isDaytime\": false,\n                \"temperature\"\
+              : 53,\n                \"temperatureUnit\": \"F\",\n               \
               \ \"temperatureTrend\": null,\n                \"probabilityOfPrecipitation\"\
               : {\n                    \"unitCode\": \"wmoUnit:percent\",\n      \
               \              \"value\": 3\n                },\n                \"\
-              windSpeed\": \"2 to 7 mph\",\n                \"windDirection\": \"\
-              ENE\",\n                \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
+              windSpeed\": \"3 to 8 mph\",\n                \"windDirection\": \"\
+              NE\",\n                \"icon\": \"https://api.weather.gov/icons/land/night/sct?size=medium\"\
               ,\n                \"shortForecast\": \"Partly Cloudy\",\n         \
-              \       \"detailedForecast\": \"Partly cloudy, with a low around 43.\"\
+              \       \"detailedForecast\": \"Partly cloudy, with a low around 53.\"\
               \n            }\n        ]\n    }\n}"
-          toolUseId: tooluse_BKUOkLSUcyUmLxiSnHNJOz
+          toolUseId: tooluse_rlExEi8O74HcN1z2A6W9oc
           status: success
-    model: us.anthropic.claude-sonnet-4-20250514-v1:0
+    model: us.anthropic.claude-sonnet-4-6
     tools:
     - name: http_request
       parameters:
@@ -1003,96 +993,64 @@ interactions:
           forecast.'
       inferenceConfig: {}
   response:
-    content: '# 🌤️ Seattle Weather Forecast
-
-
-      Here''s the current weather forecast for Seattle, WA:
-
-
-      ## **Today (Friday, April 17th)**
-
-      **Mostly Sunny** ☀️
-
-      - **High:** 56°F
-
-      - **Wind:** East northeast at 3 mph
-
-      - **Precipitation:** 0% chance
-
-      - **Conditions:** Mostly sunny skies with light winds
-
-
-      ## **Tonight**
-
-      **Mostly Cloudy** ☁️
-
-      - **Low:** 42°F (rising to 44°F overnight)
-
-      - **Wind:** North at 3 mph
-
-      - **Precipitation:** 1% chance
+    content: 'Here''s the weather forecast for **Seattle, WA** 🌤️
 
 
       ---
 
 
-      ## **Extended Forecast:**
+      ### 📅 Today (Sunday, May 17)
+
+      - ☀️ **Mostly Sunny** — High near **63°F**
+
+      - 💨 Wind: WSW ~3 mph
+
+      - 🌧️ Chance of rain: **3%**
 
 
-      **Saturday** - Partly Sunny
+      ### 🌙 Tonight
 
-      - High: 66°F | Low: 50°F
+      - ☁️ **Mostly Cloudy** — Low near **49°F**
 
-      - Light winds, 7% chance of rain
+      - 💨 Wind: NE ~2 mph
 
-
-      **Sunday** - Mostly Cloudy
-
-      - High: 68°F | Low: 50°F
-
-      - Light northeast winds, 11% chance of rain
-
-
-      **Monday** - Partly Sunny then Chance of Light Rain
-
-      - High: 69°F | Low: 50°F
-
-      - 15% chance of rain during the day, increasing to 30% at night
-
-
-      **Tuesday** - Chance of Light Rain
-
-      - High: 63°F | Low: 49°F
-
-      - 40% chance of rain throughout the day
-
-
-      **Wednesday** - Chance of Light Rain
-
-      - High: 59°F | Low: 45°F
-
-      - 33% chance of rain, decreasing through the day
-
-
-      **Thursday** - Mostly Sunny
-
-      - High: 58°F | Low: 43°F
-
-      - Nice clearing conditions with only 10% chance of rain
+      - 🌧️ Chance of rain: **0%**
 
 
       ---
 
 
-      **Summary:** Today looks pleasant with mostly sunny skies and mild temperatures
-      in the mid-50s. The weekend will be nice with warmer temperatures reaching the
-      upper 60s. Rain chances increase early next week, which is typical spring weather
-      for Seattle. Overall, it''s a fairly typical Pacific Northwest spring forecast
-      with mild temperatures and some scattered rain chances.
+      ### 📆 Extended Forecast
 
 
-      *Forecast provided by the National Weather Service - Seattle Office*'
+      | Day | Conditions | High | Low | Rain Chance |
+
+      |---|---|---|---|---|
+
+      | **Monday** | ☀️ Mostly Sunny | 66°F | 49°F | 0% |
+
+      | **Tuesday** | 🌤️ Partly Sunny | 63°F | 51°F | 4% |
+
+      | **Wednesday** | ☀️ Mostly Sunny | 66°F | 51°F | 0% |
+
+      | **Thursday** | ☀️ Mostly Sunny | 68°F | 53°F | 4% |
+
+      | **Friday** | ☀️ Mostly Sunny | 70°F | 53°F | 0% |
+
+      | **Saturday** | ☀️ Mostly Sunny | 70°F | 53°F | 2% |
+
+
+      ---
+
+
+      ### 🌟 Summary
+
+      Seattle is enjoying a **beautiful stretch of spring weather!** Expect mostly
+      sunny skies throughout the week with temperatures gradually warming from the
+      low 60s today up to **70°F by Friday and Saturday**. Rain chances are extremely
+      low all week — great news for outdoor activities! Nights will be cool and comfortable,
+      dipping into the upper 40s to low 50s.'
     tool_calls: null
     token_usage:
-      input_tokens: 7106
-      output_tokens: 482
+      input_tokens: 7209
+      output_tokens: 454

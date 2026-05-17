@@ -26,8 +26,8 @@ When displaying responses:
 
 Always explain the weather conditions clearly and provide context for the forecast."""
 
-# Use non-streaming mode for cassette recording compatibility
-model = BedrockModel(streaming=False)
+# Use non-streaming mode for cassette recording compatibility. Pin the model id explicitly so SDK-default drift does not move the recorded cassette out from under us.
+model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-6", streaming=False)
 
 weather_agent = Agent(
     model=model,
