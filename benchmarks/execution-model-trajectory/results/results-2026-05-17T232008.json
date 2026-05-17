@@ -1,0 +1,394 @@
+{
+  "timestamp": "2026-05-17T23:20:08Z",
+  "preliminary": false,
+  "scenarios_run": [
+    "dev",
+    "ci"
+  ],
+  "environment": {
+    "platform": "macOS-26.3-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python_version": "3.14.4",
+    "cpu_count": 12,
+    "package_versions": {
+      "agentverify": "0.3.0",
+      "deepeval": "4.0.2",
+      "boto3": "1.43.9",
+      "aws-cdk-lib": "2.254.0",
+      "aws-cdk.aws-bedrock-agentcore-alpha": "2.254.0a0",
+      "strands-agents": "1.40.0",
+      "langgraph": "1.2.0",
+      "langchain-openai": "1.2.1"
+    },
+    "aws_cdk_cli": "2.1122.0 (build c8f270c)",
+    "aws_cli": "aws-cli/2.34.48 Python/3.14.4 Darwin/25.3.0 exe/arm64"
+  },
+  "cells": [
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "strands-weather-forecaster/agentverify_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        16.299737667199224,
+        14.290352166630328,
+        16.847639416810125,
+        16.266399750020355,
+        17.29465587483719
+      ],
+      "wall_time_trimmed_mean_seconds": 16.471258944676567,
+      "wall_time_median_seconds": 16.299737667199224,
+      "wall_time_min_seconds": 14.290352166630328,
+      "wall_time_max_seconds": 17.29465587483719,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 17,
+      "static": {
+        "api_calls_per_run": 3,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "strands-weather-forecaster/agentverify_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": false,
+      "wall_time_runs_seconds": [
+        1.7214498752728105,
+        1.7025732919573784,
+        1.7017598748207092,
+        1.7045282502658665,
+        1.7028706669807434
+      ],
+      "wall_time_trimmed_mean_seconds": 1.7033240697346628,
+      "wall_time_median_seconds": 1.7028706669807434,
+      "wall_time_min_seconds": 1.7017598748207092,
+      "wall_time_max_seconds": 1.7214498752728105,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 17,
+      "static": {
+        "api_calls_per_run": 0,
+        "dollar_cost_per_run_usd": 0.0,
+        "ci_secrets_required": 0
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "strands-weather-forecaster/deepeval_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        16.90022600023076,
+        15.8780048340559,
+        21.36626729229465,
+        14.832215250004083,
+        14.838221875019372
+      ],
+      "wall_time_trimmed_mean_seconds": 15.87215090310201,
+      "wall_time_median_seconds": 15.8780048340559,
+      "wall_time_min_seconds": 14.832215250004083,
+      "wall_time_max_seconds": 21.36626729229465,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 26,
+      "static": {
+        "api_calls_per_run": 3,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 2
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "strands-weather-forecaster/deepeval_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        14.549375332891941,
+        16.848096375353634,
+        17.894040416926146,
+        16.829390000086278,
+        16.84987954190001
+      ],
+      "wall_time_trimmed_mean_seconds": 16.842455305779975,
+      "wall_time_median_seconds": 16.848096375353634,
+      "wall_time_min_seconds": 14.549375332891941,
+      "wall_time_max_seconds": 17.894040416926146,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 26,
+      "static": {
+        "api_calls_per_run": 3,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 2
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "strands-weather-forecaster/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        17.845877875108272,
+        15.812569500412792,
+        17.808231332805008,
+        16.33561245771125,
+        17.40401800023392
+      ],
+      "wall_time_trimmed_mean_seconds": 17.182620596916724,
+      "wall_time_median_seconds": 17.40401800023392,
+      "wall_time_min_seconds": 15.812569500412792,
+      "wall_time_max_seconds": 17.845877875108272,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 44,
+      "static": {
+        "api_calls_per_run": 4,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "strands-weather-forecaster/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        16.917397666722536,
+        15.919886167161167,
+        17.446013499982655,
+        15.426692207809538,
+        17.006653625052422
+      ],
+      "wall_time_trimmed_mean_seconds": 16.614645819645375,
+      "wall_time_median_seconds": 16.917397666722536,
+      "wall_time_min_seconds": 15.426692207809538,
+      "wall_time_max_seconds": 17.446013499982655,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 44,
+      "static": {
+        "api_calls_per_run": 4,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "langgraph-multi-agent-supervisor/agentverify_test.py",
+      "needs_aws": false,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        9.362297707702965,
+        8.863000999670476,
+        8.331005707848817,
+        8.878548459149897,
+        8.316358082927763
+      ],
+      "wall_time_trimmed_mean_seconds": 8.690851722223064,
+      "wall_time_median_seconds": 8.863000999670476,
+      "wall_time_min_seconds": 8.316358082927763,
+      "wall_time_max_seconds": 9.362297707702965,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 31,
+      "static": {
+        "api_calls_per_run": 10,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "langgraph-multi-agent-supervisor/agentverify_test.py",
+      "needs_aws": false,
+      "scenario": "ci",
+      "needs_llm": false,
+      "wall_time_runs_seconds": [
+        1.7279629157856107,
+        1.6977270003408194,
+        1.7032032092101872,
+        1.7312440411187708,
+        1.7068319167010486
+      ],
+      "wall_time_trimmed_mean_seconds": 1.712666013898949,
+      "wall_time_median_seconds": 1.7068319167010486,
+      "wall_time_min_seconds": 1.6977270003408194,
+      "wall_time_max_seconds": 1.7312440411187708,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 31,
+      "static": {
+        "api_calls_per_run": 0,
+        "dollar_cost_per_run_usd": 0.0,
+        "ci_secrets_required": 0
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "langgraph-multi-agent-supervisor/deepeval_test.py",
+      "needs_aws": false,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        8.890329500194639,
+        8.443913416936994,
+        8.875247249845415,
+        26.189668042119592,
+        8.34547304129228
+      ],
+      "wall_time_trimmed_mean_seconds": 8.736496722325683,
+      "wall_time_median_seconds": 8.875247249845415,
+      "wall_time_min_seconds": 8.34547304129228,
+      "wall_time_max_seconds": 26.189668042119592,
+      "passed_count": 5,
+      "failed_count": 4,
+      "failure_excerpts": [
+        ".py:1400\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/deepeval/tracing/tracing.py:1400: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead\n    if asyncio.iscoroutinefunction(func):\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n================= 1 failed, 1 deselected, 4 warnings in 4.92s ==================\n",
+        ".py:1400\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/deepeval/tracing/tracing.py:1400: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead\n    if asyncio.iscoroutinefunction(func):\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n================= 1 failed, 1 deselected, 4 warnings in 8.85s ==================\n",
+        ".py:1400\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/deepeval/tracing/tracing.py:1400: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead\n    if asyncio.iscoroutinefunction(func):\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n================= 1 failed, 1 deselected, 4 warnings in 6.73s ==================\n",
+        ".py:1400\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/deepeval/tracing/tracing.py:1400: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead\n    if asyncio.iscoroutinefunction(func):\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_dev\n================= 1 failed, 1 deselected, 4 warnings in 7.52s ==================\n"
+      ],
+      "loc": 36,
+      "static": {
+        "api_calls_per_run": 10,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "langgraph-multi-agent-supervisor/deepeval_test.py",
+      "needs_aws": false,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        13.44862358411774,
+        8.852626582607627,
+        8.893500249832869,
+        8.969104499556124,
+        8.886697416193783
+      ],
+      "wall_time_trimmed_mean_seconds": 8.916434055194259,
+      "wall_time_median_seconds": 8.893500249832869,
+      "wall_time_min_seconds": 8.852626582607627,
+      "wall_time_max_seconds": 13.44862358411774,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 36,
+      "static": {
+        "api_calls_per_run": 10,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "langgraph-multi-agent-supervisor/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        9.865851665847003,
+        8.836799792014062,
+        9.844984041061252,
+        9.299430458806455,
+        9.287885625381023
+      ],
+      "wall_time_trimmed_mean_seconds": 9.47743337508291,
+      "wall_time_median_seconds": 9.299430458806455,
+      "wall_time_min_seconds": 8.836799792014062,
+      "wall_time_max_seconds": 9.865851665847003,
+      "passed_count": 5,
+      "failed_count": 2,
+      "failure_excerpts": [
+        " (67317 + 164000 = 231317)\"\nE       assert 'Fail' == 'Pass'\nE         \nE         - Pass\nE         + Fail\n\nbenchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py:122: AssertionError\n=============================== warnings summary ===============================\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n================= 1 failed, 1 deselected, 3 warnings in 7.65s ==================\n",
+        " (67317 + 164000 = 231317)\"\nE       assert 'Fail' == 'Pass'\nE         \nE         - Pass\nE         + Fail\n\nbenchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py:122: AssertionError\n=============================== warnings summary ===============================\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_dev\n================= 1 failed, 1 deselected, 3 warnings in 7.45s ==================\n"
+      ],
+      "loc": 58,
+      "static": {
+        "api_calls_per_run": 11,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 2
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "langgraph-multi-agent-supervisor/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        9.900667417328805,
+        10.952552499715239,
+        9.566443749703467,
+        11.010480541270226,
+        9.42561116674915
+      ],
+      "wall_time_trimmed_mean_seconds": 10.139887888915837,
+      "wall_time_median_seconds": 9.900667417328805,
+      "wall_time_min_seconds": 9.42561116674915,
+      "wall_time_max_seconds": 11.010480541270226,
+      "passed_count": 5,
+      "failed_count": 2,
+      "failure_excerpts": [
+        " add (67317 + 164000 = 231317)\"\nE       assert 'Fail' == 'Pass'\nE         \nE         - Pass\nE         + Fail\n\nbenchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py:122: AssertionError\n=============================== warnings summary ===============================\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n================= 1 failed, 1 deselected, 3 warnings in 7.81s ==================\n",
+        " add (67317 + 164000 = 231317)\"\nE       assert 'Fail' == 'Pass'\nE         \nE         - Pass\nE         + Fail\n\nbenchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py:122: AssertionError\n=============================== warnings summary ===============================\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/workspace/git/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n================= 1 failed, 1 deselected, 3 warnings in 7.32s ==================\n"
+      ],
+      "loc": 58,
+      "static": {
+        "api_calls_per_run": 11,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 2
+      }
+    }
+  ],
+  "cold_start_observations": {
+    "_doc": "Cold-start wall times are the wall time of the first invocation against a freshly-initialised Lambda execution environment. See README.md step 7 for how to force a cold init and capture the value.",
+    "measurements": {
+      "strands-weather-forecaster:C:ci": 16.04,
+      "langgraph-multi-agent-supervisor:C:ci": 12.349
+    }
+  }
+}
