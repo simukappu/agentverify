@@ -1,13 +1,8 @@
 """Core data models for agentverify.
 
-Provides structured representations of agent execution results,
-steps, tool calls, and token usage for deterministic testing.
+Provides structured representations of agent execution results, steps, tool calls, and token usage for deterministic testing.
 
-An :class:`ExecutionResult` is made of an ordered list of
-:class:`Step` objects.  Each step represents a single observable unit
-of agent execution (an LLM call, a user-defined probe boundary, or a
-pure tool execution).  The flat ``tool_calls`` view is available via a
-derived property for convenience and backward compatibility.
+An :class:`ExecutionResult` is made of an ordered list of :class:`Step` objects.  Each step represents a single observable unit of agent execution (an LLM call, a user-defined probe boundary, or a pure tool execution).  The flat ``tool_calls`` view is available via a derived property for convenience and backward compatibility.
 """
 
 from __future__ import annotations
@@ -45,24 +40,18 @@ StepSource = Literal["llm", "probe", "tool"]
 class Step:
     """A single observable unit of agent execution.
 
-    A step can represent an LLM call (``source="llm"``), a user-defined
-    probe boundary (``source="probe"``), or a pure tool execution in a
-    workflow-style agent (``source="tool"``).
+    A step can represent an LLM call (``source="llm"``), a user-defined probe boundary (``source="probe"``), or a pure tool execution in a workflow-style agent (``source="tool"``).
 
     Attributes:
         index: 0-based position in ``ExecutionResult.steps``.
-        name: Optional human-readable label (from ``step_probe`` or a
-            framework node name).
+        name: Optional human-readable label (from ``step_probe`` or a framework node name).
         source: What produced this step boundary.
         tool_calls: Tool calls emitted during this step (may be empty).
-        tool_results: Tool results observed during this step.  Used by
-            :func:`assert_step_uses_result_from` for data flow checks.
-        output: Text output produced by this step (LLM reply, or user
-            data via ``ProbeHandle.set_output``).
+        tool_results: Tool results observed during this step.  Used by :func:`assert_step_uses_result_from` for data flow checks.
+        output: Text output produced by this step (LLM reply, or user data via ``ProbeHandle.set_output``).
         duration_ms: Wall-clock duration of this step, if known.
         token_usage: Tokens consumed during this step, if known.
-        input_context: Snapshot of input messages / context that arrived
-            at this step.  Used by :func:`assert_step_uses_result_from`.
+        input_context: Snapshot of input messages / context that arrived at this step.  Used by :func:`assert_step_uses_result_from`.
     """
 
     index: int
@@ -147,17 +136,11 @@ class Step:
 class ExecutionResult:
     """The result of a single agent execution.
 
-    An ExecutionResult is an ordered list of :class:`Step` objects plus
-    aggregate metadata (token usage, cost, duration, final output).
+    An ExecutionResult is an ordered list of :class:`Step` objects plus aggregate metadata (token usage, cost, duration, final output).
 
-    The flat ``tool_calls`` view is exposed as a read-only property
-    derived from ``steps`` — there is no underlying flat storage.
+    The flat ``tool_calls`` view is exposed as a read-only property derived from ``steps`` — there is no underlying flat storage.
 
-    For backward compatibility with v0.2.0, the constructor also
-    accepts a ``tool_calls=[...]`` keyword argument which is wrapped
-    into a single synthetic ``Step`` (``source="llm"``) when ``steps``
-    is not provided.  New code should use ``steps=[...]`` or
-    :meth:`from_flat_tool_calls`.
+    For backward compatibility with v0.2.0, the constructor also accepts a ``tool_calls=[...]`` keyword argument which is wrapped into a single synthetic ``Step`` (``source="llm"``) when ``steps`` is not provided.  New code should use ``steps=[...]`` or :meth:`from_flat_tool_calls`.
     """
 
     steps: list[Step] = field(default_factory=list)
@@ -208,9 +191,7 @@ class ExecutionResult:
     ) -> ExecutionResult:
         """Build an ExecutionResult from a flat tool call list (single step).
 
-        Wraps the flat tool call list into a single synthetic ``Step``.
-        Useful for migration from v0.2.0 and for tests that don't care
-        about step structure.
+        Wraps the flat tool call list into a single synthetic ``Step``. Useful for migration from v0.2.0 and for tests that don't care about step structure.
         """
         steps = [Step(index=0, source="llm", tool_calls=list(tool_calls))]
         return cls(
@@ -225,10 +206,7 @@ class ExecutionResult:
     def from_dict(cls, data: dict[str, Any]) -> ExecutionResult:
         """Build an ExecutionResult from a dictionary.
 
-        Prefers the ``steps`` key.  If only a legacy ``tool_calls`` key
-        is present, it is wrapped into a single synthetic step for
-        backward compatibility with v0.2.0 serialized results.  When
-        both keys are present, ``steps`` takes precedence.
+        Prefers the ``steps`` key.  If only a legacy ``tool_calls`` key is present, it is wrapped into a single synthetic step for backward compatibility with v0.2.0 serialized results.  When both keys are present, ``steps`` takes precedence.
         """
         token_usage = None
         if data.get("token_usage") is not None:
@@ -275,9 +253,7 @@ class ExecutionResult:
     def to_dict(self) -> dict[str, Any]:
         """Convert this ExecutionResult to a dictionary.
 
-        The output uses the ``steps`` schema — flat ``tool_calls`` is
-        not emitted.  Use :meth:`from_flat_tool_calls` to load legacy
-        v0.2.0 data.
+        The output uses the ``steps`` schema — flat ``tool_calls`` is not emitted.  Use :meth:`from_flat_tool_calls` to load legacy v0.2.0 data.
         """
         result: dict[str, Any] = {
             "steps": [s.to_dict() for s in self.steps],

@@ -1,11 +1,8 @@
 """Mock GitHub MCP Server for agentverify examples.
 
-A FastMCP-based mock GitHub MCP server that returns hardcoded issue data.
-Used by the LangChain Issue Triage Agent example to enable testing
-without a real GitHub token.
+A FastMCP-based mock GitHub MCP server that returns hardcoded issue data. Used by the LangChain Issue Triage Agent example to enable testing without a real GitHub token.
 
-The target repository can be configured via the MOCK_REPO environment
-variable (default: simukappu/agentverify).
+The target repository can be configured via the MOCK_REPO environment variable (default: simukappu/agentverify).
 """
 
 import os

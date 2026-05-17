@@ -1,7 +1,6 @@
 """Matchers for flexible tool call argument verification.
 
-Provides ANY (wildcard matcher), MATCHES (regex matcher), and OrderMode
-(sequence comparison modes) for use with the assertion engine.
+Provides ANY (wildcard matcher), MATCHES (regex matcher), and OrderMode (sequence comparison modes) for use with the assertion engine.
 """
 
 from __future__ import annotations
@@ -14,8 +13,7 @@ from typing import Any, Pattern, Union
 class _ANYType:
     """Singleton matcher that equals any value.
 
-    Used as a wildcard in expected ToolCall arguments so that
-    specific argument values can be ignored during assertion.
+    Used as a wildcard in expected ToolCall arguments so that specific argument values can be ignored during assertion.
     """
 
     _instance: _ANYType | None = None
@@ -44,8 +42,7 @@ ANY = _ANYType()
 class MATCHES:
     """Regex matcher for string argument values.
 
-    Equal to any string where ``re.search(pattern, value)`` finds a match.
-    Non-string values never match.
+    Equal to any string where ``re.search(pattern, value)`` finds a match. Non-string values never match.
 
     Use as a wildcard in expected ToolCall arguments::
 

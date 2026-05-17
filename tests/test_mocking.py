@@ -209,8 +209,7 @@ class TestMockLLMToExecutionResult:
 
 
 class TestMockLLMEndToEnd:
-    """Patch the OpenAI SDK via the provider adapter and verify that a
-    caller using the SDK ends up with mocked responses."""
+    """Patch the OpenAI SDK via the provider adapter and verify that a caller using the SDK ends up with mocked responses."""
 
     def test_openai_routing_without_real_llm(self):
         openai = pytest.importorskip("openai")

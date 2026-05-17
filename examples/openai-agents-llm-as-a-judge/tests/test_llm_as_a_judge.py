@@ -1,14 +1,8 @@
 """agentverify integration tests for the LLM-as-a-judge example.
 
-Tests use cassette replay mode — no LLM API key is required.
-The cassette file ``cassettes/detective_in_space.yaml`` contains
-pre-recorded OpenAI LLM interactions that are replayed deterministically.
+Tests use cassette replay mode — no LLM API key is required. The cassette file ``cassettes/detective_in_space.yaml`` contains pre-recorded OpenAI LLM interactions that are replayed deterministically.
 
-This is the example where agentverify's value shines the brightest:
-the underlying agent is *probabilistic* (the evaluator's "pass" decision
-depends on the LLM, and the refinement loop may take 2 or 3 rounds),
-but the cassette freezes a single concrete run so every assertion
-below runs deterministically in CI.
+This is the example where agentverify's value shines the brightest: the underlying agent is *probabilistic* (the evaluator's "pass" decision depends on the LLM, and the refinement loop may take 2 or 3 rounds), but the cassette freezes a single concrete run so every assertion below runs deterministically in CI.
 """
 
 import sys
@@ -55,9 +49,7 @@ class TestJudgeLoopFlat:
     def test_loop_terminates_within_round_cap(self, cassette):
         """The loop must reach a ``pass`` verdict within ``max_rounds``.
 
-        The evaluator is instructed to reject the first attempt, so
-        a correct run always goes through at least two (generator,
-        evaluator) rounds — i.e. four steps minimum.
+        The evaluator is instructed to reject the first attempt, so a correct run always goes through at least two (generator, evaluator) rounds — i.e. four steps minimum.
         """
         loop_result, result = _run_and_get_result(cassette)
         assert loop_result.pass_reached, (
@@ -111,10 +103,7 @@ class TestJudgeLoopStepLevel:
       - step 3: evaluator — ``pass`` (or another rejection + another round)
       - ...
 
-    ``assert_step_uses_result_from(step=2, depends_on=1)`` is the key
-    assertion: it catches the "agent regenerated but ignored the judge's
-    feedback" bug, which is the most common failure mode of this
-    pattern.
+    ``assert_step_uses_result_from(step=2, depends_on=1)`` is the key assertion: it catches the "agent regenerated but ignored the judge's feedback" bug, which is the most common failure mode of this pattern.
     """
 
     @pytest.mark.agentverify
@@ -126,9 +115,7 @@ class TestJudgeLoopStepLevel:
 
     @pytest.mark.agentverify
     def test_first_evaluator_rejects_on_first_try(self, cassette):
-        """The evaluator is instructed to never pass on the first try,
-        so step 1's structured output must carry a ``needs_improvement``
-        or ``fail`` score — never ``pass``.
+        """The evaluator is instructed to never pass on the first try, so step 1's structured output must carry a ``needs_improvement`` or ``fail`` score — never ``pass``.
         """
         _, result = _run_and_get_result(cassette)
         assert_step(result, step=1, expected_tools=[])
@@ -142,12 +129,7 @@ class TestJudgeLoopStepLevel:
     def test_regeneration_consumes_evaluator_feedback(self, cassette):
         """Step 2 (generator, round 2) must reference step 1's feedback.
 
-        The harness re-injects the evaluator's feedback as a user
-        message before the next generator round, and the cassette
-        recorder backfills that message into step 2's ``input_context``.
-        ``assert_step_uses_result_from`` catches the case where the
-        generator dropped the feedback and silently regenerated
-        identical output.
+        The harness re-injects the evaluator's feedback as a user message before the next generator round, and the cassette recorder backfills that message into step 2's ``input_context``. ``assert_step_uses_result_from`` catches the case where the generator dropped the feedback and silently regenerated identical output.
         """
         _, result = _run_and_get_result(cassette)
         # Guard: this test is only meaningful when we actually had a
@@ -159,8 +141,7 @@ class TestJudgeLoopStepLevel:
 
     @pytest.mark.agentverify
     def test_final_evaluator_step_emits_pass(self, cassette):
-        """The last step is always the evaluator; its structured output
-        must carry ``"score": "pass"`` for the loop to have terminated.
+        """The last step is always the evaluator; its structured output must carry ``"score": "pass"`` for the loop to have terminated.
         """
         loop_result, result = _run_and_get_result(cassette)
         assert loop_result.pass_reached, (

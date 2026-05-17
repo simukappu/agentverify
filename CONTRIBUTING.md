@@ -1,7 +1,6 @@
 # Contributing to agentverify
 
-Thanks for your interest in contributing. This document captures the
-conventions the project follows so your pull request lands cleanly.
+Thanks for your interest in contributing. This document captures the conventions the project follows so your pull request lands cleanly.
 
 ## Development setup
 
@@ -15,8 +14,7 @@ pytest
 
 ## Commit message conventions
 
-agentverify follows [Conventional Commits](https://www.conventionalcommits.org/).
-Scopes are used **only for examples**; every other change uses a bare type.
+agentverify follows [Conventional Commits](https://www.conventionalcommits.org/). Scopes are used **only for examples**; every other change uses a bare type.
 
 ### Types
 
@@ -29,6 +27,7 @@ Scopes are used **only for examples**; every other change uses a bare type.
 | `docs:` | Root `README.md`, `CHANGELOG.md`, `.kiro/` contents, docstrings, comments |
 | `docs(examples):` | Anything under `examples/` — new example, example README, example tests, example cassette updates |
 | `test:` | Test-only changes to the main `tests/` suite |
+| `style:` | Formatting / whitespace / docstring reflow that does not change behaviour |
 | `ci:` | CI / GitHub Actions configuration |
 | `build:` | Build system, packaging, dependency declarations |
 | `chore:` | Maintenance that doesn't fit elsewhere |
@@ -51,15 +50,11 @@ ci: skip Coveralls upload on forks
 
 ## CHANGELOG conventions
 
-agentverify keeps a single `CHANGELOG.md` at the repo root. Every
-user-facing change is recorded there under an `## Unreleased` section
-that gets renamed to `## X.Y.Z (YYYY-MM-DD)` on release.
+agentverify keeps a single `CHANGELOG.md` at the repo root. Every user-facing change is recorded there under an `## Unreleased` section that gets renamed to `## X.Y.Z (YYYY-MM-DD)` on release.
 
 ### Section order
 
-Within a release section, use only the sections below, in this order.
-**Omit any section that has no entries in a given release** — don't
-leave empty headings.
+Within a release section, use only the sections below, in this order. **Omit any section that has no entries in a given release** — don't leave empty headings.
 
 1. **Features** — new APIs or capabilities added in this release.
 2. **Improvements** — behaviour or quality changes to features that already shipped in an earlier release.
@@ -117,6 +112,37 @@ Tag the release commit as `vX.Y.Z` (lightweight tag) and push both the commit an
 - Every example under `examples/` ships with pre-recorded cassettes so `pytest examples/<name>/tests` runs with no API keys.
 - Follow the shape of an existing example when adding a new one: `agent.py` + `tests/conftest.py` + `tests/test_*.py` + `tests/cassettes/*.yaml` + `README.md` + `pyproject.toml`.
 - The example's own `README.md` carries the detailed setup / re-record instructions and a table of the tests it ships with. The root README's `## Examples` table gets a one-line entry pointing at the example directory.
+
+## Documentation style
+
+agentverify writes prose (Python docstrings, Markdown, shell / TOML comment blocks) with a consistent rule: **one paragraph is one source line**. The intent is to keep diffs minimal when wording changes (a one-word edit touches one line, not several), and to let renderers (Sphinx, IDE hover, GitHub, mkdocs) handle visual wrapping uniformly.
+
+### Python docstrings
+
+- **Summary line**: the first line is a short, action-oriented sentence ending with a period. Aim for under ~79 characters; the IDE function-hover popup uses this as its summary.
+- **Body paragraphs**: each paragraph is a single source line. A paragraph break is a blank line. Do not manually wrap a paragraph across multiple source lines.
+- **Lists**: `-` / `*` / numbered items each occupy their own line. The text of a single list item is itself a single source line.
+- **Google-style sections** (`Args:`, `Returns:`, `Raises:`, `Yields:`, `Attributes:`, `Note:`, `Example:`, `See Also:`): keep the section header on its own line; each entry's description is a single source line at deeper indent.
+- **Code blocks** (fenced \`\`\` blocks, doctests starting with `>>>`, and reStructuredText literal blocks introduced by a trailing `::`) are not reflowed: their internal line breaks are content, not wrapping.
+
+The same rule applies to inline `# ...` comment blocks that span multiple lines: each paragraph of comments is one line; paragraphs are separated by a blank `#` line. Code-explaining comments tied to a specific statement are short and stay on one line as usual.
+
+### Markdown
+
+- Body paragraphs are single source lines.
+- Lists, tables, headings, code fences, and blockquotes follow the standard Markdown rules; only continuous prose is collapsed.
+- No hard line-length limit on prose paragraphs. Tables and code fences are formatted by readability, not by a fixed column count.
+
+### Shell scripts and TOML / JSON / YAML comments
+
+- Multi-line `# ...` comment blocks follow the same single-line-per-paragraph rule as Python comments.
+- Code itself is not reflowed; this rule covers comment prose only.
+
+### Why this rule
+
+Wrapping prose at a fixed width (the historical PEP 8 docstring 72-character convention) was helpful in the era of fixed-width terminals and email-based patches. Modern editors apply soft wrap, renderers collapse paragraph-internal whitespace into single spaces (so the rendered output is identical whether the source is wrapped or single-line), and version-control diffs are noticeably noisier on wrapped paragraphs than on single-line ones. The single-line convention removes that noise without affecting any rendered surface.
+
+If a future tool starts caring about hard line lengths in docstrings (for example, a linter that flags lines over 100 characters), revisit this rule rather than working around it case by case.
 
 ## Reporting bugs and requesting features
 

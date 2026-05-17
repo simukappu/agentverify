@@ -816,8 +816,7 @@ class TestAssertStepEdgeCases:
     def test_produced_string_found_in_set_valued_consumed(self):
         """Produced string matches a leaf inside a consumed ``set``.
 
-        ``_leaves`` walks dict / list / set / frozenset containers so
-        values stored in any iterable show up as candidates.
+        ``_leaves`` walks dict / list / set / frozenset containers so values stored in any iterable show up as candidates.
         """
         # Using a set as consumed (not JSON serializable) with a string produced
         result = ExecutionResult(steps=[
@@ -891,9 +890,7 @@ class TestValueAppearsInBranches:
         assert_step_uses_result_from(result, step=1, depends_on=0)
 
     def test_circular_reference_in_consumed_does_not_recurse_forever(self):
-        """Circular references inside the consumed container don't blow
-        the stack — ``_leaves`` tracks visited container ids so cyclic
-        data structures terminate cleanly.
+        """Circular references inside the consumed container don't blow the stack — ``_leaves`` tracks visited container ids so cyclic data structures terminate cleanly.
         """
         rec: dict = {}
         rec["self"] = rec  # circular reference
@@ -925,10 +922,7 @@ class TestValueMatchesStringNoMatch:
         assert _value_matches(42, 43) is False
 
     def test_numeric_string_produced_matches_string_leaf(self):
-        """Numeric-literal produced (e.g. ``"42"``) must find itself
-        inside a consumed container's string leaf, not just a direct
-        string ``consumed`` value.  Covers the string-leaf branch of
-        the numeric-variants walk.
+        """Numeric-literal produced (e.g. ``"42"``) must find itself inside a consumed container's string leaf, not just a direct string ``consumed`` value.  Covers the string-leaf branch of the numeric-variants walk.
         """
         from agentverify.assertions import _value_matches
 
@@ -939,24 +933,21 @@ class TestValueMatchesStringNoMatch:
         )
 
     def test_numeric_string_produced_matches_direct_string_consumed(self):
-        """Numeric-literal produced matches a plain-string ``consumed``
-        via boundary-aware numeric matching (no container traversal).
+        """Numeric-literal produced matches a plain-string ``consumed`` via boundary-aware numeric matching (no container traversal).
         """
         from agentverify.assertions import _value_matches
 
         assert _value_matches("42", "status=42") is True
 
     def test_numeric_string_produced_no_match_against_string_consumed(self):
-        """Numeric-literal produced that doesn't appear in ``consumed``
-        string returns False (negative direct-string branch).
+        """Numeric-literal produced that doesn't appear in ``consumed`` string returns False (negative direct-string branch).
         """
         from agentverify.assertions import _value_matches
 
         assert _value_matches("42", "no numbers here") is False
 
     def test_numeric_string_produced_skips_non_matching_string_leaves(self):
-        """Numeric-literal produced iterates over multiple string leaves;
-        the walk must skip non-matching ones and succeed on a later leaf.
+        """Numeric-literal produced iterates over multiple string leaves; the walk must skip non-matching ones and succeed on a later leaf.
         """
         from agentverify.assertions import _value_matches
 
@@ -966,9 +957,7 @@ class TestValueMatchesStringNoMatch:
         ) is True
 
     def test_numeric_string_produced_skips_non_matching_primitive_leaves(self):
-        """Numeric-literal produced iterates over multiple primitive
-        leaves; the walk must skip non-matching ones and succeed on a
-        later leaf.
+        """Numeric-literal produced iterates over multiple primitive leaves; the walk must skip non-matching ones and succeed on a later leaf.
         """
         from agentverify.assertions import _value_matches
 
@@ -976,10 +965,7 @@ class TestValueMatchesStringNoMatch:
         assert _value_matches("42", {"a": 99, "b": 42}) is True
 
     def test_numeric_string_variant_produced_exhausts_all_primitive_leaves(self):
-        """Float-literal produced has two variants (e.g. ``"42.0"``
-        expands to ``["42.0", "42"]``).  Multiple leaves must be
-        iterated even when each leaf rejects every variant.  This
-        covers the "no match in primitive leaves" continuation edge.
+        """Float-literal produced has two variants (e.g. ``"42.0"`` expands to ``["42.0", "42"]``).  Multiple leaves must be iterated even when each leaf rejects every variant.  This covers the "no match in primitive leaves" continuation edge.
         """
         from agentverify.assertions import _value_matches
 
@@ -991,9 +977,7 @@ class TestValueMatchesStringNoMatch:
         ) is False
 
     def test_numeric_string_produced_skips_non_primitive_non_string_leaves(self):
-        """Leaves that are neither strings nor numeric primitives (e.g.
-        ``None``) fall through to the next iteration instead of
-        participating in the numeric walk.
+        """Leaves that are neither strings nor numeric primitives (e.g. ``None``) fall through to the next iteration instead of participating in the numeric walk.
         """
         from agentverify.assertions import _value_matches
 
@@ -1001,25 +985,21 @@ class TestValueMatchesStringNoMatch:
         assert _value_matches("42", {"a": None, "b": 42}) is True
 
     def test_numeric_string_produced_matches_primitive_leaf(self):
-        """Numeric-literal produced matches a primitive numeric leaf
-        inside the consumed container (int 42 vs ``"42"`` needle).
+        """Numeric-literal produced matches a primitive numeric leaf inside the consumed container (int 42 vs ``"42"`` needle).
         """
         from agentverify.assertions import _value_matches
 
         assert _value_matches("42", {"wrap": {"n": 42}}) is True
 
     def test_numeric_string_produced_no_match_in_container_returns_false(self):
-        """Numeric-literal produced with no matching leaf inside the
-        consumed container returns False (covers the numeric-variants
-        walk fall-through).
+        """Numeric-literal produced with no matching leaf inside the consumed container returns False (covers the numeric-variants walk fall-through).
         """
         from agentverify.assertions import _value_matches
 
         assert _value_matches("42", {"wrap": {"n": 17}}) is False
 
     def test_non_string_primitive_found_inside_consumed_string_leaf(self):
-        """``int`` produced may appear as its string form inside a
-        container's string leaf — covers the int-in-str-leaf branch.
+        """``int`` produced may appear as its string form inside a container's string leaf — covers the int-in-str-leaf branch.
         """
         from agentverify.assertions import _value_matches
 
@@ -1180,8 +1160,7 @@ class TestAssertStepUsesResultFromPrimitiveProduced:
 
 class TestAssertStepUsesResultFromNumericString:
     def test_numeric_string_result_matches_int_consumed(self):
-        """A tool result serialized as ``"231317.0"`` should match when
-        the next step consumes ``231317`` as an int.
+        """A tool result serialized as ``"231317.0"`` should match when the next step consumes ``231317`` as an int.
         """
         result = ExecutionResult(steps=[
             Step(index=0, source="llm", tool_results=["231317.0"]),
@@ -1225,8 +1204,7 @@ class TestAssertStepUsesResultFromNumericString:
         assert_step_uses_result_from(result, step=1, depends_on=0)
 
     def test_numeric_string_in_plain_string_consumed(self):
-        """Numeric string produced matches the same numeric value
-        appearing inside a plain string consumed argument.
+        """Numeric string produced matches the same numeric value appearing inside a plain string consumed argument.
         """
         result = ExecutionResult(steps=[
             Step(index=0, source="llm", tool_results=["231317.0"]),

@@ -35,8 +35,7 @@ def cassette(request):
     2. ``--cassette-mode`` pytest CLI option
     3. ``CassetteMode.AUTO`` (default)
 
-    By default the cassette file is stored in a ``cassettes/`` directory
-    next to the test file.  Override with the *cassette_dir* parameter.
+    By default the cassette file is stored in a ``cassettes/`` directory next to the test file.  Override with the *cassette_dir* parameter.
     """
 
     def _cassette(

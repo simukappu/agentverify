@@ -1,16 +1,10 @@
 """LangGraph multi-agent supervisor example.
 
-Based on the official langgraph-supervisor quickstart:
-https://github.com/langchain-ai/langgraph-supervisor-py
+Based on the official langgraph-supervisor quickstart: https://github.com/langchain-ai/langgraph-supervisor-py
 
-A supervisor agent orchestrates a research expert and a math expert.
-The supervisor routes the user query to the appropriate sub-agent based
-on the task, and combines their outputs into a final answer.
+A supervisor agent orchestrates a research expert and a math expert. The supervisor routes the user query to the appropriate sub-agent based on the task, and combines their outputs into a final answer.
 
-This example demonstrates agentverify's step-level assertions for
-multi-agent handoff patterns — each agent invocation becomes a step,
-and ``assert_step_uses_result_from`` verifies that data flows correctly
-from the researcher's findings to the math expert's inputs.
+This example demonstrates agentverify's step-level assertions for multi-agent handoff patterns — each agent invocation becomes a step, and ``assert_step_uses_result_from`` verifies that data flows correctly from the researcher's findings to the math expert's inputs.
 """
 
 from __future__ import annotations
@@ -41,9 +35,7 @@ DEFAULT_MODEL = "gpt-4o-mini"
 def web_search(query: str) -> str:  # noqa: ARG001 — query unused in this mock
     """Search the web for information.
 
-    Returns a hardcoded response about FAANG headcounts (matches the
-    official langgraph-supervisor quickstart). The mock keeps the cassette
-    deterministic with no external HTTP calls.
+    Returns a hardcoded response about FAANG headcounts (matches the official langgraph-supervisor quickstart). The mock keeps the cassette deterministic with no external HTTP calls.
     """
     return (
         "Here are the headcounts for each of the FAANG companies in 2024:\n"
@@ -74,8 +66,7 @@ def build_supervisor_app(model_name: str | None = None):
     """Build the supervisor workflow and return the compiled graph.
 
     Args:
-        model_name: OpenAI chat model name. Defaults to ``OPENAI_MODEL``
-            env var if set, otherwise ``gpt-4o-mini``.
+        model_name: OpenAI chat model name. Defaults to ``OPENAI_MODEL`` env var if set, otherwise ``gpt-4o-mini``.
     """
     model_name = model_name or os.environ.get("OPENAI_MODEL", DEFAULT_MODEL)
     # temperature=0 keeps the conversation deterministic enough to replay

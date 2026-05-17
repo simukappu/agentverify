@@ -1,29 +1,14 @@
 """Map an :class:`AgentRun` into an agentverify :class:`ExecutionResult`.
 
-This file is the reference for what a custom converter looks like when
-no built-in framework adapter fits. The shape is small — about 60 lines
-of real logic — and the mapping to agentverify's data model is
-mechanical once you know what shape your agent emits.
+This file is the reference for what a custom converter looks like when no built-in framework adapter fits. The shape is small — about 60 lines of real logic — and the mapping to agentverify's data model is mechanical once you know what shape your agent emits.
 
-Anthropic's Messages API records the conversation as a flat list of
-messages alternating between ``assistant`` (with ``text`` and/or
-``tool_use`` content blocks) and ``user`` (with ``tool_result`` content
-blocks feeding the previous turn's tool outputs back in). One step in
-agentverify terms corresponds to one ``assistant`` turn, with its tool
-calls, the tool results produced for it by the next ``user`` turn, and
-the text output of the assistant turn itself.
+Anthropic's Messages API records the conversation as a flat list of messages alternating between ``assistant`` (with ``text`` and/or ``tool_use`` content blocks) and ``user`` (with ``tool_result`` content blocks feeding the previous turn's tool outputs back in). One step in agentverify terms corresponds to one ``assistant`` turn, with its tool calls, the tool results produced for it by the next ``user`` turn, and the text output of the assistant turn itself.
 
 Conversion mapping:
 
-    assistant tool_use blocks[i]                      -> tool_calls[i]
-    next user's tool_result blocks[i].content          -> tool_results[i]
-    assistant text blocks (concatenated)               -> step.output
-    full conversation up to this point                 -> step.input_context
-    sum of response.usage.{input,output}_tokens        -> token_usage
+    assistant tool_use blocks[i]                      -> tool_calls[i] next user's tool_result blocks[i].content          -> tool_results[i] assistant text blocks (concatenated)               -> step.output full conversation up to this point                 -> step.input_context sum of response.usage.{input,output}_tokens        -> token_usage
 
-The converter returns a fully populated :class:`ExecutionResult` that
-supports every agentverify assertion, including
-:func:`assert_step_uses_result_from` for step-to-step data flow.
+The converter returns a fully populated :class:`ExecutionResult` that supports every agentverify assertion, including :func:`assert_step_uses_result_from` for step-to-step data flow.
 """
 
 from __future__ import annotations
@@ -37,8 +22,7 @@ from agent import AgentRun
 
 
 def _coerce_block(block: Any) -> dict[str, Any] | None:
-    """Normalise Anthropic content blocks (SDK objects or dicts) into
-    plain dicts so the converter can treat both uniformly."""
+    """Normalise Anthropic content blocks (SDK objects or dicts) into plain dicts so the converter can treat both uniformly."""
     if isinstance(block, dict):
         return block
     block_type = getattr(block, "type", None)
@@ -58,9 +42,7 @@ def _coerce_block(block: Any) -> dict[str, Any] | None:
 
 
 def _as_blocks(content: Any) -> list[dict[str, Any]]:
-    """Coerce an assistant or user message's ``content`` field into a
-    list of plain-dict blocks. Handles both the raw-string form (user
-    messages) and the mixed-object form (assistant messages)."""
+    """Coerce an assistant or user message's ``content`` field into a list of plain-dict blocks. Handles both the raw-string form (user messages) and the mixed-object form (assistant messages)."""
     if isinstance(content, str):
         return [{"type": "text", "text": content}]
     if not isinstance(content, list):
@@ -76,8 +58,7 @@ def _as_blocks(content: Any) -> list[dict[str, Any]]:
 def _parse_tool_result(raw: Any) -> Any:
     """Decode a tool_result ``content`` value.
 
-    The agent emits JSON-encoded primitives (``"300"`` / ``"330.0"``);
-    falling back to the raw string is fine for non-JSON tool results.
+    The agent emits JSON-encoded primitives (``"300"`` / ``"330.0"``); falling back to the raw string is fine for non-JSON tool results.
     """
     if not isinstance(raw, str):
         return raw
@@ -90,10 +71,7 @@ def _parse_tool_result(raw: Any) -> Any:
 def run_to_execution_result(run: AgentRun) -> ExecutionResult:
     """Convert an :class:`AgentRun` into an :class:`ExecutionResult`.
 
-    One step per assistant turn. Tool results from the next user turn
-    are attached to the step that produced the corresponding tool calls,
-    which lets :func:`assert_step_uses_result_from` verify data flow
-    across the chain.
+    One step per assistant turn. Tool results from the next user turn are attached to the step that produced the corresponding tool calls, which lets :func:`assert_step_uses_result_from` verify data flow across the chain.
     """
     messages = run.messages
     steps: list[Step] = []
@@ -154,10 +132,7 @@ def run_to_execution_result(run: AgentRun) -> ExecutionResult:
 
 
 def _normalise_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Serialise a message history into plain dicts for
-    :attr:`Step.input_context`. Replacing SDK content objects with dicts
-    keeps the snapshot JSON-friendly and makes leaf walking inside
-    :func:`assert_step_uses_result_from` deterministic."""
+    """Serialise a message history into plain dicts for :attr:`Step.input_context`. Replacing SDK content objects with dicts keeps the snapshot JSON-friendly and makes leaf walking inside :func:`assert_step_uses_result_from` deterministic."""
     out: list[dict[str, Any]] = []
     for msg in history:
         role = msg.get("role")

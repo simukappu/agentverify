@@ -1,9 +1,6 @@
 """Tests for the LiteLLM provider adapter.
 
-Since LiteLLM uses an OpenAI-compatible format, the normalize/denormalize
-methods are delegated to the OpenAI adapter.  Tests here verify that
-delegation works correctly and that the patch() context manager targets
-``litellm.completion``.
+Since LiteLLM uses an OpenAI-compatible format, the normalize/denormalize methods are delegated to the OpenAI adapter.  Tests here verify that delegation works correctly and that the patch() context manager targets ``litellm.completion``.
 """
 
 from __future__ import annotations

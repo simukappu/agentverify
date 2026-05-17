@@ -1,8 +1,6 @@
 """LLM Cassette Recorder — VCR-style record/replay for LLM API calls.
 
-Provides :class:`LLMCassetteRecorder` which intercepts LLM SDK chat
-completion calls, records request/response pairs to a YAML cassette file,
-and replays them for deterministic testing.
+Provides :class:`LLMCassetteRecorder` which intercepts LLM SDK chat completion calls, records request/response pairs to a YAML cassette file, and replays them for deterministic testing.
 """
 
 from __future__ import annotations
@@ -34,9 +32,7 @@ class CassetteMode(Enum):
 def _request_to_context(request: NormalizedRequest | None) -> dict[str, Any] | None:
     """Snapshot a NormalizedRequest into a Step.input_context dict.
 
-    The snapshot contains the ``messages`` list (immutable copy) and the
-    model name.  Used by :func:`assert_step_uses_result_from` to detect
-    data flow between steps.
+    The snapshot contains the ``messages`` list (immutable copy) and the model name.  Used by :func:`assert_step_uses_result_from` to detect data flow between steps.
     """
     if request is None:
         return None
@@ -248,14 +244,9 @@ class LLMCassetteRecorder:
     def lookup(self, request: NormalizedRequest) -> NormalizedResponse | None:
         """Return the next unplayed interaction response.
 
-        When ``match_requests`` is enabled, the recorded request's model
-        and tool names are compared against the incoming request.  A
-        :class:`CassetteRequestMismatchError` is raised on mismatch,
-        signalling that the cassette is stale.
+        When ``match_requests`` is enabled, the recorded request's model and tool names are compared against the incoming request.  A :class:`CassetteRequestMismatchError` is raised on mismatch, signalling that the cassette is stale.
 
-        When ``match_requests`` is disabled (default), interactions are
-        consumed in recorded order without verifying request content
-        (v1 sequential matching).
+        When ``match_requests`` is disabled (default), interactions are consumed in recorded order without verifying request content (v1 sequential matching).
 
         Returns:
             The next :class:`NormalizedResponse`, or ``None`` if all
@@ -338,14 +329,9 @@ class LLMCassetteRecorder:
 
         * Each LLM interaction produces one step (``source="llm"``).
         * When an interaction happens inside a ``step_probe(name)``
-          block, the innermost probe's name is assigned as the step's
-          ``name`` and the step source becomes ``"probe"``.  Multiple
-          LLM calls under the same probe handle are merged into a
-          single step whose ``tool_calls`` / ``tool_results`` are the
-          concatenation.
+          block, the innermost probe's name is assigned as the step's ``name`` and the step source becomes ``"probe"``.  Multiple LLM calls under the same probe handle are merged into a single step whose ``tool_calls`` / ``tool_results`` are the concatenation.
         * ``step_probe`` blocks that contain no LLM call become
-          standalone ``source="probe"`` steps using the pre-computed
-          ``output`` passed to ``step_probe(name, output=...)``.
+          standalone ``source="probe"`` steps using the pre-computed ``output`` passed to ``step_probe(name, output=...)``.
         """
         return _build_execution_result(
             interactions=self._interactions,

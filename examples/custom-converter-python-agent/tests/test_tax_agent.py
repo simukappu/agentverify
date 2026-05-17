@@ -1,14 +1,8 @@
 """agentverify integration tests for the custom-converter tax agent.
 
-Tests use cassette replay mode — no LLM API key is required.
-The cassette file ``cassettes/tax_calculation.yaml`` contains
-pre-recorded Anthropic LLM interactions that are replayed
-deterministically.
+Tests use cassette replay mode — no LLM API key is required. The cassette file ``cassettes/tax_calculation.yaml`` contains pre-recorded Anthropic LLM interactions that are replayed deterministically.
 
-These tests exercise both the flat assertions and the step-level
-assertions on an agent that does not use any built-in framework
-adapter — instead, ``converter.run_to_execution_result`` maps the
-raw Anthropic message history into an :class:`ExecutionResult`.
+These tests exercise both the flat assertions and the step-level assertions on an agent that does not use any built-in framework adapter — instead, ``converter.run_to_execution_result`` maps the raw Anthropic message history into an :class:`ExecutionResult`.
 """
 
 import sys
@@ -95,21 +89,12 @@ class TestTaxAgentFlat:
 class TestTaxAgentStepLevel:
     """Step-level verification of the tool-chain and data flow.
 
-    Anthropic's Messages API emits two assistant turns before the
-    final summary: step 0 calls ``add``, step 1 calls ``apply_tax``
-    with the ``add`` result as its ``amount``, and step 2 is the
-    textual summary with no tool calls.  The converter places the
-    tool result from each ``user`` follow-up message onto the
-    preceding assistant step's ``tool_results``, so
-    ``assert_step_uses_result_from`` can verify that the ``amount``
-    passed to ``apply_tax`` actually came from ``add`` and wasn't
-    hallucinated by the model.
+    Anthropic's Messages API emits two assistant turns before the final summary: step 0 calls ``add``, step 1 calls ``apply_tax`` with the ``add`` result as its ``amount``, and step 2 is the textual summary with no tool calls.  The converter places the tool result from each ``user`` follow-up message onto the preceding assistant step's ``tool_results``, so ``assert_step_uses_result_from`` can verify that the ``amount`` passed to ``apply_tax`` actually came from ``add`` and wasn't hallucinated by the model.
     """
 
     @pytest.mark.agentverify
     def test_first_step_calls_add(self, cassette):
-        """Step 0 is the assistant's first turn — one ``add`` call with the
-        user's pre-tax numbers."""
+        """Step 0 is the assistant's first turn — one ``add`` call with the user's pre-tax numbers."""
         _, result = _run_and_convert(cassette)
         assert_step(
             result, step=0,
@@ -119,9 +104,7 @@ class TestTaxAgentStepLevel:
 
     @pytest.mark.agentverify
     def test_second_step_calls_apply_tax_with_sum(self, cassette):
-        """Step 1 is the assistant's second turn — ``apply_tax`` with the
-        rate the user requested and some ``amount`` value (exact value
-        checked in the data-flow test below)."""
+        """Step 1 is the assistant's second turn — ``apply_tax`` with the rate the user requested and some ``amount`` value (exact value checked in the data-flow test below)."""
         _, result = _run_and_convert(cassette)
         assert_step(
             result, step=1,
@@ -133,10 +116,7 @@ class TestTaxAgentStepLevel:
     def test_apply_tax_uses_add_result(self, cassette):
         """The headline check: step 1's input must trace back to step 0.
 
-        Catches the "model hallucinated a number instead of using the
-        tool result" bug.  The ``add`` tool returns ``300``; that
-        value must appear in the ``apply_tax`` arguments as
-        ``amount``.
+        Catches the "model hallucinated a number instead of using the tool result" bug.  The ``add`` tool returns ``300``; that value must appear in the ``apply_tax`` arguments as ``amount``.
         """
         _, result = _run_and_convert(cassette)
         assert_step_uses_result_from(result, step=1, depends_on=0)

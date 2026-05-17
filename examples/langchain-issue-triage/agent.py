@@ -1,9 +1,6 @@
 """LangChain GitHub Issue triage agent.
 
-Uses a GitHub MCP server (or mock MCP server) to analyze issues in a
-target repository and suggest labels, priorities, and assignees.
-The target repository is configured via CLI argument, environment variable,
-or default (simukappu/agentverify).
+Uses a GitHub MCP server (or mock MCP server) to analyze issues in a target repository and suggest labels, priorities, and assignees. The target repository is configured via CLI argument, environment variable, or default (simukappu/agentverify).
 """
 
 import argparse

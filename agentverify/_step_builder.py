@@ -1,7 +1,6 @@
 """Internal helpers for building :class:`Step` / :class:`ExecutionResult`.
 
-Used by recorder, MockLLM, and framework adapters.  Not part of the
-public API.
+Used by recorder, MockLLM, and framework adapters.  Not part of the public API.
 """
 
 from __future__ import annotations
@@ -15,8 +14,7 @@ from agentverify.models import Step, TokenUsage, ToolCall
 def parse_tool_call_arguments(raw: Any) -> dict[str, Any]:
     """Parse tool call arguments into a dict.
 
-    ``raw`` may be a dict already, a JSON string, or something else.
-    Invalid JSON and non-dict/non-string values return an empty dict.
+    ``raw`` may be a dict already, a JSON string, or something else. Invalid JSON and non-dict/non-string values return an empty dict.
     """
     if isinstance(raw, dict):
         return raw

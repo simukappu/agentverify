@@ -1,7 +1,6 @@
 """Strands Agents adapter for agentverify.
 
-Converts a Strands Agents ``AgentResult`` into an agentverify
-``ExecutionResult`` without requiring a custom converter function.
+Converts a Strands Agents ``AgentResult`` into an agentverify ``ExecutionResult`` without requiring a custom converter function.
 
 Usage::
 
@@ -13,17 +12,12 @@ Usage::
 The Strands AgentResult has the following structure:
 
 - ``result.state.messages``: Conversation history (list of message dicts).
-  Each ``assistant`` message's ``content`` is a list of blocks, which
-  may contain ``{"toolUse": {...}}`` and/or ``{"text": "..."}`` entries.
-  ``user`` messages between two assistant messages often contain
-  ``{"toolResult": {...}}`` blocks that carry tool execution results.
+  Each ``assistant`` message's ``content`` is a list of blocks, which may contain ``{"toolUse": {...}}`` and/or ``{"text": "..."}`` entries. ``user`` messages between two assistant messages often contain ``{"toolResult": {...}}`` blocks that carry tool execution results.
 - ``result.metrics``: Token consumption dict with ``"inputTokens"`` and
   ``"outputTokens"`` keys (may be absent during mock execution).
 - ``result.message``: Final response message dict.
 
-Step boundary: **each ``assistant`` message becomes one step**
-(``source="llm"``).  Tool results observed in the next ``user`` message
-are attached to the previous step's ``tool_results``.
+Step boundary: **each ``assistant`` message becomes one step** (``source="llm"``).  Tool results observed in the next ``user`` message are attached to the previous step's ``tool_results``.
 """
 
 from __future__ import annotations

@@ -1,8 +1,6 @@
 """agentverify integration tests for the LangChain issue triage agent.
 
-Tests use cassette replay mode — no LLM API key is required.
-Cassette files in ``cassettes/`` contain pre-recorded OpenAI LLM
-interactions that are replayed deterministically.
+Tests use cassette replay mode — no LLM API key is required. Cassette files in ``cassettes/`` contain pre-recorded OpenAI LLM interactions that are replayed deterministically.
 
 Requirements: 2.3, 2.5, 3.5
 """
@@ -25,8 +23,7 @@ class TestIssueTriage_MockMCP:
     def test_tool_call_sequence(self, cassette):
         """Verify tool call ordering: list_issues → get_issue.
 
-        The agent should first list open issues, then fetch details
-        for specific issues that need triage.
+        The agent should first list open issues, then fetch details for specific issues that need triage.
         """
         with cassette("issue_triage_mock.yaml", provider="openai") as rec:
             pass  # cassette replay — no real API calls
@@ -47,8 +44,7 @@ class TestIssueTriage_MockMCP:
     def test_safety_read_and_label_only(self, cassette):
         """Verify the agent never calls destructive tools.
 
-        The issue triage agent should only read issues and add labels.
-        It must not close, delete, update, or create issues.
+        The issue triage agent should only read issues and add labels. It must not close, delete, update, or create issues.
         """
         with cassette("issue_triage_mock.yaml", provider="openai") as rec:
             pass  # cassette replay
@@ -73,8 +69,7 @@ class TestIssueTriage_RealMCP:
     def test_tool_call_with_real_github(self, cassette):
         """Verify tool calls from a real GitHub MCP interaction.
 
-        This test replays a cassette recorded against the actual
-        GitHub MCP server to verify the agent calls list_issues.
+        This test replays a cassette recorded against the actual GitHub MCP server to verify the agent calls list_issues.
         """
         with cassette("issue_triage_real.yaml", provider="openai") as rec:
             pass  # cassette replay — no real API calls
@@ -104,10 +99,7 @@ from agentverify import (
 
 
 class TestIssueTriageStepLevel:
-    """Verify the multi-step ReAct pattern:
-    step 0 lists issues, step 1 fetches issue details using the number
-    discovered in step 0, step 2 lists labels, step 3 produces the
-    final triage summary.
+    """Verify the multi-step ReAct pattern: step 0 lists issues, step 1 fetches issue details using the number discovered in step 0, step 2 lists labels, step 3 produces the final triage summary.
     """
 
     @pytest.mark.agentverify

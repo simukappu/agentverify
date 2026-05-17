@@ -1,8 +1,6 @@
 """agentverify integration tests for the Strands Weather Forecaster agent.
 
-Tests use cassette replay mode — no LLM API key is required.
-The cassette file ``cassettes/weather_seattle.yaml`` contains pre-recorded
-Bedrock LLM interactions that are replayed deterministically.
+Tests use cassette replay mode — no LLM API key is required. The cassette file ``cassettes/weather_seattle.yaml`` contains pre-recorded Bedrock LLM interactions that are replayed deterministically.
 
 These tests match the examples shown in the agentverify README.
 """
@@ -92,9 +90,7 @@ from agentverify import (
 def test_weather_agent_steps(cassette):
     """Verify the two-step ReAct pattern and the data flow between them.
 
-    This test mirrors the step-level example in the README:
-    step 0 calls /points/ to discover the forecast office,
-    step 1 calls /forecast/ using a URL derived from the first response.
+    This test mirrors the step-level example in the README: step 0 calls /points/ to discover the forecast office, step 1 calls /forecast/ using a URL derived from the first response.
     """
     with cassette("weather_seattle.yaml", provider="bedrock") as rec:
         pass  # cassette replay

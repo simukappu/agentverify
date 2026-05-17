@@ -1,7 +1,6 @@
 """Property-based tests for agentverify using Hypothesis.
 
-Tests Properties 1-12 as defined in the design document.
-Each test is annotated with the property number and description.
+Tests Properties 1-12 as defined in the design document. Each test is annotated with the property number and description.
 """
 
 from __future__ import annotations

@@ -1,9 +1,6 @@
 """User-side step boundary injection for agentverify.
 
-``step_probe`` is a context manager that marks a logical step boundary
-in user agent code.  It is a **zero-cost no-op outside of test recording
-contexts** (when no :class:`LLMCassetteRecorder` or :class:`MockLLM` is
-active), so it is safe to leave in production code.
+``step_probe`` is a context manager that marks a logical step boundary in user agent code.  It is a **zero-cost no-op outside of test recording contexts** (when no :class:`LLMCassetteRecorder` or :class:`MockLLM` is active), so it is safe to leave in production code.
 
 Example::
 
@@ -62,9 +59,7 @@ class ProbeSession(Protocol):
 class ProbeHandle:
     """Handle yielded from ``step_probe`` for tests to attach data.
 
-    ``set_output`` and ``set_tool_result`` are no-ops outside of a
-    recording session, matching the overall zero-cost-in-production
-    promise.
+    ``set_output`` and ``set_tool_result`` are no-ops outside of a recording session, matching the overall zero-cost-in-production promise.
     """
 
     name: str
@@ -88,14 +83,11 @@ class ProbeHandle:
 def step_probe(name: str, output: str | None = None) -> Iterator[ProbeHandle]:
     """Mark a logical step boundary in user agent code.
 
-    **No-op outside of recorder/MockLLM contexts** — safe to leave in
-    production.
+    **No-op outside of recorder/MockLLM contexts** — safe to leave in production.
 
     Args:
-        name: Human-readable step name.  Used for
-            ``assert_step(result, name=...)``.
-        output: Optional pre-computed text output for the step (for
-            pure compute/cache steps that don't call an LLM).
+        name: Human-readable step name.  Used for ``assert_step(result, name=...)``.
+        output: Optional pre-computed text output for the step (for pure compute/cache steps that don't call an LLM).
 
     Yields:
         A :class:`ProbeHandle` for attaching additional data to the step.
@@ -122,8 +114,7 @@ def step_probe(name: str, output: str | None = None) -> Iterator[ProbeHandle]:
 def _activate_session(session: ProbeSession) -> Iterator[None]:
     """Install ``session`` as the active probe session (recorder use only).
 
-    Nested activation is supported — the inner session shadows the outer
-    for the duration of the with-block.
+    Nested activation is supported — the inner session shadows the outer for the duration of the with-block.
     """
     token = _active_session.set(session)
     try:

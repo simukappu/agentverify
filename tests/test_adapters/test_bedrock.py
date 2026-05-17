@@ -1,7 +1,6 @@
 """Tests for the Amazon Bedrock Converse API provider adapter.
 
-Covers normalize_request, normalize_response, denormalize_response,
-and the patch() context manager.
+Covers normalize_request, normalize_response, denormalize_response, and the patch() context manager.
 """
 
 from __future__ import annotations

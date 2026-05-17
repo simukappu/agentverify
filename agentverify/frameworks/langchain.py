@@ -1,13 +1,8 @@
 """LangChain adapter for agentverify.
 
-Converts a LangChain ``AgentExecutor`` output dict into an agentverify
-``ExecutionResult``.
+Converts a LangChain ``AgentExecutor`` output dict into an agentverify ``ExecutionResult``.
 
-Step boundary: **each ``(AgentAction, observation)`` tuple in
-``intermediate_steps`` becomes one step** (``source="llm"``).  The
-observation is attached as the step's sole ``tool_results`` entry.
-The final ``output`` of the executor is set on the
-``ExecutionResult.final_output`` field (not on the last step).
+Step boundary: **each ``(AgentAction, observation)`` tuple in ``intermediate_steps`` becomes one step** (``source="llm"``).  The observation is attached as the step's sole ``tool_results`` entry. The final ``output`` of the executor is set on the ``ExecutionResult.final_output`` field (not on the last step).
 """
 
 from __future__ import annotations
@@ -25,9 +20,7 @@ def from_langchain(
 
     Args:
         result: Return value of ``AgentExecutor.invoke()`` (dict).
-        messages: LangChain conversation history message list (optional).
-            Used to aggregate token consumption from
-            ``AIMessage.usage_metadata``.
+        messages: LangChain conversation history message list (optional). Used to aggregate token consumption from ``AIMessage.usage_metadata``.
     """
     steps: list[Step] = []
     for i, (action, observation) in enumerate(

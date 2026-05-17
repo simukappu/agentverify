@@ -1,11 +1,8 @@
 """Anthropic SDK adapter for LLM cassette recording and replay.
 
-Monkey-patches ``anthropic.resources.messages.Messages.create``
-to intercept message creation calls for recording and replaying via the
-cassette recorder.
+Monkey-patches ``anthropic.resources.messages.Messages.create`` to intercept message creation calls for recording and replaying via the cassette recorder.
 
-anthropic is an **optional** dependency.  Import this module only when the
-anthropic extra is installed (``pip install agentverify[anthropic]``).
+anthropic is an **optional** dependency.  Import this module only when the anthropic extra is installed (``pip install agentverify[anthropic]``).
 """
 
 from __future__ import annotations
@@ -101,10 +98,7 @@ class _Message:
 def _content_block_to_dict(block: Any) -> Any:
     """Convert an Anthropic content block (SDK object or dict) to a plain dict.
 
-    Keeps raw strings and plain dicts as-is; reshapes SDK objects by
-    reading the fields we care about for every supported block type
-    (``text`` / ``tool_use`` / ``tool_result``) and falls back to
-    ``model_dump`` for anything else.
+    Keeps raw strings and plain dicts as-is; reshapes SDK objects by reading the fields we care about for every supported block type (``text`` / ``tool_use`` / ``tool_result``) and falls back to ``model_dump`` for anything else.
     """
     if isinstance(block, (str, int, float, bool)) or block is None:
         return block
@@ -284,11 +278,9 @@ class AnthropicAdapter(LLMProviderAdapter):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch ``anthropic.resources.messages.Messages.create``.
 
-        In **record** mode the real API is called, the response is normalised,
-        recorded into the cassette, and the original response is returned.
+        In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
-        In **replay** mode the request is normalised, looked up in the
-        cassette, denormalised, and returned without calling the real API.
+        In **replay** mode the request is normalised, looked up in the cassette, denormalised, and returned without calling the real API.
         """
         _ensure_anthropic_installed()
 

@@ -1,7 +1,6 @@
 """agentverify — deterministic testing for AI agents.
 
-Covers tool call sequences, workflow logic, and step-to-step data
-flow.  Public API re-exports for convenient access::
+Covers tool call sequences, workflow logic, and step-to-step data flow.  Public API re-exports for convenient access::
 
     from agentverify import (
         ToolCall, ExecutionResult, Step, TokenUsage,

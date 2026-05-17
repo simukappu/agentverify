@@ -1,7 +1,6 @@
 """Custom exception classes for agentverify.
 
-All exceptions inherit from AssertionError so that pytest recognizes them
-as assertion failures and integrates them into standard test failure reports.
+All exceptions inherit from AssertionError so that pytest recognizes them as assertion failures and integrates them into standard test failure reports.
 """
 
 from __future__ import annotations

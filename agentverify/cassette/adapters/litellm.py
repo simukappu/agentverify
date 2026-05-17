@@ -1,14 +1,10 @@
 """LiteLLM adapter for LLM cassette recording and replay.
 
-Monkey-patches ``litellm.completion`` to intercept chat completion calls
-for recording and replaying via the cassette recorder.
+Monkey-patches ``litellm.completion`` to intercept chat completion calls for recording and replaying via the cassette recorder.
 
-Since LiteLLM uses an OpenAI-compatible request/response format, this
-adapter delegates normalize_request, normalize_response, and
-denormalize_response to the :class:`OpenAIAdapter`.
+Since LiteLLM uses an OpenAI-compatible request/response format, this adapter delegates normalize_request, normalize_response, and denormalize_response to the :class:`OpenAIAdapter`.
 
-litellm is an **optional** dependency.  Import this module only when the
-litellm extra is installed (``pip install agentverify[litellm]``).
+litellm is an **optional** dependency.  Import this module only when the litellm extra is installed (``pip install agentverify[litellm]``).
 """
 
 from __future__ import annotations
@@ -73,8 +69,7 @@ class LiteLLMAdapter(LLMProviderAdapter):
     def denormalize_response(self, normalized: NormalizedResponse) -> Any:
         """Build a lightweight object that mimics an OpenAI-compatible response.
 
-        Reuses the OpenAI adapter's denormalize since LiteLLM consumers
-        expect the same attribute-access pattern.
+        Reuses the OpenAI adapter's denormalize since LiteLLM consumers expect the same attribute-access pattern.
         """
         return _openai_adapter.denormalize_response(normalized)
 
@@ -84,11 +79,9 @@ class LiteLLMAdapter(LLMProviderAdapter):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch ``litellm.completion``.
 
-        In **record** mode the real API is called, the response is normalised,
-        recorded into the cassette, and the original response is returned.
+        In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
-        In **replay** mode the request is normalised, looked up in the
-        cassette, denormalised, and returned without calling the real API.
+        In **replay** mode the request is normalised, looked up in the cassette, denormalised, and returned without calling the real API.
         """
         _ensure_litellm_installed()
 

@@ -1,8 +1,6 @@
 """In-memory LLM response mocking — zero-cost agent routing tests.
 
-Where :class:`LLMCassetteRecorder` replays responses from a recorded
-cassette file, :class:`MockLLM` replays responses from an in-memory
-list you define in code. This is useful for testing:
+Where :class:`LLMCassetteRecorder` replays responses from a recorded cassette file, :class:`MockLLM` replays responses from an in-memory list you define in code. This is useful for testing:
 
 * Agent routing logic without any prior LLM recording.
 * Hypothetical scenarios you couldn't easily record (errors, edge cases).
@@ -47,9 +45,7 @@ def mock_response(
 
     Args:
         content: Final text content the mock LLM should return.
-        tool_calls: Tool calls the mock LLM should emit. Each entry may be
-            either a ``(name, arguments)`` tuple or a dict with ``"name"``
-            and ``"arguments"`` keys.
+        tool_calls: Tool calls the mock LLM should emit. Each entry may be either a ``(name, arguments)`` tuple or a dict with ``"name"`` and ``"arguments"`` keys.
         input_tokens: Input token count to report (default 0).
         output_tokens: Output token count to report (default 0).
 
@@ -93,22 +89,16 @@ def mock_response(
 class MockLLM:
     """In-memory LLM response replayer.
 
-    Behaves like :class:`LLMCassetteRecorder` in REPLAY mode but takes
-    its response sequence from a list you pass in code. No cassette
-    file is read or written. No real LLM API is ever called.
+    Behaves like :class:`LLMCassetteRecorder` in REPLAY mode but takes its response sequence from a list you pass in code. No cassette file is read or written. No real LLM API is ever called.
 
     Args:
         responses: Ordered list of responses to return, one per LLM call.
-        provider: Provider name (``"openai"``, ``"anthropic"``, ...) or
-            an :class:`LLMProviderAdapter` instance.
+        provider: Provider name (``"openai"``, ``"anthropic"``, ...) or an :class:`LLMProviderAdapter` instance.
 
     Example::
 
-        with MockLLM([
-            mock_response(tool_calls=[("search", {"q": "Tokyo"})]),
-            mock_response(content="Done"),
-        ], provider="openai") as rec:
-            my_agent("Find Tokyo")
+        with MockLLM([ mock_response(tool_calls=[("search", {"q": "Tokyo"})]), mock_response(content="Done"),
+        ], provider="openai") as rec: my_agent("Find Tokyo")
         result = rec.to_execution_result()
     """
 
@@ -188,9 +178,7 @@ class MockLLM:
     def lookup(self, request: NormalizedRequest) -> NormalizedResponse | None:
         """Return the next predefined response.
 
-        Raises :class:`CassetteMissingRequestError` when the predefined
-        response list is exhausted, to make under-specified tests fail
-        loudly rather than hang.
+        Raises :class:`CassetteMissingRequestError` when the predefined response list is exhausted, to make under-specified tests fail loudly rather than hang.
         """
         if self._replay_index >= len(self._responses):
             raise CassetteMissingRequestError(
@@ -210,8 +198,7 @@ class MockLLM:
     def to_execution_result(self) -> ExecutionResult:
         """Build an :class:`ExecutionResult` from the mocked interactions.
 
-        Behaves identically to :class:`LLMCassetteRecorder` with respect
-        to ``step_probe`` handling.
+        Behaves identically to :class:`LLMCassetteRecorder` with respect to ``step_probe`` handling.
         """
         from agentverify.cassette.recorder import _build_execution_result
 

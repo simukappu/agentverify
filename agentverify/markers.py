@@ -1,7 +1,6 @@
 """Marker definitions for the agentverify pytest plugin.
 
-The ``agentverify`` marker is registered automatically via
-:func:`agentverify.plugin.pytest_configure` when the plugin is loaded.
+The ``agentverify`` marker is registered automatically via :func:`agentverify.plugin.pytest_configure` when the plugin is loaded.
 
 Usage::
 

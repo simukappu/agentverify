@@ -4,9 +4,7 @@ Supports both YAML and JSON formats, auto-detected by file extension:
 - ``.yaml`` / ``.yml`` → YAML (requires PyYAML)
 - ``.json`` → JSON (stdlib only)
 
-YAML is the default and recommended format for human readability and
-git diff friendliness.  JSON is useful when you want to avoid the
-PyYAML dependency or need machine-readable output.
+YAML is the default and recommended format for human readability and git diff friendliness.  JSON is useful when you want to avoid the PyYAML dependency or need machine-readable output.
 """
 
 from __future__ import annotations

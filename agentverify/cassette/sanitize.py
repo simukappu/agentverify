@@ -1,7 +1,6 @@
 """Cassette sanitization — mask sensitive data before saving.
 
-Provides pattern-based redaction of API keys, tokens, and other
-sensitive values in cassette request/response data.
+Provides pattern-based redaction of API keys, tokens, and other sensitive values in cassette request/response data.
 
 Usage::
 

@@ -1,11 +1,8 @@
 """OpenAI SDK adapter for LLM cassette recording and replay.
 
-Monkey-patches ``openai.resources.chat.completions.Completions.create``
-to intercept chat completion calls for recording and replaying via the
-cassette recorder.
+Monkey-patches ``openai.resources.chat.completions.Completions.create`` to intercept chat completion calls for recording and replaying via the cassette recorder.
 
-openai is an **optional** dependency.  Import this module only when the
-openai extra is installed (``pip install agentverify[openai]``).
+openai is an **optional** dependency.  Import this module only when the openai extra is installed (``pip install agentverify[openai]``).
 """
 
 from __future__ import annotations
@@ -37,9 +34,7 @@ _ASYNC_PATCH_TARGET = "openai.resources.chat.completions.AsyncCompletions.create
 def _is_openai_sentinel(value: Any) -> bool:
     """Return ``True`` if ``value`` is an openai ``Omit`` / ``NotGiven`` sentinel.
 
-    The openai SDK passes these in place of absent keyword arguments so
-    they propagate through to provider calls.  We drop them on the way
-    into the cassette so YAML stays clean and deterministic.
+    The openai SDK passes these in place of absent keyword arguments so they propagate through to provider calls.  We drop them on the way into the cassette so YAML stays clean and deterministic.
     """
     if _openai_module is None:  # pragma: no cover — skipped when openai missing
         return False
@@ -74,12 +69,7 @@ def _ensure_openai_installed() -> None:
 class _RawResponseWrapper:
     """Minimal stand-in for ``openai._legacy_response.LegacyAPIResponse``.
 
-    langchain-openai v1.x calls ``client.with_raw_response.create(...)``
-    which returns an object that exposes ``.parse()`` and ``.headers``.
-    When the underlying ``create`` is intercepted via our monkey-patch we
-    detect the raw-response code path (via the ``X-Stainless-Raw-Response``
-    extra header) and wrap the synthesized ``ChatCompletion`` so the
-    caller can ``.parse()`` it.
+    langchain-openai v1.x calls ``client.with_raw_response.create(...)`` which returns an object that exposes ``.parse()`` and ``.headers``. When the underlying ``create`` is intercepted via our monkey-patch we detect the raw-response code path (via the ``X-Stainless-Raw-Response`` extra header) and wrap the synthesized ``ChatCompletion`` so the caller can ``.parse()`` it.
     """
 
     def __init__(self, parsed: Any) -> None:
@@ -155,9 +145,7 @@ class OpenAIAdapter(LLMProviderAdapter):
     def normalize_response(self, raw_response: Any) -> NormalizedResponse:
         """Convert an OpenAI ``ChatCompletion`` object to *NormalizedResponse*.
 
-        Also handles ``LegacyAPIResponse`` objects returned by
-        ``with_raw_response.create()`` (used internally by
-        langchain-openai v1.x); these are unwrapped via ``.parse()``.
+        Also handles ``LegacyAPIResponse`` objects returned by ``with_raw_response.create()`` (used internally by langchain-openai v1.x); these are unwrapped via ``.parse()``.
         """
         # langchain-openai v1.x calls ``client.with_raw_response.create(...)``
         # which returns a ``LegacyAPIResponse`` wrapping the real
@@ -198,10 +186,7 @@ class OpenAIAdapter(LLMProviderAdapter):
     def denormalize_response(self, normalized: NormalizedResponse) -> Any:
         """Build an ``openai.types.chat.ChatCompletion`` instance from a normalized response.
 
-        Returns a genuine SDK object (constructed via ``model_validate``) so
-        that callers which rely on ``model_dump``, ``.parse()``, or other
-        pydantic features — e.g. langchain-openai v1.x — interoperate
-        correctly.
+        Returns a genuine SDK object (constructed via ``model_validate``) so that callers which rely on ``model_dump``, ``.parse()``, or other pydantic features — e.g. langchain-openai v1.x — interoperate correctly.
         """
         from openai.types.chat import ChatCompletion as _ChatCompletionType
 
@@ -270,32 +255,20 @@ class OpenAIAdapter(LLMProviderAdapter):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch OpenAI's sync and async chat completion entry points.
 
-        Patches both ``openai.resources.chat.completions.Completions.create``
-        and ``...AsyncCompletions.create`` so that agents built on either
-        the sync ``OpenAI`` client or the ``AsyncOpenAI`` client (used
-        by, e.g., OpenAI Agents SDK internals even when driven via
-        ``Runner.run_sync``) are recorded and replayed transparently.
+        Patches both ``openai.resources.chat.completions.Completions.create`` and ``...AsyncCompletions.create`` so that agents built on either the sync ``OpenAI`` client or the ``AsyncOpenAI`` client (used by, e.g., OpenAI Agents SDK internals even when driven via ``Runner.run_sync``) are recorded and replayed transparently.
 
-        In **record** mode the real API is called, the response is normalised,
-        recorded into the cassette, and the original response is returned.
+        In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
-        In **replay** mode the request is normalised, looked up in the
-        cassette, denormalised, and returned without calling the real API.
+        In **replay** mode the request is normalised, looked up in the cassette, denormalised, and returned without calling the real API.
         """
         _ensure_openai_installed()
 
         adapter = self
 
         def _is_raw_response_call(kwargs: dict[str, Any]) -> bool:
-            """Detect whether the caller is the ``with_raw_response``
-            wrapper from openai SDK. langchain-openai v1.x routes
-            through this path and expects a ``LegacyAPIResponse``-like
-            object back.
+            """Detect whether the caller is the ``with_raw_response`` wrapper from openai SDK. langchain-openai v1.x routes through this path and expects a ``LegacyAPIResponse``-like object back.
 
-            The openai SDK sets ``X-Stainless-Raw-Response`` to a
-            truthy string when routing through ``with_raw_response``;
-            the exact value has varied across SDK versions
-            (``"raw"`` / ``"true"``), so we accept any non-empty value.
+            The openai SDK sets ``X-Stainless-Raw-Response`` to a truthy string when routing through ``with_raw_response``; the exact value has varied across SDK versions (``"raw"`` / ``"true"``), so we accept any non-empty value.
             """
             extra = kwargs.get("extra_headers") or {}
             return bool(extra.get("X-Stainless-Raw-Response"))

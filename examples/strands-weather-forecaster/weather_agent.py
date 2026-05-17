@@ -1,10 +1,8 @@
 """Strands Weather Forecaster agent.
 
-Based on the official Strands Agents sample:
-https://strandsagents.com/docs/examples/python/weather_forecaster/
+Based on the official Strands Agents sample: https://strandsagents.com/docs/examples/python/weather_forecaster/
 
-Uses the http_request tool to fetch weather data from the
-National Weather Service API (no API key required).
+Uses the http_request tool to fetch weather data from the National Weather Service API (no API key required).
 """
 
 from strands import Agent

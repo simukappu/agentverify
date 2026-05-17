@@ -724,8 +724,7 @@ class TestBuildExecutionResultProbeOrphanExit:
 
 
 class TestCassetteToolResultsBackfill:
-    """Post-processing step that lifts tool output from the next step's
-    input_context onto the producing step's tool_results.
+    """Post-processing step that lifts tool output from the next step's input_context onto the producing step's tool_results.
     """
 
     def test_backfill_from_next_step_tool_messages(self):
@@ -875,8 +874,7 @@ class TestCassetteToolResultsBackfillDefensive:
     def test_backfill_skipped_when_consumer_input_context_none(self):
         """Backfill skipped when the next step's input_context is None.
 
-        Triggered when an LLM step is followed by a standalone probe
-        step (which has input_context=None).
+        Triggered when an LLM step is followed by a standalone probe step (which has input_context=None).
         """
         from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
 

@@ -1,7 +1,6 @@
 """Assertion engine for agentverify.
 
-Provides assertion functions for verifying tool call sequences,
-cost/token budgets, safety guardrails, and batch assertion execution.
+Provides assertion functions for verifying tool call sequences, cost/token budgets, safety guardrails, and batch assertion execution.
 """
 
 from __future__ import annotations
@@ -60,8 +59,7 @@ def assert_tool_calls(
         result: The ExecutionResult to verify.
         expected: Expected ToolCall list.
         order: Comparison mode (EXACT, IN_ORDER, ANY_ORDER).
-        partial_args: When True, only keys present in expected arguments
-            are checked against actual arguments.
+        partial_args: When True, only keys present in expected arguments are checked against actual arguments.
 
     Raises:
         ToolCallSequenceError: When a mismatch is detected.
@@ -114,8 +112,7 @@ def _assert_in_order(
 ) -> None:
     """IN_ORDER mode: expected must be a subsequence of actual.
 
-    Uses a two-pointer approach: walk through actual looking for each
-    expected element in order.
+    Uses a two-pointer approach: walk through actual looking for each expected element in order.
     """
     if not expected:
         return
@@ -167,13 +164,10 @@ def assert_cost(
         result: The ExecutionResult to verify.
         max_tokens: Maximum allowed total tokens.
         max_cost_usd: Maximum allowed cost in USD.
-        strict: When True, raise CostBudgetError if token_usage or
-            total_cost_usd is None when the corresponding limit is set.
-            Default False silently passes when data is unavailable.
+        strict: When True, raise CostBudgetError if token_usage or total_cost_usd is None when the corresponding limit is set. Default False silently passes when data is unavailable.
 
     Raises:
-        CostBudgetError: When budget is exceeded or when strict=True
-            and the required data is missing.
+        CostBudgetError: When budget is exceeded or when strict=True and the required data is missing.
     """
     if max_tokens is not None:
         if result.token_usage is not None:
@@ -219,12 +213,10 @@ def assert_latency(
     Args:
         result: The ExecutionResult to verify.
         max_ms: Maximum allowed latency in milliseconds.
-        strict: When True, raise LatencyBudgetError if duration_ms is None.
-            Default False silently passes when data is unavailable.
+        strict: When True, raise LatencyBudgetError if duration_ms is None. Default False silently passes when data is unavailable.
 
     Raises:
-        LatencyBudgetError: When latency exceeds the threshold or when
-            strict=True and duration_ms is None.
+        LatencyBudgetError: When latency exceeds the threshold or when strict=True and duration_ms is None.
     """
     if result.duration_ms is not None:
         if result.duration_ms > max_ms:
@@ -337,9 +329,7 @@ def assert_all(
 ) -> None:
     """Execute multiple assertions, collecting all failures.
 
-    Each assertion is a callable that takes an ExecutionResult and
-    returns None or raises an AgentVerifyError.  All assertions are
-    executed even if some fail.
+    Each assertion is a callable that takes an ExecutionResult and returns None or raises an AgentVerifyError.  All assertions are executed even if some fail.
 
     Args:
         result: The ExecutionResult to verify.
@@ -417,10 +407,7 @@ def assert_step(
 ) -> None:
     """Verify the tool call(s) at a specific step.
 
-    Exactly one of ``step`` (0-indexed) or ``name`` (from
-    :func:`step_probe`) must be provided.  Exactly one of
-    ``expected_tool`` or ``expected_tools`` must be provided.  Use
-    ``expected_tools=[]`` to assert the step made no tool calls.
+    Exactly one of ``step`` (0-indexed) or ``name`` (from :func:`step_probe`) must be provided.  Exactly one of ``expected_tool`` or ``expected_tools`` must be provided.  Use ``expected_tools=[]`` to assert the step made no tool calls.
 
     Raises:
         StepIndexError: step index out of range.
@@ -516,8 +503,7 @@ def assert_step_output(
 ) -> None:
     """Verify the intermediate text output of a specific step.
 
-    Exactly one of ``step`` or ``name`` must be provided.  At least one
-    of ``contains``, ``equals``, or ``matches`` must be provided.
+    Exactly one of ``step`` or ``name`` must be provided.  At least one of ``contains``, ``equals``, or ``matches`` must be provided.
     """
     from agentverify.errors import StepOutputError
 
@@ -570,23 +556,19 @@ def assert_step_uses_result_from(
 ) -> None:
     """Verify that step N's input references data produced by step M.
 
-    Checks that any produced value from step M appears as a consumed
-    value in step N.
+    Checks that any produced value from step M appears as a consumed value in step N.
 
     * Produced values: step M's ``tool_results``,
       ``tool_calls[*].result``, ``output``.
     * Consumed values: step N's ``input_context``,
       ``tool_calls[*].arguments``.
 
-    Matching is substring for strings, structural equality for
-    containers.
+    Matching is substring for strings, structural equality for containers.
 
     Args:
-        step: Step that should consume data.  Accepts int (index) or
-            str (name).
+        step: Step that should consume data.  Accepts int (index) or str (name).
         depends_on: Step that should produce data.  Same specifier rules.
-        via: One of ``"tool_result"``, ``"output"``, or ``"any"``.
-            Restricts which channel of produced values is checked.
+        via: One of ``"tool_result"``, ``"output"``, or ``"any"``. Restricts which channel of produced values is checked.
     """
     from agentverify.errors import StepDependencyError
 
@@ -668,13 +650,9 @@ def _value_matches(produced, consumed) -> bool:
     - Direct equality always matches.
     - String produced in string consumed → substring match.
     - String produced in a container consumed → recurse into each leaf
-      string of the container and substring-search there.  Recursing
-      rather than serialising the whole container avoids false
-      negatives introduced by JSON escaping (``\\n``, ``\\"``, etc).
+      string of the container and substring-search there.  Recursing rather than serialising the whole container avoids false negatives introduced by JSON escaping (``\\n``, ``\\"``, etc).
     - Numeric / boolean produced in any non-string consumed →
-      substring search on the container's JSON serialisation; this
-      catches values embedded in nested structures without the escape
-      hazard that strings face.
+      substring search on the container's JSON serialisation; this catches values embedded in nested structures without the escape hazard that strings face.
     - Non-primitive produced values are only matched via direct equality
       (callers are expected to pass leaves via :func:`_leaves`).
     """
@@ -737,9 +715,7 @@ _NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
 def _numeric_string_variants(value: str) -> list[str]:
     """Return alternative string representations for a numeric literal.
 
-    E.g. ``"231317.0"`` → ``["231317.0", "231317"]`` so substring
-    searches match both ``"a": 231317`` (int-encoded) and
-    ``"a": 231317.0`` (float-encoded) downstream forms.
+    E.g. ``"231317.0"`` → ``["231317.0", "231317"]`` so substring searches match both ``"a": 231317`` (int-encoded) and ``"a": 231317.0`` (float-encoded) downstream forms.
     """
     stripped = value.strip()
     if not _NUMERIC_PATTERN.match(stripped):
@@ -768,12 +744,9 @@ def _contains_number(target: str, needle: str) -> bool:
 def _leaves(value, _seen: set[int] | None = None):
     """Yield leaf (non-container) values from a nested structure.
 
-    Strings that successfully parse as JSON are recursively descended —
-    this lets us extract primitive values embedded in JSON-serialized
-    tool results (common in cassette-based tests).
+    Strings that successfully parse as JSON are recursively descended — this lets us extract primitive values embedded in JSON-serialized tool results (common in cassette-based tests).
 
-    A ``_seen`` set of ``id(container)`` values guards against circular
-    references in the input structure so we don't recurse forever.
+    A ``_seen`` set of ``id(container)`` values guards against circular references in the input structure so we don't recurse forever.
     """
     if _seen is None:
         _seen = set()

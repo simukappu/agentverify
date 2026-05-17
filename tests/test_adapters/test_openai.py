@@ -1,7 +1,6 @@
 """Tests for the OpenAI provider adapter.
 
-Covers normalize_request, normalize_response, denormalize_response,
-and the patch() context manager.
+Covers normalize_request, normalize_response, denormalize_response, and the patch() context manager.
 """
 
 from __future__ import annotations
@@ -369,18 +368,13 @@ class TestPatch:
 class TestLegacyAPIResponseHandling:
     """langchain-openai v1.x calls ``client.with_raw_response.create(...)``.
 
-    The wrapper sets an ``X-Stainless-Raw-Response`` extra header and
-    expects a ``LegacyAPIResponse``-shaped object back that exposes
-    ``.parse()``. These tests cover both the record-side unwrap and the
-    replay-side re-wrap.
+    The wrapper sets an ``X-Stainless-Raw-Response`` extra header and expects a ``LegacyAPIResponse``-shaped object back that exposes ``.parse()``. These tests cover both the record-side unwrap and the replay-side re-wrap.
     """
 
     def test_normalize_response_unwraps_legacy_api_response(
         self, adapter: OpenAIAdapter
     ) -> None:
-        """``normalize_response`` must call ``.parse()`` on
-        ``LegacyAPIResponse``-like wrappers so recording works via the
-        ``with_raw_response`` code path.
+        """``normalize_response`` must call ``.parse()`` on ``LegacyAPIResponse``-like wrappers so recording works via the ``with_raw_response`` code path.
         """
         inner = _make_openai_response(content="wrapped answer")
 
@@ -396,9 +390,7 @@ class TestLegacyAPIResponseHandling:
     def test_replay_via_raw_response_returns_wrapper(
         self, adapter: OpenAIAdapter
     ) -> None:
-        """In REPLAY mode, when the caller went through ``with_raw_response``
-        (as indicated by the ``X-Stainless-Raw-Response`` header), the
-        adapter returns a ``LegacyAPIResponse``-compatible wrapper.
+        """In REPLAY mode, when the caller went through ``with_raw_response`` (as indicated by the ``X-Stainless-Raw-Response`` header), the adapter returns a ``LegacyAPIResponse``-compatible wrapper.
         """
         from agentverify.cassette.recorder import CassetteMode
 
@@ -607,8 +599,7 @@ class TestAsyncPatch:
 
 
 class TestSentinelFiltering:
-    """Cover _is_openai_sentinel / _strip_message_sentinels and their
-    integration with normalize_request."""
+    """Cover _is_openai_sentinel / _strip_message_sentinels and their integration with normalize_request."""
 
     def test_sentinel_detector_identifies_omit(self) -> None:
         from openai import omit
@@ -653,8 +644,7 @@ class TestSentinelFiltering:
     def test_normalize_request_drops_sentinel_tools(
         self, adapter: OpenAIAdapter
     ) -> None:
-        """``tools=omit`` (sent by native openai callers) must be treated
-        as "no tools"."""
+        """``tools=omit`` (sent by native openai callers) must be treated as "no tools"."""
         from openai import omit
 
         raw = {
@@ -668,8 +658,7 @@ class TestSentinelFiltering:
     def test_normalize_request_skips_non_dict_tool_entries(
         self, adapter: OpenAIAdapter
     ) -> None:
-        """Defensive: malformed ``tools`` list entries must be skipped
-        rather than raising."""
+        """Defensive: malformed ``tools`` list entries must be skipped rather than raising."""
         raw = {
             "messages": [{"role": "user", "content": "hi"}],
             "model": "gpt-4o-mini",
@@ -700,8 +689,7 @@ class TestSentinelFiltering:
     def test_normalize_request_non_list_messages_passthrough(
         self, adapter: OpenAIAdapter
     ) -> None:
-        """Messages that aren't a list are returned as-is — defensive
-        branch against future SDK shapes."""
+        """Messages that aren't a list are returned as-is — defensive branch against future SDK shapes."""
         raw = {
             "messages": "not-a-list",
             "model": "gpt-4o-mini",
@@ -712,8 +700,7 @@ class TestSentinelFiltering:
     def test_normalize_request_strips_sentinels_from_messages(
         self, adapter: OpenAIAdapter
     ) -> None:
-        """Per-message sentinel fields are stripped so the cassette
-        records clean ``{"role", "content"}`` dicts."""
+        """Per-message sentinel fields are stripped so the cassette records clean ``{"role", "content"}`` dicts."""
         from openai import omit
 
         raw = {

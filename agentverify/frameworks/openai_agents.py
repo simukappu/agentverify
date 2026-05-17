@@ -1,15 +1,8 @@
 """OpenAI Agents SDK adapter for agentverify.
 
-Converts an OpenAI Agents SDK ``RunResult`` into an agentverify
-``ExecutionResult``.
+Converts an OpenAI Agents SDK ``RunResult`` into an agentverify ``ExecutionResult``.
 
-Step boundary: **each ``MessageOutputItem`` / ``ToolCallItem`` cluster
-that belongs to the same model response becomes one step**
-(``source="llm"``).  Because the SDK emits tool call items grouped by
-the assistant turn that produced them, we start a new step whenever we
-see a ``message_output_item`` or when we see a ``tool_call_item``
-immediately after ``tool_call_output_item``(s).  ``tool_call_output_item``
-values are attached to the preceding step's ``tool_results``.
+Step boundary: **each ``MessageOutputItem`` / ``ToolCallItem`` cluster that belongs to the same model response becomes one step** (``source="llm"``).  Because the SDK emits tool call items grouped by the assistant turn that produced them, we start a new step whenever we see a ``message_output_item`` or when we see a ``tool_call_item`` immediately after ``tool_call_output_item``(s).  ``tool_call_output_item`` values are attached to the preceding step's ``tool_results``.
 """
 
 from __future__ import annotations
@@ -36,8 +29,7 @@ def from_openai_agents(result: Any) -> ExecutionResult:
     """Build an ``ExecutionResult`` from an OpenAI Agents SDK ``RunResult``.
 
     Args:
-        result: A ``RunResult`` or ``RunResultStreaming`` from the
-            OpenAI Agents SDK ``Runner.run()`` or ``Runner.run_sync()``.
+        result: A ``RunResult`` or ``RunResultStreaming`` from the OpenAI Agents SDK ``Runner.run()`` or ``Runner.run_sync()``.
     """
     new_items = getattr(result, "new_items", []) or []
 
@@ -146,9 +138,7 @@ def from_openai_agents(result: Any) -> ExecutionResult:
 def _extract_openai_agents_text(raw: Any) -> str | None:
     """Extract text from a message_output_item's raw_item.
 
-    OpenAI Agents ``MessageOutputItem.raw_item`` is a
-    ``ResponseOutputMessage`` whose ``content`` is a list of
-    ``ResponseOutputText`` / other content parts.
+    OpenAI Agents ``MessageOutputItem.raw_item`` is a ``ResponseOutputMessage`` whose ``content`` is a list of ``ResponseOutputText`` / other content parts.
     """
     if raw is None:
         return None

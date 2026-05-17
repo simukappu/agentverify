@@ -1,28 +1,12 @@
 """OpenAI Agents SDK — LLM as a Judge example.
 
-Adapted from the official `agent_patterns/llm_as_a_judge.py` sample:
-https://github.com/openai/openai-agents-python/blob/main/examples/agent_patterns/llm_as_a_judge.py
+Adapted from the official `agent_patterns/llm_as_a_judge.py` sample: https://github.com/openai/openai-agents-python/blob/main/examples/agent_patterns/llm_as_a_judge.py
 
-A ``story_outline_generator`` agent writes a short story outline for a
-given user request. An ``evaluator`` agent grades it with a structured
-``{feedback, score}`` output where ``score`` is one of ``"pass"`` /
-``"needs_improvement"`` / ``"fail"``. The loop re-runs the generator
-with the evaluator's feedback appended to the input until the evaluator
-returns ``pass`` (or a safety cap of ``max_rounds`` is hit).
+A ``story_outline_generator`` agent writes a short story outline for a given user request. An ``evaluator`` agent grades it with a structured ``{feedback, score}`` output where ``score`` is one of ``"pass"`` / ``"needs_improvement"`` / ``"fail"``. The loop re-runs the generator with the evaluator's feedback appended to the input until the evaluator returns ``pass`` (or a safety cap of ``max_rounds`` is hit).
 
-This example demonstrates agentverify's value for *probabilistic*
-agents: record a single run of the refinement loop once, replay it in
-CI deterministically, and assert that each regeneration step actually
-consumed the previous round's feedback — ``assert_step_uses_result_from``
-catches the "agent ignored the judge" bug without any real LLM calls.
+This example demonstrates agentverify's value for *probabilistic* agents: record a single run of the refinement loop once, replay it in CI deterministically, and assert that each regeneration step actually consumed the previous round's feedback — ``assert_step_uses_result_from`` catches the "agent ignored the judge" bug without any real LLM calls.
 
-The only change from the official sample is that we switch the SDK's
-default OpenAI API to Chat Completions so that agentverify's existing
-``openai`` cassette adapter can record the interactions, and we tighten
-the evaluator's "when may I pass?" rule from "after 5 attempts" to
-"on the second attempt once feedback is incorporated" so the loop
-terminates within a cassette-friendly number of rounds while still
-exercising the core refinement pattern.
+The only change from the official sample is that we switch the SDK's default OpenAI API to Chat Completions so that agentverify's existing ``openai`` cassette adapter can record the interactions, and we tighten the evaluator's "when may I pass?" rule from "after 5 attempts" to "on the second attempt once feedback is incorporated" so the loop terminates within a cassette-friendly number of rounds while still exercising the core refinement pattern.
 """
 
 from __future__ import annotations
@@ -88,13 +72,9 @@ class JudgeLoopResult:
     Attributes:
         final_outline: The last outline produced by the generator.
         rounds: Number of (generator, evaluator) round trips executed.
-        pass_reached: ``True`` if the evaluator returned ``score="pass"``
-            before the round cap. ``False`` if the cap was hit first.
-        generator_results: The :class:`~agents.RunResult` from each
-            generator invocation, in order.
-        evaluator_results: The :class:`~agents.RunResult` from each
-            evaluator invocation, in order. Always the same length as
-            ``generator_results``.
+        pass_reached: ``True`` if the evaluator returned ``score="pass"`` before the round cap. ``False`` if the cap was hit first.
+        generator_results: The :class:`~agents.RunResult` from each generator invocation, in order.
+        evaluator_results: The :class:`~agents.RunResult` from each evaluator invocation, in order. Always the same length as ``generator_results``.
     """
 
     final_outline: str | None
@@ -112,10 +92,8 @@ async def run_judge_loop(
     """Run the generator/evaluator refinement loop.
 
     Args:
-        query: User's story request. The default mirrors the official
-            sample for cassette stability.
-        max_rounds: Safety cap on total rounds so the loop can't spin
-            forever on an over-strict evaluator.
+        query: User's story request. The default mirrors the official sample for cassette stability.
+        max_rounds: Safety cap on total rounds so the loop can't spin forever on an over-strict evaluator.
     """
     input_items: list[TResponseInputItem] = [{"content": query, "role": "user"}]
     latest_outline: str | None = None

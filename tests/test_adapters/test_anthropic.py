@@ -1,7 +1,6 @@
 """Tests for the Anthropic provider adapter.
 
-Covers normalize_request, normalize_response, denormalize_response,
-and the patch() context manager.
+Covers normalize_request, normalize_response, denormalize_response, and the patch() context manager.
 """
 
 from __future__ import annotations
@@ -98,9 +97,7 @@ def _make_anthropic_response(
 ) -> MagicMock:
     """Build a mock that mimics an Anthropic Message object.
 
-    content_blocks should be a list of dicts like:
-      [{"type": "text", "text": "Hello"}]
-      [{"type": "tool_use", "id": "toolu_xxx", "name": "get_weather", "input": {"location": "Tokyo"}}]
+    content_blocks should be a list of dicts like: [{"type": "text", "text": "Hello"}] [{"type": "tool_use", "id": "toolu_xxx", "name": "get_weather", "input": {"location": "Tokyo"}}]
     """
     mock = MagicMock()
 
@@ -593,8 +590,7 @@ class TestContentBlockNormalisation:
         assert _content_block_to_dict(_FakeBlock()) == "<weird block>"
 
     def test_content_block_to_dict_object_without_type_attribute(self) -> None:
-        """Objects with no ``type`` attribute also fall through to
-        ``model_dump`` or ``str``."""
+        """Objects with no ``type`` attribute also fall through to ``model_dump`` or ``str``."""
 
         class _NoType:
             def model_dump(self):
@@ -621,8 +617,7 @@ class TestContentBlockNormalisation:
     def test_normalise_anthropic_message_flattens_list_of_blocks(
         self, adapter: AnthropicAdapter
     ) -> None:
-        """End-to-end: mixed list of SDK-like and dict-like blocks all
-        reach the NormalizedRequest as plain dicts."""
+        """End-to-end: mixed list of SDK-like and dict-like blocks all reach the NormalizedRequest as plain dicts."""
         from unittest.mock import MagicMock
 
         text_block = MagicMock()
@@ -669,8 +664,7 @@ class TestContentBlockNormalisation:
     def test_normalise_anthropic_message_ignores_non_list_messages(
         self, adapter: AnthropicAdapter
     ) -> None:
-        """Defensive: a stray non-list ``messages`` field (shouldn't
-        happen, but hardening the boundary) is passed through."""
+        """Defensive: a stray non-list ``messages`` field (shouldn't happen, but hardening the boundary) is passed through."""
         raw = {
             "model": "claude-haiku-4-5",
             "messages": "not a list",

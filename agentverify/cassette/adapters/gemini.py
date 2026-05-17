@@ -1,10 +1,8 @@
 """Google Gemini SDK adapter for LLM cassette recording and replay.
 
-Monkey-patches ``google.genai.models.Models.generate_content`` to intercept
-content generation calls for recording and replaying via the cassette recorder.
+Monkey-patches ``google.genai.models.Models.generate_content`` to intercept content generation calls for recording and replaying via the cassette recorder.
 
-google-genai is an **optional** dependency.  Import this module only when the
-google-genai extra is installed (``pip install agentverify[gemini]``).
+google-genai is an **optional** dependency.  Import this module only when the google-genai extra is installed (``pip install agentverify[gemini]``).
 """
 
 from __future__ import annotations
@@ -136,9 +134,7 @@ class GeminiAdapter(LLMProviderAdapter):
     def normalize_request(self, raw_request: dict[str, Any]) -> NormalizedRequest:
         """Convert Gemini ``generate_content()`` kwargs to *NormalizedRequest*.
 
-        Gemini uses ``contents`` (str or list) for messages, ``model`` for the
-        model name, and ``config`` (a ``GenerateContentConfig``) for tools and
-        other parameters.
+        Gemini uses ``contents`` (str or list) for messages, ``model`` for the model name, and ``config`` (a ``GenerateContentConfig``) for tools and other parameters.
         """
         # Messages: contents can be a plain string or a list of messages
         raw_contents = raw_request.get("contents", [])
@@ -228,8 +224,7 @@ class GeminiAdapter(LLMProviderAdapter):
     def normalize_response(self, raw_response: Any) -> NormalizedResponse:
         """Convert a Gemini ``GenerateContentResponse`` to *NormalizedResponse*.
 
-        Gemini responses have ``candidates[0].content.parts`` which can contain
-        ``Part(text=...)`` or ``Part(function_call=FunctionCall(name=..., args=...))``.
+        Gemini responses have ``candidates[0].content.parts`` which can contain ``Part(text=...)`` or ``Part(function_call=FunctionCall(name=..., args=...))``.
         """
         content: str | None = None
         tool_calls: list[dict[str, Any]] | None = None
@@ -318,11 +313,9 @@ class GeminiAdapter(LLMProviderAdapter):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch ``google.genai.models.Models.generate_content``.
 
-        In **record** mode the real API is called, the response is normalised,
-        recorded into the cassette, and the original response is returned.
+        In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
-        In **replay** mode the request is normalised, looked up in the
-        cassette, denormalised, and returned without calling the real API.
+        In **replay** mode the request is normalised, looked up in the cassette, denormalised, and returned without calling the real API.
         """
         _ensure_genai_installed()
 

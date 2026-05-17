@@ -1,17 +1,10 @@
 """Pure-Python ReAct agent using the Anthropic SDK directly.
 
-No framework — just the Anthropic Messages API driven in a hand-rolled
-tool-call loop. The point of this example is to show that agentverify
-can test any agent architecture via a small ``converter.py`` when no
-built-in framework adapter fits.
+No framework — just the Anthropic Messages API driven in a hand-rolled tool-call loop. The point of this example is to show that agentverify can test any agent architecture via a small ``converter.py`` when no built-in framework adapter fits.
 
-The agent's task: given a pre-tax total and a tax rate embedded in the
-user query, chain two tool calls (``add`` to compute the pre-tax total,
-``apply_tax`` to gross it up) and return the post-tax figure.
+The agent's task: given a pre-tax total and a tax rate embedded in the user query, chain two tool calls (``add`` to compute the pre-tax total, ``apply_tax`` to gross it up) and return the post-tax figure.
 
-The converter that maps this agent's conversation history into an
-agentverify :class:`ExecutionResult` lives next to this file in
-``converter.py``.
+The converter that maps this agent's conversation history into an agentverify :class:`ExecutionResult` lives next to this file in ``converter.py``.
 """
 
 from __future__ import annotations
@@ -38,8 +31,7 @@ def add(a: float, b: float) -> float:
 
 
 def apply_tax(amount: float, rate: float) -> float:
-    """Apply a tax rate (e.g. ``0.1`` for 10%) to ``amount`` and return the
-    grossed-up total."""
+    """Apply a tax rate (e.g. ``0.1`` for 10%) to ``amount`` and return the grossed-up total."""
     return round(amount * (1 + rate), 2)
 
 
@@ -99,8 +91,7 @@ SYSTEM_PROMPT = (
 class AgentRun:
     """Raw transcript from :func:`run_tax_agent`.
 
-    The converter consumes ``messages`` and ``input_tokens`` /
-    ``output_tokens`` to build an :class:`ExecutionResult`.
+    The converter consumes ``messages`` and ``input_tokens`` / ``output_tokens`` to build an :class:`ExecutionResult`.
     """
 
     messages: list[dict[str, Any]]
@@ -114,8 +105,7 @@ def run_tax_agent(query: str, *, max_turns: int = 6) -> AgentRun:
 
     Args:
         query: The user's question.
-        max_turns: Hard cap on tool-use iterations. Prevents runaway
-            loops from burning tokens if the model misbehaves.
+        max_turns: Hard cap on tool-use iterations. Prevents runaway loops from burning tokens if the model misbehaves.
     """
     client = Anthropic()
     model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)

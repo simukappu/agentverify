@@ -1,13 +1,8 @@
 """LangGraph adapter for agentverify.
 
-Converts a LangGraph ``create_react_agent`` result into an agentverify
-``ExecutionResult``.
+Converts a LangGraph ``create_react_agent`` result into an agentverify ``ExecutionResult``.
 
-Step boundary: **each ``AIMessage`` becomes one step**
-(``source="llm"``).  ``ToolMessage`` objects that follow an ``AIMessage``
-are attached to that step's ``tool_results`` until the next ``AIMessage``.
-If the last ``AIMessage`` has no ``tool_calls``, its ``content`` becomes
-the ``final_output`` and the step's ``output``.
+Step boundary: **each ``AIMessage`` becomes one step** (``source="llm"``).  ``ToolMessage`` objects that follow an ``AIMessage`` are attached to that step's ``tool_results`` until the next ``AIMessage``. If the last ``AIMessage`` has no ``tool_calls``, its ``content`` becomes the ``final_output`` and the step's ``output``.
 """
 
 from __future__ import annotations
@@ -21,8 +16,7 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
     """Build an ``ExecutionResult`` from a LangGraph agent result.
 
     Args:
-        result: Return value of ``agent.invoke()`` — a dict with a
-            ``"messages"`` key containing LangChain message objects.
+        result: Return value of ``agent.invoke()`` — a dict with a ``"messages"`` key containing LangChain message objects.
     """
     messages = result.get("messages", []) or []
 

@@ -1,7 +1,6 @@
 """Base classes for LLM provider adapters.
 
-Defines the provider-agnostic normalized request/response formats
-and the abstract base class that all provider adapters must implement.
+Defines the provider-agnostic normalized request/response formats and the abstract base class that all provider adapters must implement.
 """
 
 from __future__ import annotations
@@ -51,8 +50,7 @@ class LLMProviderAdapter(ABC):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:  # pragma: no cover — abstract method
         """Monkey-patch the LLM SDK's chat completion method.
 
-        Records or replays requests/responses through the recorder.
-        The patch is automatically removed when the context manager exits.
+        Records or replays requests/responses through the recorder. The patch is automatically removed when the context manager exits.
         """
         ...
 

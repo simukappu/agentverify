@@ -1,8 +1,6 @@
 """pytest plugin entry point for agentverify.
 
-Registers the ``agentverify`` marker, the ``--cassette-mode`` CLI option,
-and auto-loads fixtures when the plugin is discovered via the ``pytest11``
-entry point.
+Registers the ``agentverify`` marker, the ``--cassette-mode`` CLI option, and auto-loads fixtures when the plugin is discovered via the ``pytest11`` entry point.
 """
 
 from agentverify.fixtures import cassette  # noqa: F401 — auto-register fixture

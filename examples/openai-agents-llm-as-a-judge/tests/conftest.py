@@ -1,7 +1,6 @@
 """pytest configuration for openai-agents-llm-as-a-judge example tests.
 
-Registers the agentverify ``cassette`` fixture and ``--cassette-mode``
-CLI option for cassette replay testing.
+Registers the agentverify ``cassette`` fixture and ``--cassette-mode`` CLI option for cassette replay testing.
 """
 
 import os

@@ -1,14 +1,8 @@
 """agentverify integration tests for the LangGraph multi-agent supervisor.
 
-Tests use cassette replay mode — no LLM API key is required.
-The cassette file ``cassettes/supervisor_faang.yaml`` contains pre-recorded
-OpenAI LLM interactions that are replayed deterministically.
+Tests use cassette replay mode — no LLM API key is required. The cassette file ``cassettes/supervisor_faang.yaml`` contains pre-recorded OpenAI LLM interactions that are replayed deterministically.
 
-The supervisor orchestrates a research_expert (web_search tool) and a
-math_expert (add/multiply tools) to answer "What's the combined headcount
-of the FAANG companies in 2024?" The resulting step structure demonstrates
-multi-agent handoff and cross-step data flow — the math_expert's inputs
-must come from the research_expert's findings.
+The supervisor orchestrates a research_expert (web_search tool) and a math_expert (add/multiply tools) to answer "What's the combined headcount of the FAANG companies in 2024?" The resulting step structure demonstrates multi-agent handoff and cross-step data flow — the math_expert's inputs must come from the research_expert's findings.
 """
 
 import sys
@@ -61,8 +55,7 @@ class TestSupervisorFlat:
     def test_tool_sequence_in_order(self, cassette):
         """Verify the end-to-end tool sequence: handoff → web_search → handoff → add.
 
-        Uses IN_ORDER so intermediate supervisor reasoning steps or extra
-        ``add`` calls don't break the test.
+        Uses IN_ORDER so intermediate supervisor reasoning steps or extra ``add`` calls don't break the test.
         """
         _, result = _run_and_convert(cassette)
         assert_tool_calls(
@@ -79,8 +72,7 @@ class TestSupervisorFlat:
 
     @pytest.mark.agentverify
     def test_safety_no_dangerous_tools(self, cassette):
-        """The supervisor must never hand off to non-existent agents or run
-        destructive tools.
+        """The supervisor must never hand off to non-existent agents or run destructive tools.
         """
         _, result = _run_and_convert(cassette)
         assert_no_tool_call(
@@ -112,18 +104,12 @@ class TestSupervisorFlat:
 class TestSupervisorStepLevel:
     """Step-level verification of the multi-agent handoff flow.
 
-    The supervisor first delegates to ``research_expert`` which runs
-    ``web_search``. Control returns to the supervisor, which then
-    delegates to ``math_expert`` which runs ``add``. Each of these is a
-    distinct step in ``result.steps`` — and the math_expert's inputs
-    must trace back to the research_expert's findings.
+    The supervisor first delegates to ``research_expert`` which runs ``web_search``. Control returns to the supervisor, which then delegates to ``math_expert`` which runs ``add``. Each of these is a distinct step in ``result.steps`` — and the math_expert's inputs must trace back to the research_expert's findings.
     """
 
     @pytest.mark.agentverify
     def test_supervisor_routes_to_research_first(self, cassette):
-        """Step 0 (the very first LLM call) is the supervisor handing off
-        to the research expert. This is the routing decision, with no
-        domain tool calls yet.
+        """Step 0 (the very first LLM call) is the supervisor handing off to the research expert. This is the routing decision, with no domain tool calls yet.
         """
         _, result = _run_and_convert(cassette)
         assert_step(
@@ -135,10 +121,7 @@ class TestSupervisorStepLevel:
 
     @pytest.mark.agentverify
     def test_research_agent_uses_web_search(self, cassette):
-        """Somewhere after the handoff, the research_expert must call
-        ``web_search`` with a FAANG-related query. The agent may issue
-        several parallel ``web_search`` calls in a single step — we assert
-        that *at least one* of them is on-topic.
+        """Somewhere after the handoff, the research_expert must call ``web_search`` with a FAANG-related query. The agent may issue several parallel ``web_search`` calls in a single step — we assert that *at least one* of them is on-topic.
         """
         _, result = _run_and_convert(cassette)
         research_step = _find_step_with_tool(result, "web_search")
@@ -159,17 +142,13 @@ class TestSupervisorStepLevel:
 
     @pytest.mark.agentverify
     def test_math_agent_adds_with_research_derived_numbers(self, cassette):
-        """Each ``add`` step in the math chain consumes the previous
-        ``add`` step's result — the running total flows forward through
-        the agent's tool calls. This is the clearest deterministic data
-        flow in the whole run.
+        """Each ``add`` step in the math chain consumes the previous ``add`` step's result — the running total flows forward through the agent's tool calls. This is the clearest deterministic data flow in the whole run.
 
         Example from the recorded cassette:
         - step N:   ``add(67317, 164000)`` → produces ``231317.0``
         - step N+1: ``add(231317, 1551000)`` — ``a`` traces back to N
 
-        ``assert_step_uses_result_from`` catches the "agent dropped the
-        running total and hallucinated a fresh number" bug.
+        ``assert_step_uses_result_from`` catches the "agent dropped the running total and hallucinated a fresh number" bug.
         """
         _, result = _run_and_convert(cassette)
         add_steps = [
@@ -188,8 +167,7 @@ class TestSupervisorStepLevel:
 
     @pytest.mark.agentverify
     def test_final_answer_includes_a_number(self, cassette):
-        """The final step (after everyone has handed back to the supervisor)
-        produces a summary text that contains a numeric answer.
+        """The final step (after everyone has handed back to the supervisor) produces a summary text that contains a numeric answer.
         """
         _, result = _run_and_convert(cassette)
         # Use the last step with text output as the "final answer" step

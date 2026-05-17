@@ -1,10 +1,8 @@
 """Amazon Bedrock Converse API adapter for LLM cassette recording and replay.
 
-Monkey-patches ``botocore.client.BaseClient._make_api_call`` to intercept
-``Converse`` operations for recording and replaying via the cassette recorder.
+Monkey-patches ``botocore.client.BaseClient._make_api_call`` to intercept ``Converse`` operations for recording and replaying via the cassette recorder.
 
-boto3 is an **optional** dependency.  Import this module only when the
-boto3 extra is installed (``pip install agentverify[bedrock]``).
+boto3 is an **optional** dependency.  Import this module only when the boto3 extra is installed (``pip install agentverify[bedrock]``).
 """
 
 from __future__ import annotations
@@ -60,9 +58,7 @@ class BedrockAdapter(LLMProviderAdapter):
     def normalize_request(self, raw_request: dict[str, Any]) -> NormalizedRequest:
         """Convert Bedrock ``converse()`` kwargs to *NormalizedRequest*.
 
-        Bedrock messages use ``[{"role": "user", "content": [{"text": "..."}]}]``.
-        We flatten single-text content blocks to plain strings for the
-        normalised format.
+        Bedrock messages use ``[{"role": "user", "content": [{"text": "..."}]}]``. We flatten single-text content blocks to plain strings for the normalised format.
         """
         raw_messages = raw_request.get("messages", [])
         messages: list[dict[str, Any]] = []
@@ -115,8 +111,7 @@ class BedrockAdapter(LLMProviderAdapter):
     def normalize_response(self, raw_response: Any) -> NormalizedResponse:
         """Convert a Bedrock Converse response dict to *NormalizedResponse*.
 
-        Bedrock responses are plain dicts with structure:
-        ``{"output": {"message": {"role": "assistant", "content": [...]}}, "usage": {...}}``
+        Bedrock responses are plain dicts with structure: ``{"output": {"message": {"role": "assistant", "content": [...]}}, "usage": {...}}``
         """
         output = raw_response.get("output", {})
         message = output.get("message", {})
@@ -212,14 +207,11 @@ class BedrockAdapter(LLMProviderAdapter):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch ``botocore.client.BaseClient._make_api_call``.
 
-        Only intercepts the ``Converse`` operation; all other API calls
-        pass through to the original implementation.
+        Only intercepts the ``Converse`` operation; all other API calls pass through to the original implementation.
 
-        In **record** mode the real API is called, the response is normalised,
-        recorded into the cassette, and the original response is returned.
+        In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
-        In **replay** mode the request is normalised, looked up in the
-        cassette, denormalised, and returned without calling the real API.
+        In **replay** mode the request is normalised, looked up in the cassette, denormalised, and returned without calling the real API.
         """
         _ensure_boto3_installed()
 
