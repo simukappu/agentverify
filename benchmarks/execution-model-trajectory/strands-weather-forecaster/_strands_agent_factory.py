@@ -4,7 +4,7 @@ The example under ``examples/strands-weather-forecaster/weather_agent.py`` const
 
 The system prompt and tool list are imported from the example so the agent under test stays in sync with the example's recorded cassette.
 
-The pinned model id matches the one recorded in ``examples/strands-weather-forecaster/tests/cassettes/weather_seattle.yaml`` so Scenario 2 cassette replay continues to round-trip cleanly.
+The pinned model id matches the one recorded in ``examples/strands-weather-forecaster/tests/cassettes/weather_seattle.yaml`` so Scenario 2 cassette replay continues to round-trip cleanly. Sonnet 4.6 is invoked through its system-defined inference profile (``us.anthropic.claude-sonnet-4-6``); the ``us.`` prefix routes the request across the multi-region inference profile that AWS provides for the model.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from strands_tools import http_request
 from weather_agent import WEATHER_SYSTEM_PROMPT  # noqa: E402
 
 USER_PROMPT = "What's the weather in Seattle?"
-MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "us.anthropic.claude-sonnet-4-6"
 
 
 def build_weather_agent() -> Agent:

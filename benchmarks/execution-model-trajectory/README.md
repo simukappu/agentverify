@@ -13,7 +13,7 @@ Every (execution model × subject) cell is measured under two scenarios:
 - **Scenario 1 - dev / first run**: the agent has never been exercised against this assertion before. The test must drive the agent end-to-end against a real LLM. All three execution models pay the same agent runtime + LLM cost; what differs is the framework overhead.
 - **Scenario 2 - CI / repeat run**: the same assertion runs every PR. Each execution model uses its own documented CI pattern, and the benchmark measures what each model can avoid re-paying.
 
-The Scenario 2 execution differs sharply between models: agentverify replays the canonical cassette and skips the LLM entirely, while DeepEval and AgentCore Evaluations have no comparable mechanism documented for CI use, so under Scenario 2 they run the agent end-to-end against the LLM exactly as they do under Scenario 1. The benchmark deliberately does not invent a trajectory-fixture path for B or C; doing so would lend agentverify's cassette capability to the other two execution models in a shape no real DeepEval / AgentCore user is expected to write. See [`DESIGN.md`](./DESIGN.md#two-scenarios-why-the-benchmark-needs-both) for the full reasoning and the concrete data sources for each cell.
+The Scenario 2 execution differs sharply between models: agentverify replays the canonical cassette and skips the LLM entirely, while DeepEval and AgentCore Evaluations have no comparable mechanism documented for CI use, so under Scenario 2 they run the agent end-to-end against the LLM exactly as they do under Scenario 1. The benchmark deliberately does not invent a trajectory-fixture path for B or C; doing so would lend agentverify's cassette capability to the other two execution models in a shape no real DeepEval / AgentCore Evaluations user is expected to write. See [`DESIGN.md`](./DESIGN.md#two-scenarios-why-the-benchmark-needs-both) for the full reasoning and the concrete data sources for each cell.
 
 ## Subjects under test
 
@@ -26,7 +26,7 @@ Each subject has a thin bench-local agent factory at `<subject>/_<framework>_age
 
 ## The assertion (per subject)
 
-All three execution models must enforce the same logical check for a given subject. Both subject-level assertions deliberately exercise tool ordering, argument matching, and cross-step data flow, so that the AgentCore execution model goes through its Custom code-based evaluator (Lambda) rather than the cheaper built-in trajectory matcher path. The [`DESIGN.md`](./DESIGN.md#why-the-assertion-has-to-go-beyond-tool-name-ordering) explains why the built-in matcher does not satisfy the comparison.
+All three execution models must enforce the same logical check for a given subject. Both subject-level assertions deliberately exercise tool ordering, argument matching, and cross-step data flow, so that the AgentCore Evaluations execution model goes through its Custom code-based evaluator (Lambda) rather than the cheaper built-in trajectory matcher path. The [`DESIGN.md`](./DESIGN.md#why-the-assertion-has-to-go-beyond-tool-name-ordering) explains why the built-in matcher does not satisfy the comparison.
 
 **Strands Weather Forecaster (single-agent, two-step ReAct):**
 
@@ -42,7 +42,7 @@ All three execution models must enforce the same logical check for a given subje
 |---|---|---|
 | A | agentverify (inline, pytest, SDK patching) | `<subject>/agentverify_test.py`. Scenario 1 drives the agent under `cassette(mode="record", cassette_dir=tmp)` and asserts on the resulting `ExecutionResult`. Scenario 2 replays the canonical cassette under `examples/<subject>/tests/cassettes/`. |
 | B | DeepEval deterministic mode (`@observe` + `ToolCorrectnessMetric`) | `<subject>/deepeval_test.py` decorates the agent driver with `@observe`, runs it against the LLM, and asserts via `ToolCorrectnessMetric` plus a custom deterministic check. Same code path under both scenarios; B has no documented CI mechanism that bypasses the LLM. |
-| C | AgentCore Custom code-based evaluator (Lambda on-demand) | `<subject>/agentcore_evaluator_cdk/` packages a Lambda that asserts on a recorded session. The `<subject>/agentcore_test.py` driver runs the agent in-process, observes its tool calls via the framework's callback / message walk, packs them into an OTLP span attribute, and calls the AgentCore data-plane `Evaluate` API. Same code path under both scenarios. |
+| C | AgentCore Evaluations Custom code-based evaluator (Lambda on-demand) | `<subject>/agentcore_evaluator_cdk/` packages a Lambda that asserts on a recorded session. The `<subject>/agentcore_test.py` driver runs the agent in-process, observes its tool calls via the framework's callback / message walk, packs them into an OTLP span attribute, and calls the AgentCore Evaluations data-plane `Evaluate` API. Same code path under both scenarios. |
 
 ## Repository layout
 
@@ -118,14 +118,14 @@ Scenario 1 (and the B / C cells under Scenario 2) drive a real LLM. The credenti
 
 | Cell | Scenario 1 secrets | Scenario 2 secrets |
 |---|---|---|
-| Strands A | AWS credentials with Bedrock invoke permission on `us.anthropic.claude-sonnet-4-20250514-v1:0` | none (cassette replay) |
+| Strands A | AWS credentials with Bedrock invoke permission on `us.anthropic.claude-sonnet-4-6` | none (cassette replay) |
 | Strands B | AWS credentials with Bedrock invoke permission, `OPENAI_API_KEY` (DeepEval `@observe` requires it at metric construction time even in deterministic mode) | same as Scenario 1 |
-| Strands C | AWS credentials with Bedrock invoke + AgentCore `Evaluate` + Lambda invoke permission | same as Scenario 1 |
-| LangGraph A | `OPENAI_API_KEY` for `gpt-4o-mini` | none (cassette replay) |
+| Strands C | AWS credentials with Bedrock invoke + AgentCore Evaluations `Evaluate` + Lambda invoke permission | same as Scenario 1 |
+| LangGraph A | `OPENAI_API_KEY` for `gpt-5.4-mini` | none (cassette replay) |
 | LangGraph B | `OPENAI_API_KEY` (used by both the agent and DeepEval) | same as Scenario 1 |
-| LangGraph C | `OPENAI_API_KEY`, AWS credentials with AgentCore `Evaluate` + Lambda invoke permission | same as Scenario 1 |
+| LangGraph C | `OPENAI_API_KEY`, AWS credentials with AgentCore Evaluations `Evaluate` + Lambda invoke permission | same as Scenario 1 |
 
-Total LLM-token cost across all 12 cells × 5 runs is approximately $1.20 at current public pricing. The dominant term is 5 Strands cells × 5 runs at ~$0.046/run (~$1.15); the LangGraph side adds ~$0.04 (5 cells × 5 runs at ~$0.0014/run). Lambda and AgentCore `Evaluate` per-call charges are below a tenth of a cent each and round to zero at the table's 4-decimal display.
+Total LLM-token cost across all 12 cells × 5 runs is approximately $1.30 at current public pricing. The dominant term is 5 Strands cells × 5 runs at about $0.047/run (about $1.17 total); the LangGraph side adds about $0.14 (5 cells × 5 runs at about $0.0054/run). Lambda and AgentCore Evaluations `Evaluate` per-call charges are below a tenth of a cent each and round to zero at the table's 4-decimal display.
 
 ### Drive both subjects across both scenarios
 
@@ -167,7 +167,7 @@ The full procedure is below. Steps 1-3 are one-time host setup; steps 4-5 are on
 2. **Set up the bench venv** as in [Setup](#setup) above. Verify with `~/.venvs/agentverify-bench/bin/python --version` printing `Python 3.14.x`.
 
 3. **Configure credentials** for the two providers and for AWS:
-   - `aws sts get-caller-identity` should return an account where the principal can invoke Bedrock (Sonnet 4) and create / update / delete Lambda, IAM, CloudFormation, CloudWatch, AgentCore Evaluator. Choose a region where AgentCore Evaluations is available; the benchmark defaults to `us-east-1`. Set `AWS_REGION` if you want to override.
+   - `aws sts get-caller-identity` should return an account where the principal can invoke Bedrock (Sonnet 4) and create / update / delete Lambda, IAM, CloudFormation, CloudWatch, AgentCore Evaluations. Choose a region where AgentCore Evaluations is available; the benchmark defaults to `us-east-1`. Set `AWS_REGION` if you want to override.
    - `OPENAI_API_KEY` set to a real key. The LangGraph subject and DeepEval's `ToolCorrectnessMetric` both check for it at construction time.
 
 ### One-time AWS setup (steps 4-5)
@@ -182,7 +182,7 @@ The full procedure is below. Steps 1-3 are one-time host setup; steps 4-5 are on
 
    Either CDK directory's `app.py` works for bootstrap; the result is shared across both stacks. The bootstrap creates a `CDKToolkit` CloudFormation stack with a staging S3 bucket and a few IAM roles. Persistent footprint is on the order of a few cents per month (S3 storage for CDK assets).
 
-5. **Deploy both AgentCore stacks** (independent stacks, tagged for cleanup). Run from the repo root:
+5. **Deploy both AgentCore Evaluations stacks** (independent stacks, tagged for cleanup). Run from the repo root:
 
    ```bash
    ( cd benchmarks/execution-model-trajectory/strands-weather-forecaster/agentcore_evaluator_cdk && ./deploy.sh )
@@ -195,7 +195,7 @@ The full procedure is below. Steps 1-3 are one-time host setup; steps 4-5 are on
 
 6. **Quiesce the machine**: close other heavy applications. Use a stable, low-jitter network connection. Disable scheduled background tasks (Spotlight indexing on macOS, Time Machine, system updates) for the duration of the run.
 
-7. **Capture cold-start wall time** for each AgentCore stack. AWS Lambda guarantees a new (cold) execution environment after any `UpdateFunctionConfiguration` API call, so bump each function's description to a fresh value, then time the next invocation:
+7. **Capture cold-start wall time** for each AgentCore Evaluations stack. AWS Lambda guarantees a new (cold) execution environment after any `UpdateFunctionConfiguration` API call, so bump each function's description to a fresh value, then time the next invocation:
 
    ```bash
    # Force a cold init by updating the Lambda configuration. The description bump is benign and idempotent — it only affects the function's metadata, not its behaviour or its IAM role.
@@ -246,7 +246,7 @@ The full procedure is below. Steps 1-3 are one-time host setup; steps 4-5 are on
 
 ### What the numbers depend on
 
-- **Network**: AgentCore C cells round-trip to the AWS region. Network jitter is the dominant variance for those cells. Same-region client-side execution (e.g., on an EC2 instance in `us-east-1`) would cut the network component but is not the realistic CI scenario, so the benchmark deliberately runs the client off-AWS.
+- **Network**: AgentCore Evaluations C cells round-trip to the AWS region. Network jitter is the dominant variance for those cells. Same-region client-side execution (e.g., on an EC2 instance in `us-east-1`) would cut the network component but is not the realistic CI scenario, so the benchmark deliberately runs the client off-AWS.
 - **CPU**: Scenario 2 / A cells are dominated by Python startup, pytest plugin init, cassette parse, and the assertion. Scenario 1 cells across all execution models are dominated by LLM round-trip plus agent runtime; CPU generation matters less for these.
 - **Region**: keep the AWS region constant across runs.
 - **Tooling versions**: the driver records `agentverify`, `deepeval`, `aws-cdk.aws-bedrock-agentcore-alpha`, `strands-agents`, `langgraph`, and `langchain-openai` versions in `results-YYYY-MM-DDTHHMMSS.json`. Pin them in your bench venv before the run so future measurements are apples-to-apples.
@@ -259,8 +259,8 @@ Per (subject × execution model × scenario) cell:
 |---|---|---|
 | Implementation LOC (test + wiring) | lines | non-blank, non-comment lines inside the paired `# --- benchmark assertion ...` markers in each test file. The Strands and LangGraph cells share a single `_assert_trajectory` helper between `_dev` and `_ci`, so LOC is reported once per (subject, model) and applies to both scenarios. For C, the test-side assertion block and the Lambda-side assertion block in `agentcore_evaluator_cdk/lambda_src/lambda_function.py` move together when the assertion changes and are reported as their sum. CDK / IAM / deploy-script wiring is one-time setup; see [`DESIGN.md`](./DESIGN.md#setup-loc-footnote-not-primary) for that breakdown |
 | Test execution wall time (trimmed mean of middle 3 of 5) | s | 5 invocations are timed; the single highest and lowest are dropped, the remaining 3 are averaged. `pytest --durations=0` produces the per-run numbers |
-| API calls per test run | count | manual enumeration of LLM provider calls + AWS API calls. For C, this counts the boto3 `Evaluate` API call once; the Lambda invocation that AgentCore makes inside that call is an internal AWS hop and is not counted as a client-issued API call |
-| Dollar cost per test run | USD | LLM-token cost computed from cassette token aggregates × current public pricing (Bedrock Sonnet 4: $3 in / $15 out per 1M; OpenAI gpt-4o-mini: $0.15 in / $0.60 out per 1M; snapshot 2026-05-17). B and C cells have identical `$ / run` whenever they invoke the same LLM the same number of times, because the LLM-token cost dominates and the additional AgentCore + Lambda overhead in C is below the 4-decimal display threshold (Lambda invocation alone is ~$0.0000005 at the configured size; AgentCore `Evaluate` does not publish a documented per-call price as of the snapshot date, and the table treats it as zero pending official guidance — a known understatement) |
+| API calls per test run | count | manual enumeration of LLM provider calls + AWS API calls. For C, this counts the boto3 `Evaluate` API call once; the Lambda invocation that AgentCore Evaluations makes inside that call is an internal AWS hop and is not counted as a client-issued API call |
+| Dollar cost per test run | USD | LLM-token cost computed from cassette token aggregates × current public pricing (Bedrock Sonnet 4.6: $3 in / $15 out per 1M; OpenAI gpt-5.4-mini: $0.75 in / $4.50 out per 1M; snapshot 2026-05-17). B and C cells have identical `$ / run` whenever they invoke the same LLM the same number of times, because the LLM-token cost dominates and the additional AgentCore Evaluations + Lambda overhead in C is below the 4-decimal display threshold (Lambda invocation alone is about $0.0000005 at the configured size; AgentCore Evaluations `Evaluate` does not publish a documented per-call price as of the snapshot date, and the table treats it as zero pending official guidance — a known understatement) |
 | CI secrets required | count | distinct credentials the CI job must hold (drops to zero for A under Scenario 2) |
 | Cold start overhead | s | for C, includes Lambda init duration; for A/B it is the time to first assertion |
 

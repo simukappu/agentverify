@@ -98,28 +98,28 @@ CELLS: list[dict[str, Any]] = [
 #   - C dev/ci (LangGraph): AWS + OPENAI_API_KEY. 2 secrets.
 #
 # Dollar cost per run (LLM tokens dominate; Lambda + AgentCore Evaluate < $0.000001 each):
-#   - Strands LLM run (Bedrock Sonnet 4): 11815 input + 711 output tokens (cassette aggregate)
-#       = 11815 * 3.00/1e6 + 711 * 15.00/1e6 = $0.0461
-#   - LangGraph LLM run (gpt-4o-mini): 8145 input + 357 output tokens (cassette aggregate)
-#       = 8145 * 0.15/1e6 + 357 * 0.60/1e6 = $0.0014
+#   - Strands LLM run (Bedrock Sonnet 4.6): 12277 input + 667 output tokens (cassette aggregate)
+#       = 12277 * 3.00/1e6 + 667 * 15.00/1e6 = $0.0468
+#   - LangGraph LLM run (gpt-5.4-mini): 5226 input + 320 output tokens (cassette aggregate)
+#       = 5226 * 0.75/1e6 + 320 * 4.50/1e6 = $0.0054
 #   - A ci: cassette replay, no LLM, $0.
 #   - C cells: same LLM cost as the same-subject B cell, plus negligible Lambda + AgentCore Evaluate (~$0.000001 / call), rounded to the same 4-decimal display.
-#   - Pricing snapshot date: 2026-05-17 (Bedrock Anthropic Claude Sonnet 4 $3 in / $15 out per 1M; OpenAI gpt-4o-mini $0.15 in / $0.60 out per 1M).
+#   - Pricing snapshot date: 2026-05-17 (Bedrock Anthropic Claude Sonnet 4.6 $3 in / $15 out per 1M; OpenAI gpt-5.4-mini $0.75 in / $4.50 out per 1M).
 STATIC_METRICS: dict[str, dict[str, Any]] = {
     # Strands
-    "strands-weather-forecaster:A:dev": {"api_calls_per_run": 3, "dollar_cost_per_run_usd": 0.0461, "ci_secrets_required": 1},
+    "strands-weather-forecaster:A:dev": {"api_calls_per_run": 3, "dollar_cost_per_run_usd": 0.0468, "ci_secrets_required": 1},
     "strands-weather-forecaster:A:ci": {"api_calls_per_run": 0, "dollar_cost_per_run_usd": 0.0000, "ci_secrets_required": 0},
-    "strands-weather-forecaster:B:dev": {"api_calls_per_run": 3, "dollar_cost_per_run_usd": 0.0461, "ci_secrets_required": 2},
-    "strands-weather-forecaster:B:ci": {"api_calls_per_run": 3, "dollar_cost_per_run_usd": 0.0461, "ci_secrets_required": 2},
-    "strands-weather-forecaster:C:dev": {"api_calls_per_run": 4, "dollar_cost_per_run_usd": 0.0461, "ci_secrets_required": 1},
-    "strands-weather-forecaster:C:ci": {"api_calls_per_run": 4, "dollar_cost_per_run_usd": 0.0461, "ci_secrets_required": 1},
-    # LangGraph
-    "langgraph-multi-agent-supervisor:A:dev": {"api_calls_per_run": 12, "dollar_cost_per_run_usd": 0.0014, "ci_secrets_required": 1},
+    "strands-weather-forecaster:B:dev": {"api_calls_per_run": 3, "dollar_cost_per_run_usd": 0.0468, "ci_secrets_required": 2},
+    "strands-weather-forecaster:B:ci": {"api_calls_per_run": 3, "dollar_cost_per_run_usd": 0.0468, "ci_secrets_required": 2},
+    "strands-weather-forecaster:C:dev": {"api_calls_per_run": 4, "dollar_cost_per_run_usd": 0.0468, "ci_secrets_required": 1},
+    "strands-weather-forecaster:C:ci": {"api_calls_per_run": 4, "dollar_cost_per_run_usd": 0.0468, "ci_secrets_required": 1},
+    # LangGraph (cassette has 10 LLM calls with gpt-5.4-mini)
+    "langgraph-multi-agent-supervisor:A:dev": {"api_calls_per_run": 10, "dollar_cost_per_run_usd": 0.0054, "ci_secrets_required": 1},
     "langgraph-multi-agent-supervisor:A:ci": {"api_calls_per_run": 0, "dollar_cost_per_run_usd": 0.0000, "ci_secrets_required": 0},
-    "langgraph-multi-agent-supervisor:B:dev": {"api_calls_per_run": 12, "dollar_cost_per_run_usd": 0.0014, "ci_secrets_required": 1},
-    "langgraph-multi-agent-supervisor:B:ci": {"api_calls_per_run": 12, "dollar_cost_per_run_usd": 0.0014, "ci_secrets_required": 1},
-    "langgraph-multi-agent-supervisor:C:dev": {"api_calls_per_run": 13, "dollar_cost_per_run_usd": 0.0014, "ci_secrets_required": 2},
-    "langgraph-multi-agent-supervisor:C:ci": {"api_calls_per_run": 13, "dollar_cost_per_run_usd": 0.0014, "ci_secrets_required": 2},
+    "langgraph-multi-agent-supervisor:B:dev": {"api_calls_per_run": 10, "dollar_cost_per_run_usd": 0.0054, "ci_secrets_required": 1},
+    "langgraph-multi-agent-supervisor:B:ci": {"api_calls_per_run": 10, "dollar_cost_per_run_usd": 0.0054, "ci_secrets_required": 1},
+    "langgraph-multi-agent-supervisor:C:dev": {"api_calls_per_run": 11, "dollar_cost_per_run_usd": 0.0054, "ci_secrets_required": 2},
+    "langgraph-multi-agent-supervisor:C:ci": {"api_calls_per_run": 11, "dollar_cost_per_run_usd": 0.0054, "ci_secrets_required": 2},
 }
 
 
@@ -413,7 +413,7 @@ def _format_markdown(data: dict[str, Any]) -> str:
     lines.append("- LOC counts only assertion-essential lines (no imports, no boilerplate). The benchmark uses paired `# --- benchmark assertion (LOC counted: ...) ---` markers in each test file. See DESIGN.md for the counting rule.")
     lines.append("- LOC for execution model C is the sum of the test-side assertion block (the OTLP payload construction in `agentcore_test.py`) and the Lambda-side assertion block (`agentcore_evaluator_cdk/lambda_src/lambda_function.py`). Both move together when the assertion changes, so they are counted together. CDK / IAM / deploy-script wiring is one-time setup and is not included; see DESIGN.md \"Setup LOC\" for that breakdown.")
     lines.append("- Wall time is the trimmed mean of the middle 3 runs out of 5 (single highest and lowest dropped). The full 5-run series is in the `All runs` column.")
-    lines.append("- `$ / run` is dominated by the LLM-token cost. Per-LLM-call cost is computed from the cassette token aggregates and current public list pricing (Bedrock Anthropic Claude Sonnet 4: $3 input / $15 output per 1M tokens; OpenAI gpt-4o-mini: $0.15 input / $0.60 output per 1M tokens; pricing snapshot 2026-05-17).")
+    lines.append("- `$ / run` is dominated by the LLM-token cost. Per-LLM-call cost is computed from the cassette token aggregates and current public list pricing (Bedrock Anthropic Claude Sonnet 4.6: $3 input / $15 output per 1M tokens; OpenAI gpt-5.4-mini: $0.75 input / $4.50 output per 1M tokens; pricing snapshot 2026-05-17).")
     lines.append("- B and C cells have the same `$ / run` as long as they invoke the same LLM the same number of times, even though C also issues an `Evaluate` API call against AgentCore (which then internally invokes the assertion Lambda). AWS Lambda invocation and CloudWatch Logs ingestion together come to ~$0.0000005 per Evaluate at the configured Lambda size, which rounds to zero at the table's 4-decimal display. AgentCore Evaluations does not publish a documented per-call price for the data-plane `Evaluate` call as of the pricing snapshot date; the table treats it as zero pending official guidance, which is a known understatement.")
     lines.append("- agentverify's CI scenario is exactly $0 because cassette replay does not call the LLM.")
     lines.append("- Cold-start wall time is **not** in the warm wall-time table; it lives in the \"Cold-start observations\" section above when recorded.")
