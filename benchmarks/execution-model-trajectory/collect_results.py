@@ -27,6 +27,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -54,7 +55,7 @@ CELLS: list[dict[str, Any]] = [
     {
         "subject": "strands-weather-forecaster",
         "execution_model": "C",
-        "label": "AgentCore Custom code-based evaluator (Lambda)",
+        "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
         "test_file": "strands-weather-forecaster/agentcore_test.py",
         "needs_aws": True,
         "needs_llm_per_scenario": {"dev": True, "ci": True},
@@ -78,7 +79,7 @@ CELLS: list[dict[str, Any]] = [
     {
         "subject": "langgraph-multi-agent-supervisor",
         "execution_model": "C",
-        "label": "AgentCore Custom code-based evaluator (Lambda)",
+        "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
         "test_file": "langgraph-multi-agent-supervisor/agentcore_test.py",
         "needs_aws": True,
         "needs_llm_per_scenario": {"dev": True, "ci": True},
@@ -94,16 +95,16 @@ CELLS: list[dict[str, Any]] = [
 #   - A ci (LangGraph): none. 0 secrets.
 #   - B dev/ci (Strands): AWS (Bedrock invoke) + OPENAI_API_KEY (DeepEval metric construction). 2 secrets.
 #   - B dev/ci (LangGraph): OPENAI_API_KEY (covers both supervisor and DeepEval). 1 secret.
-#   - C dev/ci (Strands): AWS (Bedrock + AgentCore Evaluate + Lambda invoke). 1 secret.
+#   - C dev/ci (Strands): AWS (Bedrock + AgentCore Evaluations `Evaluate` + Lambda invoke). 1 secret.
 #   - C dev/ci (LangGraph): AWS + OPENAI_API_KEY. 2 secrets.
 #
-# Dollar cost per run (LLM tokens dominate; Lambda + AgentCore Evaluate < $0.000001 each):
+# Dollar cost per run (LLM tokens dominate; Lambda + AgentCore Evaluations `Evaluate` < $0.000001 each):
 #   - Strands LLM run (Bedrock Sonnet 4.6): 12277 input + 667 output tokens (cassette aggregate)
 #       = 12277 * 3.00/1e6 + 667 * 15.00/1e6 = $0.0468
 #   - LangGraph LLM run (gpt-5.4-mini): 5226 input + 320 output tokens (cassette aggregate)
 #       = 5226 * 0.75/1e6 + 320 * 4.50/1e6 = $0.0054
 #   - A ci: cassette replay, no LLM, $0.
-#   - C cells: same LLM cost as the same-subject B cell, plus negligible Lambda + AgentCore Evaluate (~$0.000001 / call), rounded to the same 4-decimal display.
+#   - C cells: same LLM cost as the same-subject B cell, plus negligible Lambda + AgentCore Evaluations `Evaluate` (about $0.000001 / call), rounded to the same 4-decimal display.
 #   - Pricing snapshot date: 2026-05-17 (Bedrock Anthropic Claude Sonnet 4.6 $3 in / $15 out per 1M; OpenAI gpt-5.4-mini $0.75 in / $4.50 out per 1M).
 STATIC_METRICS: dict[str, dict[str, Any]] = {
     # Strands
@@ -128,15 +129,11 @@ STATIC_METRICS: dict[str, dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 
 
-def _pytest_duration_seconds(stdout: str) -> float | None:
-    """Parse the pytest --durations=0 output for the test call duration."""
-    pattern = re.compile(r"^([0-9]+\.[0-9]+)s\s+call\s+", re.MULTILINE)
-    durations = [float(m.group(1)) for m in pattern.finditer(stdout)]
-    return min(durations) if durations else None
-
-
 def _run_pytest(test_rel_path: str, scenario: str, repo_root: Path, env_extra: dict[str, str]) -> tuple[bool, float | None, str]:
-    """Run a single pytest invocation for one (cell, scenario), return (passed, duration_seconds, stdout)."""
+    """Run a single pytest invocation for one (cell, scenario), return (passed, duration_seconds, stdout).
+
+    Wall time is measured with ``time.perf_counter()`` around the subprocess so the recorded value preserves sub-millisecond precision (pytest's ``--durations`` output rounds to two decimals, which collapses the third digit). The measurement therefore includes pytest process startup + plugin init in addition to the test body; this overhead is uniform across all 12 cells, so cell-to-cell comparisons remain valid.
+    """
     venv = Path(env_extra.get("AGENTVERIFY_BENCH_VENV") or (Path.home() / ".venvs" / "agentverify-bench"))
     pytest_bin = venv / "bin" / "pytest"
     bench_pyproject = ROOT / "pyproject.toml"
@@ -148,9 +145,9 @@ def _run_pytest(test_rel_path: str, scenario: str, repo_root: Path, env_extra: d
         "-k",
         scenario,
         "-v",
-        "--durations=0",
         "--no-header",
     ]
+    start = time.perf_counter()
     proc = subprocess.run(
         cmd,
         cwd=str(repo_root),
@@ -159,8 +156,9 @@ def _run_pytest(test_rel_path: str, scenario: str, repo_root: Path, env_extra: d
         env={**dict(os.environ), **env_extra},
         check=False,
     )
+    elapsed = time.perf_counter() - start
     passed = proc.returncode == 0 and "PASSED" in proc.stdout
-    duration = _pytest_duration_seconds(proc.stdout) if passed else None
+    duration = elapsed if passed else None
     return passed, duration, proc.stdout + proc.stderr
 
 
@@ -414,7 +412,7 @@ def _format_markdown(data: dict[str, Any]) -> str:
     lines.append("- LOC for execution model C is the sum of the test-side assertion block (the OTLP payload construction in `agentcore_test.py`) and the Lambda-side assertion block (`agentcore_evaluator_cdk/lambda_src/lambda_function.py`). Both move together when the assertion changes, so they are counted together. CDK / IAM / deploy-script wiring is one-time setup and is not included; see DESIGN.md \"Setup LOC\" for that breakdown.")
     lines.append("- Wall time is the trimmed mean of the middle 3 runs out of 5 (single highest and lowest dropped). The full 5-run series is in the `All runs` column.")
     lines.append("- `$ / run` is dominated by the LLM-token cost. Per-LLM-call cost is computed from the cassette token aggregates and current public list pricing (Bedrock Anthropic Claude Sonnet 4.6: $3 input / $15 output per 1M tokens; OpenAI gpt-5.4-mini: $0.75 input / $4.50 output per 1M tokens; pricing snapshot 2026-05-17).")
-    lines.append("- B and C cells have the same `$ / run` as long as they invoke the same LLM the same number of times, even though C also issues an `Evaluate` API call against AgentCore (which then internally invokes the assertion Lambda). AWS Lambda invocation and CloudWatch Logs ingestion together come to ~$0.0000005 per Evaluate at the configured Lambda size, which rounds to zero at the table's 4-decimal display. AgentCore Evaluations does not publish a documented per-call price for the data-plane `Evaluate` call as of the pricing snapshot date; the table treats it as zero pending official guidance, which is a known understatement.")
+    lines.append("- B and C cells have the same `$ / run` as long as they invoke the same LLM the same number of times, even though C also issues an `Evaluate` API call against AgentCore Evaluations (which then internally invokes the assertion Lambda). AWS Lambda invocation and CloudWatch Logs ingestion together come to about $0.0000005 per Evaluate at the configured Lambda size, which rounds to zero at the table's 4-decimal display. AgentCore Evaluations does not publish a documented per-call price for the data-plane `Evaluate` call as of the pricing snapshot date; the table treats it as zero pending official guidance, which is a known understatement.")
     lines.append("- agentverify's CI scenario is exactly $0 because cassette replay does not call the LLM.")
     lines.append("- Cold-start wall time is **not** in the warm wall-time table; it lives in the \"Cold-start observations\" section above when recorded.")
     return "\n".join(lines) + "\n"
