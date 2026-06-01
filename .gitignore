@@ -49,3 +49,6 @@ node_modules/
 
 # Local scratch space (any depth — repo root, benchmarks subdirs, etc.)
 .scratch/
+
+# AI-DLC
+aidlc-docs/
