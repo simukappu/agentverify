@@ -16,6 +16,7 @@ Specifically:
 
 - **Tool call sequences**: exact order, subsequence, or set membership, with regex / wildcard argument matching
 - **Step-level execution**: each LLM call is a step; assert what tool was called at step N, what the step's output was, and that step N's input references data produced by step M
+- **Tool outcomes**: whether each tool call actually returned a usable result (vs. errored, timed out, or came back empty), what the result contained, and how many times a flaky tool was retried
 - **Budgets**: token counts, cost in USD, end-to-end latency
 - **Safety**: a list of tools that must never be called, no matter what the LLM decides
 
@@ -193,7 +194,7 @@ See [`examples/openai-agents-llm-as-a-judge/`](examples/openai-agents-llm-as-a-j
 Full-depth examples for the LangChain ecosystem live under [`examples/`](examples/):
 
 - **[LangGraph multi-agent supervisor](examples/langgraph-multi-agent-supervisor/)**: a supervisor routes to a research expert and a math expert; each `add` in the math chain must consume the previous `add`'s result. `assert_step_uses_result_from` matches the numeric running total (`"231317.0"` produced as a string, consumed as `231317` int/float) across type boundaries, with digit-boundary checks that keep `"231"` from falsely appearing inside `1231`.
-- **[LangChain GitHub issue triage](examples/langchain-issue-triage/)**: a `create_react_agent` drives the GitHub MCP server to list issues, read one, propose labels. The step-level tests verify that the `issue_number` passed to `get_issue` actually came from the preceding `list_issues` response, and that destructive tools like `close_issue` are never called.
+- **[LangChain GitHub issue triage](examples/langchain-issue-triage/)**: a `create_react_agent` drives the GitHub MCP server to list issues, read one, propose labels. The step-level tests verify that the `issue_number` passed to `get_issue` actually came from the preceding `list_issues` response, that the GitHub reads returned usable results (`assert_no_tool_errors`, `assert_tool_result_matches`), and that destructive tools like `close_issue` are never called.
 
 Each example ships with its own pre-recorded cassette, a detailed `README.md`, and a full test file. Pick whichever framework fits your stack.
 
@@ -511,6 +512,40 @@ def test_cache_miss_path():
 
 **`step_probe` is a zero-cost no-op outside of test recording contexts.** When no `LLMCassetteRecorder` or `MockLLM` is active, it's a pass-through context manager. Safe to leave in production code.
 
+## Tool Result Assertions
+
+Knowing the agent *called* the right tool is not the same as knowing the call *worked*. A tool can return a 5xx, time out, or hand back an empty body, and the LLM will often smooth that over in its final reply. These assertions check the result a tool handed back, not just which tool was called and with what arguments.
+
+```python
+from agentverify import (
+    assert_tool_invocation_succeeded,
+    assert_no_tool_errors,
+    assert_tool_result_matches,
+    assert_retry_count,
+)
+
+# Affirmative: the tool call(s) at this step returned a usable result
+assert_tool_invocation_succeeded(result, step=1)
+
+# Blanket safety net: no tool anywhere in the run errored
+assert_no_tool_errors(result)
+
+# The tool returned a well-shaped / non-empty result
+assert_tool_result_matches(result, step=1, contains="temperature")
+assert_tool_result_matches(result, step=1, matches=r'"temp":\s*\d+')
+
+# Budget on retries of a flaky tool (counted from consecutive repeat calls)
+assert_retry_count(result, tool_name="http_request", max=2)
+```
+
+agentverify reads a per-result error signal that the built-in adapters populate from each framework's native tool-error convention (LangGraph `ToolMessage.status == "error"`, Strands `toolResult` status, OpenAI Agents `is_error`, LangChain error-shaped observations), and that cassette replay reconstructs from the recorded tool messages.
+
+The signal is three-valued: a result is a **known error**, a **known success**, or **unknown** (for example, a plain-string tool output on cassette replay where no structured status survived). `assert_tool_invocation_succeeded` and `assert_no_tool_errors` fail only on a *known* error; unknown and absent results pass, so the same test gives the same verdict whether it runs against a live agent or a replayed cassette. To require that a result is actually present and well-formed, use `assert_tool_result_matches`, which fails when the step has no tool result at all.
+
+`assert_no_tool_errors` is a blanket gate, so reach for it only when every tool in the run is expected to succeed. If your agent's correct behaviour includes recovering from a failure (a 429 then a retry, a primary tool then a fallback), that trajectory contains an expected error, and the blanket gate would flag it. In that case assert success on the specific steps that must succeed with `assert_tool_invocation_succeeded(step=N)` instead.
+
+If you build an `ExecutionResult` by hand or with a custom converter, set the signal yourself via the `tool_results_meta` field on each `Step`: a list positionally aligned with `tool_results`, where entry `i` is `{"is_error": True}`, `{"is_error": False}`, or `{}` (unknown). With `step_probe`, pass it through `handle.set_tool_result(result, is_error=True)`.
+
 ## Framework Integration
 
 ### Built-in Adapters
@@ -676,7 +711,7 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 
 | Example | Framework | Description |
 |---|---|---|
-| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP, step-level data flow for the discovered issue number |
+| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP, step-level data flow for the discovered issue number, tool-result outcome checks |
 | [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with running-total data flow |
 | [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it |
 | [`openai-agents-llm-as-a-judge`](examples/openai-agents-llm-as-a-judge/) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test with feedback-chain data flow |

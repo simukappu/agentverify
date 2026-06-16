@@ -121,6 +121,7 @@ class TestExecutionResult:
                 "duration_ms": None,
                 "token_usage": None,
                 "input_context": None,
+                "tool_results_meta": None,
             }
         ]
         assert d["token_usage"] == {"input_tokens": 10, "output_tokens": 5}
@@ -266,3 +267,82 @@ class TestExecutionResultStepsSingleSource:
         assert reloaded.steps[0].name == "p"
         assert reloaded.steps[0].source == "probe"
         assert reloaded.steps[1].tool_calls[0].name == "a"
+
+
+# ---------------------------------------------------------------------------
+# Step.tool_results_meta (tool invocation outcome error signal)
+# ---------------------------------------------------------------------------
+
+from agentverify.models import Step
+
+
+class TestStepToolResultsMeta:
+    def test_default_is_none(self):
+        s = Step(index=0)
+        assert s.tool_results_meta is None
+        assert s.has_tool_error() is False
+
+    def test_tool_result_is_error_known(self):
+        s = Step(
+            index=0,
+            tool_results=["a", "b"],
+            tool_results_meta=[{"is_error": True}, {"is_error": False}],
+        )
+        assert s.tool_result_is_error(0) is True
+        assert s.tool_result_is_error(1) is False
+        assert s.has_tool_error() is True
+
+    def test_tool_result_is_error_unknown_cases(self):
+        s = Step(index=0, tool_results=["a"], tool_results_meta=[{}])
+        # meta entry without is_error key → unknown
+        assert s.tool_result_is_error(0) is None
+        # out-of-range → unknown
+        assert s.tool_result_is_error(5) is None
+        assert s.tool_result_is_error(-1) is None
+        assert s.has_tool_error() is False
+
+    def test_tool_result_is_error_no_meta(self):
+        s = Step(index=0, tool_results=["a"])
+        assert s.tool_result_is_error(0) is None
+
+    def test_non_dict_meta_entry_is_unknown(self):
+        s = Step(index=0, tool_results=["a"], tool_results_meta=["nope"])
+        assert s.tool_result_is_error(0) is None
+
+    def test_to_dict_from_dict_round_trip_with_meta(self):
+        s = Step(
+            index=2,
+            source="probe",
+            name="call",
+            tool_calls=[ToolCall("fetch")],
+            tool_results=["boom"],
+            tool_results_meta=[{"is_error": True}],
+        )
+        restored = Step.from_dict(s.to_dict())
+        assert restored.tool_results_meta == [{"is_error": True}]
+        assert restored.tool_result_is_error(0) is True
+
+    def test_to_dict_emits_none_when_absent(self):
+        s = Step(index=0, tool_results=["a"])
+        assert s.to_dict()["tool_results_meta"] is None
+
+    def test_from_dict_defaults_meta_none_for_legacy(self):
+        # Legacy dict without tool_results_meta key
+        restored = Step.from_dict({"index": 0, "tool_calls": [{"name": "a"}]})
+        assert restored.tool_results_meta is None
+
+    def test_from_dict_rejects_non_list_meta(self):
+        with pytest.raises(ValueError):
+            Step.from_dict({"index": 0, "tool_results_meta": "nope"})
+
+    def test_execution_result_round_trip_with_meta(self):
+        er = ExecutionResult(steps=[
+            Step(index=0, tool_results=["x"], tool_results_meta=[{"is_error": True}]),
+        ])
+        restored = ExecutionResult.from_dict(er.to_dict())
+        assert restored.steps[0].tool_result_is_error(0) is True
+
+    def test_legacy_tool_calls_dict_has_none_meta(self):
+        # v0.2.0-style flat tool_calls dict still works, meta defaults None
+        restored = ExecutionResult.from_dict({"tool_calls": [{"name": "a"}]})
+        assert restored.steps[0].tool_results_meta is None

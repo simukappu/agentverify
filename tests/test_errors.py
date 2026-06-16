@@ -283,3 +283,86 @@ class TestToolCallSequenceErrorStepContext:
             step_index=3,
         )
         assert "step 3" in str(err)
+
+
+# ---------------------------------------------------------------------------
+# Tool result assertion error classes
+# ---------------------------------------------------------------------------
+
+from agentverify.errors import (
+    RetryBudgetError,
+    ToolInvocationError,
+    ToolResultMatchError,
+    _truncate_repr,
+)
+
+
+class TestToolInvocationError:
+    def test_inherits_agentverify_error(self):
+        assert issubclass(ToolInvocationError, AgentVerifyError)
+
+    def test_message_lists_violations(self):
+        err = ToolInvocationError(violations=[
+            {"step_index": 1, "tool_name": "fetch", "result_index": 0},
+            {"step_index": 2, "tool_name": "parse", "result_index": 1},
+        ])
+        msg = str(err)
+        assert "2 tool invocations reported an error" in msg
+        assert "fetch" in msg
+        assert "parse" in msg
+
+    def test_singular_wording(self):
+        err = ToolInvocationError(violations=[
+            {"step_index": 0, "tool_name": "fetch", "result_index": 0},
+        ])
+        assert "1 tool invocation reported an error" in str(err)
+
+    def test_payload_truncated_in_message(self):
+        big = "x" * 500
+        err = ToolInvocationError(violations=[
+            {"step_index": 0, "tool_name": "fetch", "result_index": 0, "payload": big},
+        ])
+        msg = str(err)
+        assert "…" in msg
+        assert big not in msg
+
+    def test_missing_fields_use_placeholders(self):
+        err = ToolInvocationError(violations=[{}])
+        msg = str(err)
+        assert "<unknown>" in msg
+
+
+class TestToolResultMatchError:
+    def test_inherits_agentverify_error(self):
+        assert issubclass(ToolResultMatchError, AgentVerifyError)
+
+    def test_message(self):
+        assert "boom" in str(ToolResultMatchError("boom"))
+
+
+class TestRetryBudgetError:
+    def test_inherits_agentverify_error(self):
+        assert issubclass(RetryBudgetError, AgentVerifyError)
+
+    def test_message_fields(self):
+        err = RetryBudgetError(tool_name="http", observed=3, limit=1)
+        msg = str(err)
+        assert "http" in msg
+        assert "3 retries" in msg
+        assert "1 retry" in msg
+
+    def test_singular_retry_wording(self):
+        err = RetryBudgetError(tool_name="http", observed=1, limit=0)
+        msg = str(err)
+        assert "1 retry" in msg
+        assert "0 retries" in msg
+
+
+class TestTruncateRepr:
+    def test_short_value_not_truncated(self):
+        assert _truncate_repr("abc") == "'abc'"
+
+    def test_long_value_truncated(self):
+        out = _truncate_repr("x" * 500)
+        assert out.endswith("…")
+        assert len(out) <= 202

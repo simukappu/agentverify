@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Features
+
+- **Tool result assertions** verify that tool calls actually succeeded, not just that they were made: `assert_tool_invocation_succeeded`, `assert_no_tool_errors`, `assert_tool_result_matches`, and `assert_retry_count`. See README "Tool Result Assertions".
+- **Per-result error signal on `Step`** via the additive `tool_results_meta` field, populated by the built-in adapters, reconstructed on cassette replay, and settable from custom converters and `step_probe`.
+
 ### Bug Fixes
 
 - **Example test suites on Python 3.14**: `pytest examples/<name>/tests` no longer fails with a duplicate `--cassette-mode` registration during collection.

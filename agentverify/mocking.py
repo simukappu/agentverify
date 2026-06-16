@@ -123,6 +123,7 @@ class MockLLM:
         # Probe event tracking — mirrors LLMCassetteRecorder.
         self._probe_events: list[tuple[str, int, str | None, Any]] = []
         self._probe_tool_results: dict[int, list[Any]] = {}
+        self._probe_tool_results_meta: dict[int, list[bool]] = {}
         self._interaction_probe_stack: list[list[int]] = []
         self._next_probe_handle_id: int = 0
         self._current_probe_stack: list[int] = []
@@ -170,8 +171,9 @@ class MockLLM:
         except ValueError:
             pass
 
-    def probe_attach_tool_result(self, handle_id: int, result: Any) -> None:
+    def probe_attach_tool_result(self, handle_id: int, result: Any, is_error: bool = False) -> None:
         self._probe_tool_results.setdefault(handle_id, []).append(result)
+        self._probe_tool_results_meta.setdefault(handle_id, []).append(is_error)
 
     # -- Protocol expected by adapter.patch() -------------------------------
 
@@ -207,5 +209,6 @@ class MockLLM:
             probe_stacks=self._interaction_probe_stack,
             probe_events=self._probe_events,
             probe_tool_results=self._probe_tool_results,
+            probe_tool_results_meta=self._probe_tool_results_meta,
             duration_ms=self._duration_ms,
         )

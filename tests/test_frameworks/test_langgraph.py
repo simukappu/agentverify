@@ -168,3 +168,49 @@ class TestFromLanggraph:
         assert er.tool_calls[1].name == "get_issue"
         assert er.token_usage == TokenUsage(input_tokens=370, output_tokens=120)
         assert er.final_output == "Issue #1 needs the bug label."
+
+
+# ---------------------------------------------------------------------------
+# tool invocation outcome (tool_results_meta)
+# ---------------------------------------------------------------------------
+
+
+def _tool_msg_status(content: str, status: str | None) -> SimpleNamespace:
+    return SimpleNamespace(type="tool", content=content, name="", status=status)
+
+
+class TestFromLanggraphToolOutcome:
+    def test_error_status_marks_error(self):
+        result = {
+            "messages": [
+                _ai_msg(tool_calls=[{"name": "fetch", "args": {}, "id": "1"}]),
+                _tool_msg_status("503 Service Unavailable", "error"),
+                _ai_msg(content="failed"),
+            ]
+        }
+        er = from_langgraph(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+        assert er.steps[0].has_tool_error() is True
+
+    def test_success_status_marks_non_error(self):
+        result = {
+            "messages": [
+                _ai_msg(tool_calls=[{"name": "fetch", "args": {}, "id": "1"}]),
+                _tool_msg_status("ok", "success"),
+                _ai_msg(content="done"),
+            ]
+        }
+        er = from_langgraph(result)
+        assert er.steps[0].tool_result_is_error(0) is False
+
+    def test_no_status_is_unknown(self):
+        # _tool_msg has no status attribute → unknown
+        result = {
+            "messages": [
+                _ai_msg(tool_calls=[{"name": "fetch", "args": {}, "id": "1"}]),
+                _tool_msg("ok"),
+                _ai_msg(content="done"),
+            ]
+        }
+        er = from_langgraph(result)
+        assert er.steps[0].tool_result_is_error(0) is None

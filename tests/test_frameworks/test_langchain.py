@@ -170,3 +170,40 @@ class TestFromLangchain:
         assert er.tool_calls[2].name == "add_label"
         assert er.token_usage == TokenUsage(input_tokens=270, output_tokens=105)
         assert er.final_output == "Issue #1 needs the 'bug' label."
+
+
+# ---------------------------------------------------------------------------
+# tool invocation outcome (tool_results_meta)
+# ---------------------------------------------------------------------------
+
+
+class TestFromLangchainToolOutcome:
+    def test_dict_error_observation_marks_error(self):
+        result = {
+            "output": "failed",
+            "intermediate_steps": [
+                (_make_action("fetch", {}), {"status": "error", "error": "503"}),
+            ],
+        }
+        er = from_langchain(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
+    def test_plain_string_observation_is_unknown(self):
+        result = {
+            "output": "ok",
+            "intermediate_steps": [
+                (_make_action("fetch", {}), "sunny, 22C"),
+            ],
+        }
+        er = from_langchain(result)
+        assert er.steps[0].tool_result_is_error(0) is None
+
+    def test_dict_success_observation_marks_non_error(self):
+        result = {
+            "output": "ok",
+            "intermediate_steps": [
+                (_make_action("fetch", {}), {"status": "success", "data": 1}),
+            ],
+        }
+        er = from_langchain(result)
+        assert er.steps[0].tool_result_is_error(0) is False

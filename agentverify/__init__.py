@@ -27,20 +27,27 @@ from agentverify.assertions import (
     assert_final_output,
     assert_latency,
     assert_no_tool_call,
+    assert_no_tool_errors,
+    assert_retry_count,
     assert_step,
     assert_step_output,
     assert_step_uses_result_from,
     assert_tool_calls,
+    assert_tool_invocation_succeeded,
+    assert_tool_result_matches,
 )
 from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.errors import (
     CassetteRequestMismatchError,
+    RetryBudgetError,
     StepDependencyError,
     StepIndexError,
     StepNameAmbiguousError,
     StepNameNotFoundError,
     StepOutputError,
+    ToolInvocationError,
+    ToolResultMatchError,
 )
 from agentverify.matchers import ANY, MATCHES, OrderMode
 from agentverify.mocking import MockLLM, mock_response
@@ -67,6 +74,11 @@ __all__ = [
     "assert_step",
     "assert_step_output",
     "assert_step_uses_result_from",
+    # Tool result assertions (tool invocation outcome)
+    "assert_tool_invocation_succeeded",
+    "assert_no_tool_errors",
+    "assert_tool_result_matches",
+    "assert_retry_count",
     # step_probe
     "step_probe",
     "ProbeHandle",
@@ -85,4 +97,8 @@ __all__ = [
     "StepNameAmbiguousError",
     "StepOutputError",
     "StepDependencyError",
+    # Tool result errors
+    "ToolInvocationError",
+    "ToolResultMatchError",
+    "RetryBudgetError",
 ]

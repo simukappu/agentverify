@@ -770,3 +770,145 @@ def test_property_to_dict_from_dict_round_trip_with_steps(steps_data):
         assert a.index == b.index
         assert a.source == b.source
         assert [tc.name for tc in a.tool_calls] == [tc.name for tc in b.tool_calls]
+
+
+# ---------------------------------------------------------------------------
+# Tool invocation outcome properties (0.4.0)
+# ---------------------------------------------------------------------------
+
+from agentverify._step_builder import classify_tool_result_error
+from agentverify.assertions import (
+    assert_no_tool_errors,
+    assert_retry_count,
+    assert_tool_invocation_succeeded,
+)
+from agentverify.errors import RetryBudgetError, ToolInvocationError
+
+# An is_error meta value: known True/False, or unknown (missing key).
+meta_entries = st.one_of(
+    st.just({"is_error": True}),
+    st.just({"is_error": False}),
+    st.just({}),  # unknown
+)
+
+
+def _steps_with_meta(draw):
+    """Draw a list of Steps with aligned tool_results / tool_results_meta."""
+    n_steps = draw(st.integers(min_value=0, max_value=5))
+    steps = []
+    for i in range(n_steps):
+        n_results = draw(st.integers(min_value=0, max_value=4))
+        results = [draw(st.text(max_size=5)) for _ in range(n_results)]
+        # meta is either None, or aligned to results
+        if draw(st.booleans()) and n_results > 0:
+            meta = [draw(meta_entries) for _ in range(n_results)]
+        else:
+            meta = None
+        steps.append(
+            Step(
+                index=i,
+                source="llm",
+                tool_calls=[ToolCall(name=f"t{i}")],
+                tool_results=results,
+                tool_results_meta=meta,
+            )
+        )
+    return steps
+
+
+# P-A: round-trip of Step/ExecutionResult carrying tool_results_meta
+@given(data=st.data())
+@settings(max_examples=100, deadline=None)
+def test_property_tool_outcome_a_meta_round_trip(data):
+    """**P-A**: tool_results_meta survives to_dict/from_dict and to_json/from_json."""
+    steps = _steps_with_meta(data.draw)
+    er = ExecutionResult(steps=steps)
+
+    reloaded = ExecutionResult.from_dict(er.to_dict())
+    assert len(reloaded.steps) == len(steps)
+    for a, b in zip(reloaded.steps, steps):
+        assert a.tool_results_meta == b.tool_results_meta
+
+    reloaded_json = ExecutionResult.from_json(er.to_json())
+    for a, b in zip(reloaded_json.steps, steps):
+        assert a.tool_results_meta == b.tool_results_meta
+
+
+# P-B: consistency invariant between blanket gate and per-step
+@given(data=st.data())
+@settings(max_examples=100, deadline=None)
+def test_property_tool_outcome_b_blanket_equals_per_step(data):
+    """**P-B**: assert_no_tool_errors passes iff every per-step succeeds."""
+    steps = _steps_with_meta(data.draw)
+    er = ExecutionResult(steps=steps)
+
+    blanket_passed = True
+    try:
+        assert_no_tool_errors(er)
+    except ToolInvocationError:
+        blanket_passed = False
+
+    per_step_all_passed = True
+    for s in er.steps:
+        try:
+            assert_tool_invocation_succeeded(er, step=s.index)
+        except ToolInvocationError:
+            per_step_all_passed = False
+            break
+
+    assert blanket_passed == per_step_all_passed
+
+
+# P-C: classifier totality
+@given(payload=any_python_values)
+@settings(max_examples=200)
+def test_property_tool_outcome_c_classifier_total(payload):
+    """**P-C**: classify_tool_result_error returns only {True, False, None}, never raises."""
+    out = classify_tool_result_error(payload)
+    assert out in (True, False, None)
+
+
+@given(
+    payload=st.dictionaries(
+        st.sampled_from(["is_error", "status", "error", "other"]),
+        st.one_of(st.booleans(), st.text(max_size=10), st.none(), st.integers()),
+        max_size=4,
+    )
+)
+@settings(max_examples=200)
+def test_property_tool_outcome_c_classifier_total_dicts(payload):
+    """**P-C**: classifier is total over dict-shaped payloads too."""
+    out = classify_tool_result_error(payload)
+    assert out in (True, False, None)
+
+
+# P-D: retry-count oracle vs brute-force run-length
+@given(
+    names=st.lists(st.sampled_from(["a", "b", "c"]), max_size=20),
+    target=st.sampled_from(["a", "b", "c"]),
+)
+@settings(max_examples=100)
+def test_property_tool_outcome_d_retry_count_oracle(names, target):
+    """**P-D**: assert_retry_count matches an independent run-length computation."""
+    er = ExecutionResult(tool_calls=[ToolCall(name=n) for n in names])
+
+    # Oracle: max consecutive run length of target, minus 1.
+    max_run = 0
+    run = 0
+    for n in names:
+        if n == target:
+            run += 1
+            max_run = max(max_run, run)
+        else:
+            run = 0
+    oracle_retries = max(max_run - 1, 0)
+
+    # At the exact budget it must pass.
+    assert_retry_count(er, tool_name=target, max=oracle_retries)
+    # One below the budget must fail when there were any retries.
+    if oracle_retries > 0:
+        try:
+            assert_retry_count(er, tool_name=target, max=oracle_retries - 1)
+            assert False, "Expected RetryBudgetError"
+        except RetryBudgetError as e:
+            assert e.observed == oracle_retries

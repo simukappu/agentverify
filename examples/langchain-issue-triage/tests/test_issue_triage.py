@@ -151,3 +151,59 @@ class TestIssueTriageStepLevel:
             result, step=last_step.index,
             contains="Issue Triage Results",
         )
+
+
+# ---------------------------------------------------------------------------
+# Tool result assertions (0.4.0)
+# ---------------------------------------------------------------------------
+
+
+from agentverify import (
+    assert_no_tool_errors,
+    assert_tool_invocation_succeeded,
+    assert_tool_result_matches,
+)
+
+
+class TestIssueTriageToolResults:
+    """Verify the GitHub tools actually returned usable results, not just that
+    they were called. These assertions guard against a dependency returning a
+    5xx / empty body that the LLM then papers over in its summary.
+    """
+
+    @pytest.mark.agentverify
+    def test_no_tool_errored(self, cassette):
+        """No GitHub read in the run came back as an error."""
+        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
+            pass
+
+        result = rec.to_execution_result()
+        assert_no_tool_errors(result)
+
+    @pytest.mark.agentverify
+    def test_list_issues_returned_usable_result(self, cassette):
+        """Step 0's list_issues call produced a usable (non-error) result."""
+        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
+            pass
+
+        result = rec.to_execution_result()
+        assert_tool_invocation_succeeded(result, step=0)
+
+    @pytest.mark.agentverify
+    def test_list_issues_result_content(self, cassette):
+        """The issue list came back with the labels the triage logic needs."""
+        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
+            pass
+
+        result = rec.to_execution_result()
+        assert_tool_result_matches(result, step=0, contains="enhancement")
+
+    @pytest.mark.agentverify
+    def test_get_issue_returned_requested_number(self, cassette):
+        """Step 1's get_issue returned the issue it was asked for (#2)."""
+        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
+            pass
+
+        result = rec.to_execution_result()
+        assert_tool_result_matches(result, step=1, matches=r'"number":\s*2')
+

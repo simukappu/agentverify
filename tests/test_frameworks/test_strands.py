@@ -389,3 +389,40 @@ class TestFromStrandsBranches:
         )
         er = from_strands(result)
         assert er.token_usage is None
+
+
+# ---------------------------------------------------------------------------
+# tool invocation outcome (tool_results_meta)
+# ---------------------------------------------------------------------------
+
+
+class TestFromStrandsToolOutcome:
+    def test_error_status_marks_error(self):
+        result = _make_strands_result(
+            messages=[
+                {"role": "assistant", "content": [{"toolUse": {"name": "fetch", "input": {}}}]},
+                {"role": "user", "content": [{"toolResult": {"status": "error", "content": [{"text": "503"}]}}]},
+            ]
+        )
+        er = from_strands(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
+    def test_success_status_marks_non_error(self):
+        result = _make_strands_result(
+            messages=[
+                {"role": "assistant", "content": [{"toolUse": {"name": "fetch", "input": {}}}]},
+                {"role": "user", "content": [{"toolResult": {"status": "success", "content": [{"text": "ok"}]}}]},
+            ]
+        )
+        er = from_strands(result)
+        assert er.steps[0].tool_result_is_error(0) is False
+
+    def test_no_status_is_unknown(self):
+        result = _make_strands_result(
+            messages=[
+                {"role": "assistant", "content": [{"toolUse": {"name": "fetch", "input": {}}}]},
+                {"role": "user", "content": [{"toolResult": {"content": [{"text": "ok"}]}}]},
+            ]
+        )
+        er = from_strands(result)
+        assert er.steps[0].tool_result_is_error(0) is None

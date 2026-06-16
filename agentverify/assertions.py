@@ -15,8 +15,11 @@ from agentverify.errors import (
     FinalOutputError,
     LatencyBudgetError,
     MultipleAssertionError,
+    RetryBudgetError,
     SafetyRuleViolationError,
     ToolCallSequenceError,
+    ToolInvocationError,
+    ToolResultMatchError,
 )
 from agentverify.matchers import OrderMode
 from agentverify.models import ExecutionResult, ToolCall
@@ -777,3 +780,187 @@ def _leaves(value, _seen: set[int] | None = None):
         yield value
     else:
         yield value
+
+
+# ---------------------------------------------------------------------------
+# Tool result assertions (tool invocation outcome)
+# ---------------------------------------------------------------------------
+
+
+def _tool_name_at(step_obj, result_index: int) -> str:
+    """Best-effort tool name for the result at ``result_index`` in a step.
+
+    Tool calls and tool results are not always 1:1, so this maps by position when possible and falls back to a generic label.
+    """
+    calls = step_obj.tool_calls
+    if 0 <= result_index < len(calls):
+        return calls[result_index].name
+    if len(calls) == 1:
+        return calls[0].name
+    return "<unknown>"
+
+
+def assert_tool_invocation_succeeded(
+    result: ExecutionResult,
+    step: int | None = None,
+    name: str | None = None,
+) -> None:
+    """Verify that the tool call(s) at a step produced a usable result.
+
+    Exactly one of ``step`` (0-indexed) or ``name`` (from :func:`step_probe`) must be provided.
+
+    Fails only when a tool result at the step is a **known error** (the adapter or classifier flagged it).  Results whose outcome is unknown, or steps with no observed tool results (e.g. a terminal tool call on cassette replay), pass.  To require that a result is actually present and well-shaped, use :func:`assert_tool_result_matches`.
+
+    Raises:
+        ToolInvocationError: When any tool result at the step is a known error.
+    """
+    resolved = _resolve_step(result, step, name)
+    violations: list[dict] = []
+    for i in range(len(resolved.tool_results)):
+        if resolved.tool_result_is_error(i) is True:
+            violations.append(
+                {
+                    "step_index": resolved.index,
+                    "tool_name": _tool_name_at(resolved, i),
+                    "result_index": i,
+                    "payload": resolved.tool_results[i],
+                }
+            )
+    if violations:
+        raise ToolInvocationError(violations=violations)
+
+
+def assert_no_tool_errors(result: ExecutionResult) -> None:
+    """Verify that no tool invocation in the whole run produced an error.
+
+    Walks every step and fails if any tool result anywhere is a **known error**.  Lenient on unknown / absent outcomes, exactly like :func:`assert_tool_invocation_succeeded`, so the two stay consistent.
+
+    Use this as a blanket safety net when every tool is expected to succeed.  For agents whose correct behaviour includes a recover-from-failure step (a retry, a fallback to another tool), do not use this gate; assert success on the specific steps that must succeed with :func:`assert_tool_invocation_succeeded` instead.
+
+    Raises:
+        ToolInvocationError: When any tool result in the run is a known error.
+    """
+    violations: list[dict] = []
+    for resolved in result.steps:
+        for i in range(len(resolved.tool_results)):
+            if resolved.tool_result_is_error(i) is True:
+                violations.append(
+                    {
+                        "step_index": resolved.index,
+                        "tool_name": _tool_name_at(resolved, i),
+                        "result_index": i,
+                        "payload": resolved.tool_results[i],
+                    }
+                )
+    if violations:
+        raise ToolInvocationError(violations=violations)
+
+
+def _stringify_tool_result(value) -> str:
+    """Render a tool result as a string for content matching."""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):  # pragma: no cover — default=str is total
+        return str(value)
+
+
+def assert_tool_result_matches(
+    result: ExecutionResult,
+    step: int | None = None,
+    name: str | None = None,
+    contains: str | None = None,
+    matches: str | None = None,
+) -> None:
+    """Verify that a tool result at a step matches expected content.
+
+    Exactly one of ``step`` or ``name`` must be provided.  Exactly one of ``contains`` (substring) or ``matches`` (regex, ``re.search`` semantics) must be provided.
+
+    Each tool result at the step is stringified (strings pass through; other values are JSON-encoded).  The assertion passes if **any** tool result matches.
+
+    Raises:
+        ToolResultMatchError: When no tool result matches, or the step has no tool results to match against.
+    """
+    if (contains is None) == (matches is None):
+        raise ValueError(
+            "assert_tool_result_matches requires exactly one of: contains, matches"
+        )
+
+    resolved = _resolve_step(result, step, name)
+
+    step_label = f"step {resolved.index}"
+    if resolved.name:
+        step_label += f" ({resolved.name!r})"
+
+    if not resolved.tool_results:
+        raise ToolResultMatchError(
+            f"{step_label} has no tool result to match against"
+        )
+
+    rendered = [_stringify_tool_result(r) for r in resolved.tool_results]
+
+    if contains is not None:
+        if any(contains in r for r in rendered):
+            return
+        raise ToolResultMatchError(
+            f"{step_label} has no tool result containing expected substring\n"
+            f"\n"
+            f"  Substring: {contains!r}\n"
+            f"  Results:   {[_truncate(r) for r in rendered]}"
+        )
+
+    # matches is not None
+    if any(re.search(matches, r) for r in rendered):
+        return
+    raise ToolResultMatchError(
+        f"{step_label} has no tool result matching pattern\n"
+        f"\n"
+        f"  Pattern:  {matches!r}\n"
+        f"  Results:  {[_truncate(r) for r in rendered]}"
+    )
+
+
+def _truncate(value: str, limit: int = 200) -> str:
+    """Length-bound a string for inclusion in an error message."""
+    return value if len(value) <= limit else value[:limit] + "…"
+
+
+def assert_retry_count(
+    result: ExecutionResult,
+    tool_name: str,
+    max: int,
+) -> None:
+    """Verify a tool was retried no more than ``max`` times (retry budget).
+
+    Retries are inferred structurally from the flattened tool-call sequence: each maximal run of consecutive calls to ``tool_name`` of length ``L`` counts as ``L - 1`` retries.  The assertion compares the largest such retry count across all runs against ``max``.  Retries are never inferred from free-form LLM text.
+
+    Args:
+        tool_name: The tool whose retries to bound.
+        max: Maximum allowed retries (non-negative int).
+
+    Raises:
+        RetryBudgetError: When the observed retry count exceeds ``max``.
+    """
+    if not isinstance(max, int) or isinstance(max, bool) or max < 0:
+        raise ValueError(
+            f"assert_retry_count requires max to be a non-negative int, got {max!r}"
+        )
+
+    observed_max_retries = 0
+    run_length = 0
+    for tc in result.tool_calls:
+        if tc.name == tool_name:
+            run_length += 1
+            retries = run_length - 1
+            if retries > observed_max_retries:
+                observed_max_retries = retries
+        else:
+            run_length = 0
+
+    if observed_max_retries > max:
+        raise RetryBudgetError(
+            tool_name=tool_name,
+            observed=observed_max_retries,
+            limit=max,
+        )

@@ -105,16 +105,27 @@ def from_strands(result: Any) -> ExecutionResult:
             tool_results = _extract_tool_results(content)
             if tool_results and steps:
                 prev = steps[-1]
+                new_results = prev.tool_results + tool_results
+                prev_meta = list(prev.tool_results_meta or [])
+                for tr in tool_results:
+                    status = tr.get("status") if isinstance(tr, dict) else None
+                    if status == "error":
+                        prev_meta.append({"is_error": True})
+                    elif status == "success":
+                        prev_meta.append({"is_error": False})
+                    else:
+                        prev_meta.append({})
                 steps[-1] = Step(
                     index=prev.index,
                     name=prev.name,
                     source=prev.source,
                     tool_calls=prev.tool_calls,
-                    tool_results=prev.tool_results + tool_results,
+                    tool_results=new_results,
                     output=prev.output,
                     duration_ms=prev.duration_ms,
                     token_usage=prev.token_usage,
                     input_context=prev.input_context,
+                    tool_results_meta=prev_meta,
                 )
             pending_input_context = {"messages": [msg]}
 

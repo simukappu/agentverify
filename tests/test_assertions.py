@@ -1247,3 +1247,274 @@ class TestAssertStepUsesResultFromNumericString:
 
         assert _contains_number("1231317.9", "231317") is False
         assert _contains_number("sum 231317, next", "231317") is True
+
+
+# ---------------------------------------------------------------------------
+# Tool result assertions (tool invocation outcome)
+# ---------------------------------------------------------------------------
+
+from agentverify.assertions import (
+    assert_no_tool_errors,
+    assert_retry_count,
+    assert_tool_invocation_succeeded,
+    assert_tool_result_matches,
+)
+from agentverify.errors import (
+    RetryBudgetError,
+    ToolInvocationError,
+    ToolResultMatchError,
+)
+from agentverify.models import Step
+
+
+def _step(index, tool, results, meta, *, name=None, source="llm"):
+    """Build a Step with aligned tool_calls/results/meta for tool result tests."""
+    return Step(
+        index=index,
+        name=name,
+        source=source,
+        tool_calls=[ToolCall(name=tool)],
+        tool_results=results,
+        tool_results_meta=meta,
+    )
+
+
+class TestAssertToolInvocationSucceeded:
+    def test_known_success_passes(self):
+        r = ExecutionResult(steps=[_step(0, "fetch", ["ok"], [{"is_error": False}])])
+        assert_tool_invocation_succeeded(r, step=0)
+
+    def test_known_error_fails(self):
+        r = ExecutionResult(steps=[_step(0, "fetch", ["boom"], [{"is_error": True}])])
+        with pytest.raises(ToolInvocationError) as exc:
+            assert_tool_invocation_succeeded(r, step=0)
+        assert exc.value.violations[0]["tool_name"] == "fetch"
+        assert exc.value.violations[0]["step_index"] == 0
+
+    def test_unknown_passes(self):
+        # meta entry without is_error key → unknown → lenient pass
+        r = ExecutionResult(steps=[_step(0, "fetch", ["?"], [{}])])
+        assert_tool_invocation_succeeded(r, step=0)
+
+    def test_absent_results_passes(self):
+        # terminal tool call with no observed result
+        r = ExecutionResult(steps=[Step(index=0, tool_calls=[ToolCall("fetch")])])
+        assert_tool_invocation_succeeded(r, step=0)
+
+    def test_no_meta_passes(self):
+        r = ExecutionResult(steps=[Step(index=0, tool_calls=[ToolCall("fetch")], tool_results=["x"])])
+        assert_tool_invocation_succeeded(r, step=0)
+
+    def test_resolve_by_name(self):
+        r = ExecutionResult(steps=[_step(0, "fetch", ["boom"], [{"is_error": True}], name="call", source="probe")])
+        with pytest.raises(ToolInvocationError):
+            assert_tool_invocation_succeeded(r, name="call")
+
+    def test_requires_step_xor_name(self):
+        r = ExecutionResult(steps=[_step(0, "fetch", ["ok"], [{"is_error": False}])])
+        with pytest.raises(ValueError):
+            assert_tool_invocation_succeeded(r)
+        with pytest.raises(ValueError):
+            assert_tool_invocation_succeeded(r, step=0, name="x")
+
+
+class TestAssertNoToolErrors:
+    def test_all_success_passes(self):
+        r = ExecutionResult(steps=[
+            _step(0, "a", ["ok"], [{"is_error": False}]),
+            _step(1, "b", ["ok"], [{"is_error": False}]),
+        ])
+        assert_no_tool_errors(r)
+
+    def test_unknown_passes(self):
+        r = ExecutionResult(steps=[_step(0, "a", ["?"], [{}])])
+        assert_no_tool_errors(r)
+
+    def test_any_error_fails_and_reports_all(self):
+        r = ExecutionResult(steps=[
+            _step(0, "a", ["ok"], [{"is_error": False}]),
+            _step(1, "b", ["boom"], [{"is_error": True}]),
+            _step(2, "c", ["bad"], [{"is_error": True}]),
+        ])
+        with pytest.raises(ToolInvocationError) as exc:
+            assert_no_tool_errors(r)
+        assert len(exc.value.violations) == 2
+
+    def test_empty_result_passes(self):
+        assert_no_tool_errors(ExecutionResult())
+
+
+class TestAssertToolResultMatches:
+    def test_contains_passes(self):
+        r = ExecutionResult(steps=[_step(0, "f", ['{"temp": 22}'], [{}])])
+        assert_tool_result_matches(r, step=0, contains="temp")
+
+    def test_matches_regex_passes(self):
+        r = ExecutionResult(steps=[_step(0, "f", ['{"temp": 22}'], [{}])])
+        assert_tool_result_matches(r, step=0, matches=r'"temp":\s*22')
+
+    def test_non_string_result_json_encoded(self):
+        r = ExecutionResult(steps=[_step(0, "f", [{"temp": 22}], [{}])])
+        assert_tool_result_matches(r, step=0, contains="temp")
+
+    def test_no_match_fails(self):
+        r = ExecutionResult(steps=[_step(0, "f", ["sunny"], [{}])])
+        with pytest.raises(ToolResultMatchError):
+            assert_tool_result_matches(r, step=0, contains="rain")
+
+    def test_no_regex_match_fails(self):
+        r = ExecutionResult(steps=[_step(0, "f", ["sunny"], [{}])])
+        with pytest.raises(ToolResultMatchError):
+            assert_tool_result_matches(r, step=0, matches=r"\d{3}")
+
+    def test_no_results_fails(self):
+        r = ExecutionResult(steps=[Step(index=0, tool_calls=[ToolCall("f")])])
+        with pytest.raises(ToolResultMatchError):
+            assert_tool_result_matches(r, step=0, contains="x")
+
+    def test_requires_exactly_one_mode(self):
+        r = ExecutionResult(steps=[_step(0, "f", ["x"], [{}])])
+        with pytest.raises(ValueError):
+            assert_tool_result_matches(r, step=0)
+        with pytest.raises(ValueError):
+            assert_tool_result_matches(r, step=0, contains="a", matches="b")
+
+    def test_match_in_named_step(self):
+        r = ExecutionResult(steps=[_step(0, "f", ["sunny"], [{}], name="weather", source="probe")])
+        with pytest.raises(ToolResultMatchError) as exc:
+            assert_tool_result_matches(r, name="weather", contains="rain")
+        assert "weather" in str(exc.value)
+
+
+class TestAssertRetryCount:
+    def test_within_budget_passes(self):
+        r = ExecutionResult(tool_calls=[ToolCall("http"), ToolCall("http"), ToolCall("done")])
+        assert_retry_count(r, tool_name="http", max=1)
+
+    def test_exceeds_budget_fails(self):
+        r = ExecutionResult(tool_calls=[ToolCall("http"), ToolCall("http"), ToolCall("http")])
+        with pytest.raises(RetryBudgetError) as exc:
+            assert_retry_count(r, tool_name="http", max=1)
+        assert exc.value.observed == 2
+        assert exc.value.limit == 1
+
+    def test_non_consecutive_runs_take_max(self):
+        # runs: [http,http] (1 retry), [http,http,http] (2 retries) → max 2
+        r = ExecutionResult(tool_calls=[
+            ToolCall("http"), ToolCall("http"), ToolCall("other"),
+            ToolCall("http"), ToolCall("http"), ToolCall("http"),
+        ])
+        assert_retry_count(r, tool_name="http", max=2)
+        with pytest.raises(RetryBudgetError):
+            assert_retry_count(r, tool_name="http", max=1)
+
+    def test_zero_retries_passes(self):
+        r = ExecutionResult(tool_calls=[ToolCall("http"), ToolCall("other")])
+        assert_retry_count(r, tool_name="http", max=0)
+
+    def test_negative_max_rejected(self):
+        r = ExecutionResult(tool_calls=[ToolCall("http")])
+        with pytest.raises(ValueError):
+            assert_retry_count(r, tool_name="http", max=-1)
+
+    def test_bool_max_rejected(self):
+        r = ExecutionResult(tool_calls=[ToolCall("http")])
+        with pytest.raises(ValueError):
+            assert_retry_count(r, tool_name="http", max=True)
+
+    def test_tool_not_called_passes(self):
+        r = ExecutionResult(tool_calls=[ToolCall("other")])
+        assert_retry_count(r, tool_name="http", max=0)
+
+
+class TestToolNameResolution:
+    def test_multiple_calls_unknown_name_uses_placeholder(self):
+        # two tool calls, one result flagged error; result_index 0 maps to call 0
+        step = Step(
+            index=0,
+            tool_calls=[ToolCall("a"), ToolCall("b")],
+            tool_results=["x", "boom"],
+            tool_results_meta=[{"is_error": False}, {"is_error": True}],
+        )
+        r = ExecutionResult(steps=[step])
+        with pytest.raises(ToolInvocationError) as exc:
+            assert_no_tool_errors(r)
+        assert exc.value.violations[0]["tool_name"] == "b"
+
+    def test_more_results_than_calls_uses_unknown_label(self):
+        step = Step(
+            index=0,
+            tool_calls=[ToolCall("a"), ToolCall("b")],
+            tool_results=["x", "y", "boom"],
+            tool_results_meta=[{"is_error": False}, {"is_error": False}, {"is_error": True}],
+        )
+        r = ExecutionResult(steps=[step])
+        with pytest.raises(ToolInvocationError) as exc:
+            assert_no_tool_errors(r)
+        assert exc.value.violations[0]["tool_name"] == "<unknown>"
+
+    def test_single_call_many_results_maps_to_that_call(self):
+        step = Step(
+            index=0,
+            tool_calls=[ToolCall("only")],
+            tool_results=["x", "boom"],
+            tool_results_meta=[{"is_error": False}, {"is_error": True}],
+        )
+        r = ExecutionResult(steps=[step])
+        with pytest.raises(ToolInvocationError) as exc:
+            assert_no_tool_errors(r)
+        assert exc.value.violations[0]["tool_name"] == "only"
+
+
+# ---------------------------------------------------------------------------
+# Integration: framework adapter output -> tool result assertions
+# ---------------------------------------------------------------------------
+
+
+class TestToolResultAssertionsIntegration:
+    """End-to-end: an adapter populates the signal, an assertion reads it."""
+
+    def test_langgraph_error_flows_to_no_tool_errors(self):
+        from types import SimpleNamespace
+
+        from agentverify.frameworks.langgraph import from_langgraph
+
+        result = from_langgraph({
+            "messages": [
+                SimpleNamespace(type="ai", content="", tool_calls=[
+                    {"name": "fetch", "args": {}, "id": "1"}], usage_metadata=None),
+                SimpleNamespace(type="tool", content="503", name="fetch", status="error"),
+                SimpleNamespace(type="ai", content="failed", tool_calls=[], usage_metadata=None),
+            ]
+        })
+        with pytest.raises(ToolInvocationError):
+            assert_no_tool_errors(result)
+
+    def test_langgraph_success_passes(self):
+        from types import SimpleNamespace
+
+        from agentverify.frameworks.langgraph import from_langgraph
+
+        result = from_langgraph({
+            "messages": [
+                SimpleNamespace(type="ai", content="", tool_calls=[
+                    {"name": "fetch", "args": {}, "id": "1"}], usage_metadata=None),
+                SimpleNamespace(type="tool", content="ok", name="fetch", status="success"),
+                SimpleNamespace(type="ai", content="done", tool_calls=[], usage_metadata=None),
+            ]
+        })
+        assert_no_tool_errors(result)
+        assert_tool_invocation_succeeded(result, step=0)
+
+    def test_strands_error_flows_to_per_step(self):
+        from types import SimpleNamespace
+
+        from agentverify.frameworks.strands import from_strands
+
+        state = SimpleNamespace(messages=[
+            {"role": "assistant", "content": [{"toolUse": {"name": "fetch", "input": {}}}]},
+            {"role": "user", "content": [{"toolResult": {"status": "error", "content": [{"text": "boom"}]}}]},
+        ])
+        result = from_strands(SimpleNamespace(state=state))
+        with pytest.raises(ToolInvocationError):
+            assert_tool_invocation_succeeded(result, step=0)

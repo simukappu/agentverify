@@ -301,3 +301,78 @@ class StepDependencyError(AgentVerifyError):
         if len(repr_str) > limit:
             return repr_str[:limit] + "…"
         return repr_str
+
+
+def _truncate_repr(value: Any, limit: int = 200) -> str:
+    """Return a length-bounded repr of a payload.
+
+    Used by the tool-invocation-outcome errors to avoid dumping raw, possibly secret-bearing tool result payloads in full.
+    """
+    repr_str = repr(value)
+    if len(repr_str) > limit:
+        return repr_str[:limit] + "…"
+    return repr_str
+
+
+class ToolInvocationError(AgentVerifyError):
+    """Raised when a tool invocation outcome check fails.
+
+    Used by :func:`assert_tool_invocation_succeeded` and :func:`assert_no_tool_errors`.  Carries the list of offending tool invocations as ``(step_index, tool_name)`` pairs.
+    """
+
+    def __init__(self, violations: list[dict[str, Any]]) -> None:
+        self.violations = violations
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        n = len(self.violations)
+        lines = [
+            f"{n} tool invocation{'s' if n != 1 else ''} reported an error",
+            "",
+        ]
+        for v in self.violations:
+            step_index = v.get("step_index", "?")
+            tool_name = v.get("tool_name", "<unknown>")
+            result_index = v.get("result_index", "?")
+            lines.append(
+                f"  step {step_index}, tool {tool_name!r} (result #{result_index})"
+            )
+            if "payload" in v:
+                lines.append(f"    result: {_truncate_repr(v['payload'])}")
+        return "\n".join(lines)
+
+
+class ToolResultMatchError(AgentVerifyError):
+    """Raised when a tool result does not match the expected shape/content.
+
+    Used by :func:`assert_tool_result_matches`.
+    """
+
+    pass
+
+
+class RetryBudgetError(AgentVerifyError):
+    """Raised when a tool was retried more times than allowed.
+
+    Used by :func:`assert_retry_count`.
+    """
+
+    def __init__(
+        self,
+        tool_name: str,
+        observed: int,
+        limit: int,
+    ) -> None:
+        self.tool_name = tool_name
+        self.observed = observed
+        self.limit = limit
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        return (
+            "Retry budget exceeded\n"
+            "\n"
+            f"  Tool:     {self.tool_name!r}\n"
+            f"  Observed: {self.observed} retr{'ies' if self.observed != 1 else 'y'}\n"
+            f"  Limit:    {self.limit} retr{'ies' if self.limit != 1 else 'y'}"
+        )

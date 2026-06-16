@@ -82,16 +82,28 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
             if steps:
                 prev = steps[-1]
                 tool_result = getattr(msg, "content", None)
+                # LangGraph 0.2+ ToolMessage carries a status field;
+                # "error" marks a failed tool invocation.
+                status = getattr(msg, "status", None)
+                is_error: bool | None = None
+                if status == "error":
+                    is_error = True
+                elif status == "success":
+                    is_error = False
+                new_results = prev.tool_results + [tool_result]
+                prev_meta = list(prev.tool_results_meta or [])
+                prev_meta.append({"is_error": is_error} if is_error is not None else {})
                 steps[-1] = Step(
                     index=prev.index,
                     name=prev.name,
                     source=prev.source,
                     tool_calls=prev.tool_calls,
-                    tool_results=prev.tool_results + [tool_result],
+                    tool_results=new_results,
                     output=prev.output,
                     duration_ms=prev.duration_ms,
                     token_usage=prev.token_usage,
                     input_context=prev.input_context,
+                    tool_results_meta=prev_meta,
                 )
 
     token_usage = (

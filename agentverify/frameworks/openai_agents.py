@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from agentverify._step_builder import classify_tool_result_error
 from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
 
 
@@ -36,10 +37,11 @@ def from_openai_agents(result: Any) -> ExecutionResult:
     steps: list[Step] = []
     current_tool_calls: list[ToolCall] = []
     current_tool_results: list[Any] = []
+    current_tool_results_meta: list[dict[str, Any]] = []
     just_saw_tool_output = False
 
     def flush_current_step() -> None:
-        nonlocal current_tool_calls, current_tool_results
+        nonlocal current_tool_calls, current_tool_results, current_tool_results_meta
         if current_tool_calls or current_tool_results:
             steps.append(
                 Step(
@@ -47,10 +49,16 @@ def from_openai_agents(result: Any) -> ExecutionResult:
                     source="llm",
                     tool_calls=current_tool_calls,
                     tool_results=current_tool_results,
+                    tool_results_meta=(
+                        list(current_tool_results_meta)
+                        if current_tool_results
+                        else None
+                    ),
                 )
             )
         current_tool_calls = []
         current_tool_results = []
+        current_tool_results_meta = []
 
     for item in new_items:
         item_type = getattr(item, "type", None)
@@ -82,14 +90,32 @@ def from_openai_agents(result: Any) -> ExecutionResult:
             )
         elif item_type == "tool_call_output_item":
             output = getattr(item, "output", None)
-            if output is None and hasattr(item, "raw_item"):
-                raw = item.raw_item
+            raw_item = getattr(item, "raw_item", None)
+            if output is None and raw_item is not None:
+                raw = raw_item
                 output = (
                     raw.get("output")
                     if isinstance(raw, dict)
                     else getattr(raw, "output", None)
                 )
+            # Detect tool error: the SDK exposes an is_error flag on the
+            # output item / raw_item for failed tool calls.
+            is_error: bool | None = None
+            flag = getattr(item, "is_error", None)
+            if flag is None and raw_item is not None:
+                flag = (
+                    raw_item.get("is_error")
+                    if isinstance(raw_item, dict)
+                    else getattr(raw_item, "is_error", None)
+                )
+            if isinstance(flag, bool):
+                is_error = flag
+            else:
+                is_error = classify_tool_result_error(output)
             current_tool_results.append(output)
+            current_tool_results_meta.append(
+                {"is_error": is_error} if is_error is not None else {}
+            )
             just_saw_tool_output = True
         elif item_type == "message_output_item":
             # A final-or-intermediate assistant text message: close the
@@ -103,11 +129,17 @@ def from_openai_agents(result: Any) -> ExecutionResult:
                         source="llm",
                         tool_calls=current_tool_calls,
                         tool_results=current_tool_results,
+                        tool_results_meta=(
+                            list(current_tool_results_meta)
+                            if current_tool_results
+                            else None
+                        ),
                         output=text,
                     )
                 )
                 current_tool_calls = []
                 current_tool_results = []
+                current_tool_results_meta = []
                 just_saw_tool_output = False
 
     # Flush any trailing tool_calls/results.

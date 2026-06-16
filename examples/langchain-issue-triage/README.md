@@ -71,6 +71,10 @@ Both mock and real MCP cassettes are replayed deterministically. No OpenAI or Gi
 | `TestIssueTriageStepLevel` | `test_step_sequence` | `assert_step()` | Each of the four ReAct steps runs the expected tool: `list_issues`, `get_issue`, `list_labels`, then the summary step |
 | `TestIssueTriageStepLevel` | `test_step_1_uses_step_0_result` | `assert_step_uses_result_from()` | The `issue_number` passed to `get_issue` in step 1 actually came from step 0's `list_issues` response. Catches "agent hallucinated an issue number" bugs |
 | `TestIssueTriageStepLevel` | `test_final_step_reports_triage` | `assert_step_output()` | The final step (no tool calls) produces the triage summary text |
+| `TestIssueTriageToolResults` | `test_no_tool_errored` | `assert_no_tool_errors()` | No GitHub read in the run came back as an error |
+| `TestIssueTriageToolResults` | `test_list_issues_returned_usable_result` | `assert_tool_invocation_succeeded()` | Step 0's `list_issues` produced a usable (non-error) result |
+| `TestIssueTriageToolResults` | `test_list_issues_result_content` | `assert_tool_result_matches()` | The issue list came back with the labels the triage logic needs |
+| `TestIssueTriageToolResults` | `test_get_issue_returned_requested_number` | `assert_tool_result_matches()` | Step 1's `get_issue` returned the issue it was asked for (#2) |
 
 The step-level tests work on cassette replay because agentverify automatically backfills tool results from the next step's LLM input. No adapter setup needed. See [Step-Level Assertions](../../README.md#step-level-assertions) in the main README for details.
 

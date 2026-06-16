@@ -161,6 +161,8 @@ class LLMCassetteRecorder:
         self._probe_events: list[tuple[str, int, str | None, Any]] = []
         # Tool results attached directly to probe handles.
         self._probe_tool_results: dict[int, list[Any]] = {}
+        # Error flags aligned with _probe_tool_results entries.
+        self._probe_tool_results_meta: dict[int, list[bool]] = {}
         # For each interaction, the probe-handle stack at lookup() time.
         self._interaction_probe_stack: list[list[int]] = []
         self._next_probe_handle_id: int = 0
@@ -236,8 +238,9 @@ class LLMCassetteRecorder:
         except ValueError:
             pass
 
-    def probe_attach_tool_result(self, handle_id: int, result: Any) -> None:
+    def probe_attach_tool_result(self, handle_id: int, result: Any, is_error: bool = False) -> None:
         self._probe_tool_results.setdefault(handle_id, []).append(result)
+        self._probe_tool_results_meta.setdefault(handle_id, []).append(is_error)
 
     # -- Core operations -----------------------------------------------------
 
@@ -338,6 +341,7 @@ class LLMCassetteRecorder:
             probe_stacks=self._interaction_probe_stack,
             probe_events=self._probe_events,
             probe_tool_results=self._probe_tool_results,
+            probe_tool_results_meta=self._probe_tool_results_meta,
             duration_ms=self._duration_ms,
         )
 
@@ -348,6 +352,7 @@ def _build_execution_result(
     probe_events: list[tuple[str, int, str | None, Any]],
     probe_tool_results: dict[int, list[Any]],
     duration_ms: float | None,
+    probe_tool_results_meta: dict[int, list[bool]] | None = None,
 ) -> ExecutionResult:
     """Reduce interaction + probe events into an ExecutionResult.
 
@@ -355,10 +360,14 @@ def _build_execution_result(
     """
     from agentverify._step_builder import (
         aggregate_token_usage,
+        build_tool_results_meta,
+        classify_tool_result_error,
         final_output_from_steps,
         tool_calls_from_response,
     )
     from agentverify.models import Step
+
+    probe_tool_results_meta = probe_tool_results_meta or {}
 
     # Build probe metadata: handle_id -> (name, output).
     probe_meta: dict[int, dict[str, Any]] = {}
@@ -388,21 +397,31 @@ def _build_execution_result(
         name = None
         source: Any = "llm"
         extra_tool_results: list[Any] = []
+        extra_meta_flags: list[bool] = []
         if probe_id is not None and probe_id in probe_meta:
             name = probe_meta[probe_id]["name"]
             source = "probe"
             extra_tool_results = probe_tool_results.get(probe_id, [])
+            extra_meta_flags = probe_tool_results_meta.get(probe_id, [])
+        combined_results = current_bucket["tool_results"] + extra_tool_results
+        # The bucket's own (interaction-derived) tool_results are always
+        # empty here; probe-attached results carry explicit error flags.
+        explicit: list[bool | None] = (
+            [None] * len(current_bucket["tool_results"]) + list(extra_meta_flags)
+        )
+        tool_results_meta = build_tool_results_meta(combined_results, explicit)
         steps.append(
             Step(
                 index=index,
                 name=name,
                 source=source,
                 tool_calls=current_bucket["tool_calls"],
-                tool_results=current_bucket["tool_results"] + extra_tool_results,
+                tool_results=combined_results,
                 output=current_bucket["output"],
                 duration_ms=None,
                 token_usage=current_bucket["token_usage"],
                 input_context=current_bucket["input_context"],
+                tool_results_meta=tool_results_meta,
             )
         )
         current_bucket = None
@@ -465,14 +484,19 @@ def _build_execution_result(
         if handle_id in used_probe_handles:
             continue
         # Standalone probe step (no LLM call inside).
+        standalone_results = list(probe_tool_results.get(handle_id, []))
+        standalone_flags = list(probe_tool_results_meta.get(handle_id, []))
         steps.append(
             Step(
                 index=len(steps),
                 name=meta["name"],
                 source="probe",
                 tool_calls=[],
-                tool_results=list(probe_tool_results.get(handle_id, [])),
+                tool_results=standalone_results,
                 output=meta["output"],
+                tool_results_meta=build_tool_results_meta(
+                    standalone_results, standalone_flags
+                ),
             )
         )
 
@@ -510,6 +534,7 @@ def _build_execution_result(
                 duration_ms=producer.duration_ms,
                 token_usage=producer.token_usage,
                 input_context=producer.input_context,
+                tool_results_meta=build_tool_results_meta(extracted),
             )
 
     # Re-index steps to be contiguous 0..N-1 in case of out-of-order probe inserts.
@@ -524,6 +549,7 @@ def _build_execution_result(
             duration_ms=s.duration_ms,
             token_usage=s.token_usage,
             input_context=s.input_context,
+            tool_results_meta=s.tool_results_meta,
         )
         for i, s in enumerate(steps)
     ]

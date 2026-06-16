@@ -173,3 +173,51 @@ class TestMockLLMProbeEdgeCases:
         mock = MockLLM([mock_response(content="x")], provider="openai")
         # Simulate orphan exit directly on the session object
         mock.probe_exit(handle_id=999, output=None)
+
+
+# ---------------------------------------------------------------------------
+# tool invocation outcome: step_probe error flag (set_tool_result is_error)
+# ---------------------------------------------------------------------------
+
+
+class TestStepProbeToolError:
+    def test_noop_set_tool_result_is_error_harmless(self):
+        with step_probe("foo") as handle:
+            handle.set_tool_result({"x": 1}, is_error=True)
+        assert handle._tool_results == [{"x": 1}]
+
+    def test_standalone_probe_error_flag_propagates(self):
+        from agentverify import assert_no_tool_errors, assert_tool_invocation_succeeded
+        from agentverify.errors import ToolInvocationError
+
+        with MockLLM([mock_response(content="hi")], provider="openai") as rec:
+            from openai import OpenAI
+
+            client = OpenAI(api_key="test")
+            with step_probe("cache_lookup") as h:
+                h.set_tool_result({"err": True}, is_error=True)
+            client.chat.completions.create(model="gpt-4", messages=[])
+
+        result = rec.to_execution_result()
+        probe_step = next(s for s in result.steps if s.name == "cache_lookup")
+        assert probe_step.tool_result_is_error(0) is True
+        with pytest.raises(ToolInvocationError):
+            assert_tool_invocation_succeeded(result, name="cache_lookup")
+        with pytest.raises(ToolInvocationError):
+            assert_no_tool_errors(result)
+
+    def test_probe_success_flag_default_false(self):
+        from agentverify import assert_no_tool_errors
+
+        with MockLLM([mock_response(content="hi")], provider="openai") as rec:
+            from openai import OpenAI
+
+            client = OpenAI(api_key="test")
+            with step_probe("cache_lookup") as h:
+                h.set_tool_result({"cached": True})  # is_error defaults False
+            client.chat.completions.create(model="gpt-4", messages=[])
+
+        result = rec.to_execution_result()
+        probe_step = next(s for s in result.steps if s.name == "cache_lookup")
+        assert probe_step.tool_result_is_error(0) is False
+        assert_no_tool_errors(result)  # passes

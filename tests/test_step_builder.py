@@ -82,3 +82,81 @@ class TestFinalOutputFromSteps:
     def test_all_none(self):
         steps = [Step(index=0, source="llm"), Step(index=1, source="llm")]
         assert final_output_from_steps(steps) is None
+
+
+# ---------------------------------------------------------------------------
+# classify_tool_result_error + build_tool_results_meta
+# ---------------------------------------------------------------------------
+
+from agentverify._step_builder import (
+    build_tool_results_meta,
+    classify_tool_result_error,
+)
+
+
+class TestClassifyToolResultError:
+    def test_is_error_true(self):
+        assert classify_tool_result_error({"is_error": True}) is True
+
+    def test_is_error_false(self):
+        assert classify_tool_result_error({"is_error": False}) is False
+
+    def test_status_error(self):
+        assert classify_tool_result_error({"status": "error"}) is True
+
+    def test_status_success(self):
+        assert classify_tool_result_error({"status": "success"}) is False
+
+    def test_status_ok(self):
+        assert classify_tool_result_error({"status": "ok"}) is False
+
+    def test_nonempty_error_key(self):
+        assert classify_tool_result_error({"error": "boom"}) is True
+
+    def test_empty_error_key_is_non_error(self):
+        assert classify_tool_result_error({"error": None}) is False
+        assert classify_tool_result_error({"error": ""}) is False
+
+    def test_unknown_dict(self):
+        assert classify_tool_result_error({"data": 1}) is None
+
+    def test_plain_string_unknown(self):
+        assert classify_tool_result_error("sunny, 22C") is None
+
+    def test_json_object_string_classified(self):
+        assert classify_tool_result_error('{"is_error": true}') is True
+        assert classify_tool_result_error('{"status": "error"}') is True
+
+    def test_malformed_json_object_string_is_unknown(self):
+        # starts with { but is not valid JSON
+        assert classify_tool_result_error('{not valid json') is None
+
+    def test_json_non_object_string_is_unknown(self):
+        # valid JSON but not starting with { → not parsed
+        assert classify_tool_result_error("[1, 2, 3]") is None
+
+    def test_empty_string_unknown(self):
+        assert classify_tool_result_error("") is None
+
+    def test_non_str_non_dict_unknown(self):
+        assert classify_tool_result_error(42) is None
+        assert classify_tool_result_error(None) is None
+        assert classify_tool_result_error([1, 2]) is None
+
+
+class TestBuildToolResultsMeta:
+    def test_empty_returns_none(self):
+        assert build_tool_results_meta([]) is None
+
+    def test_classifies_each_result(self):
+        meta = build_tool_results_meta([{"is_error": True}, "plain", {"status": "success"}])
+        assert meta == [{"is_error": True}, {}, {"is_error": False}]
+
+    def test_explicit_overrides_classifier(self):
+        meta = build_tool_results_meta(["plain", "plain"], explicit=[True, None])
+        # first uses explicit True; second falls back to classifier → unknown
+        assert meta == [{"is_error": True}, {}]
+
+    def test_explicit_shorter_than_results(self):
+        meta = build_tool_results_meta(["a", "b"], explicit=[True])
+        assert meta == [{"is_error": True}, {}]

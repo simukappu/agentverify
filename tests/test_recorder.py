@@ -900,3 +900,104 @@ class TestCassetteToolResultsBackfillDefensive:
         # input_context of step 1 (probe) is None → backfill skipped
         llm_step = next(s for s in result.steps if s.source == "llm")
         assert llm_step.tool_results == []
+
+
+# ---------------------------------------------------------------------------
+# tool invocation outcome on cassette backfill
+# ---------------------------------------------------------------------------
+
+
+class TestCassetteToolOutcomeBackfill:
+    def test_backfill_classifies_structured_error(self):
+        """A structured error tool message backfilled is marked is_error=True."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify.cassette.recorder import _build_execution_result
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(content=None, tool_calls=[{"name": "fetch", "arguments": {}}])
+        req1 = NormalizedRequest(
+            messages=[{"role": "tool", "content": '{"status": "error", "error": "503"}'}],
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(content="failed", tool_calls=[])
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        # The backfilled tool message is a JSON string; classifier descends it.
+        assert result.steps[0].tool_result_is_error(0) is True
+
+    def test_backfill_plain_string_is_unknown(self):
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify.cassette.recorder import _build_execution_result
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(content=None, tool_calls=[{"name": "fetch", "arguments": {}}])
+        req1 = NormalizedRequest(
+            messages=[{"role": "tool", "content": "sunny, 22C"}],
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(content="ok", tool_calls=[])
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps[0].tool_result_is_error(0) is None
+
+    def test_record_replay_same_verdict(self, tmp_path):
+        """Recording then replaying a cassette yields the same tool-error verdict."""
+        from agentverify import assert_no_tool_errors
+        from agentverify.errors import ToolInvocationError
+
+        path = tmp_path / "outcome.yaml"
+
+        def build(rec):
+            req0 = NormalizedRequest(messages=[], model="gpt-4")
+            resp0 = NormalizedResponse(content=None, tool_calls=[{"name": "fetch", "arguments": {}}])
+            req1 = NormalizedRequest(
+                messages=[{"role": "tool", "content": '{"is_error": true}'}],
+                model="gpt-4",
+            )
+            resp1 = NormalizedResponse(content="failed")
+            rec.record(req0, resp0)
+            rec.record(req1, resp1)
+
+        # Record
+        rec = LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.RECORD)
+        build(rec)
+        record_result = rec.to_execution_result()
+        rec.__exit__(None, None, None)  # trigger save
+
+        record_raised = False
+        try:
+            assert_no_tool_errors(record_result)
+        except ToolInvocationError:
+            record_raised = True
+
+        # Replay
+        rec2 = LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.REPLAY)
+        from agentverify.cassette.recorder import _build_execution_result
+        replay_result = _build_execution_result(
+            interactions=rec2._interactions,
+            probe_stacks=[[] for _ in rec2._interactions],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        replay_raised = False
+        try:
+            assert_no_tool_errors(replay_result)
+        except ToolInvocationError:
+            replay_raised = True
+
+        assert record_raised is True
+        assert replay_raised is True
+        assert record_raised == replay_raised

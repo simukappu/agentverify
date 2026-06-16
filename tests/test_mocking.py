@@ -244,3 +244,32 @@ class TestMockLLMEndToEnd:
         assert_cost(result, max_tokens=30)
 
 
+
+
+# ---------------------------------------------------------------------------
+# MockLLM + step_probe tool error path
+# ---------------------------------------------------------------------------
+
+
+class TestMockLLMToolError:
+    def test_probe_error_flag_drives_outcome_assertions(self):
+        from agentverify import (
+            assert_no_tool_errors,
+            assert_tool_invocation_succeeded,
+            step_probe,
+        )
+        from agentverify.errors import ToolInvocationError
+
+        with MockLLM([mock_response(content="recovered")], provider="openai") as rec:
+            from openai import OpenAI
+
+            client = OpenAI(api_key="test")
+            with step_probe("primary_call") as h:
+                h.set_tool_result({"detail": "timeout"}, is_error=True)
+            client.chat.completions.create(model="gpt-4", messages=[])
+
+        result = rec.to_execution_result()
+        with pytest.raises(ToolInvocationError):
+            assert_tool_invocation_succeeded(result, name="primary_call")
+        with pytest.raises(ToolInvocationError):
+            assert_no_tool_errors(result)

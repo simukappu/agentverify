@@ -392,3 +392,62 @@ class TestEmptyMessageOutput:
         )
         er = from_openai_agents(result)
         assert er.steps == []
+
+
+# ---------------------------------------------------------------------------
+# tool invocation outcome (tool_results_meta)
+# ---------------------------------------------------------------------------
+
+
+class TestOpenAIAgentsToolOutcome:
+    def test_is_error_flag_on_item(self):
+        item = SimpleNamespace(
+            type="tool_call_output_item",
+            output="boom",
+            raw_item=SimpleNamespace(output="boom"),
+            is_error=True,
+        )
+        result = SimpleNamespace(
+            new_items=[_tool_call_item("fetch", {}), item],
+            final_output="x",
+            context_wrapper=None,
+        )
+        er = from_openai_agents(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
+    def test_is_error_flag_on_raw_item(self):
+        item = SimpleNamespace(
+            type="tool_call_output_item",
+            output="boom",
+            raw_item={"output": "boom", "is_error": True},
+        )
+        result = SimpleNamespace(
+            new_items=[_tool_call_item("fetch", {}), item],
+            final_output="x",
+            context_wrapper=None,
+        )
+        er = from_openai_agents(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
+    def test_structured_error_output_classified(self):
+        item = SimpleNamespace(
+            type="tool_call_output_item",
+            output={"status": "error", "error": "503"},
+            raw_item=SimpleNamespace(output={"status": "error", "error": "503"}),
+        )
+        result = SimpleNamespace(
+            new_items=[_tool_call_item("fetch", {}), item],
+            final_output="x",
+            context_wrapper=None,
+        )
+        er = from_openai_agents(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
+    def test_plain_string_output_is_unknown(self):
+        result = SimpleNamespace(
+            new_items=[_tool_call_item("fetch", {}), _tool_output_item("sunny")],
+            final_output="x",
+            context_wrapper=None,
+        )
+        er = from_openai_agents(result)
+        assert er.steps[0].tool_result_is_error(0) is None

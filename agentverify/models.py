@@ -48,6 +48,7 @@ class Step:
         source: What produced this step boundary.
         tool_calls: Tool calls emitted during this step (may be empty).
         tool_results: Tool results observed during this step.  Used by :func:`assert_step_uses_result_from` for data flow checks.
+        tool_results_meta: Optional per-result metadata positionally aligned with ``tool_results`` (entry ``i`` describes result ``i``).  The only defined key is ``"is_error"`` (bool).  ``None`` means no outcome metadata is available (legacy data, unknown provider shapes).  When present, its length equals ``len(tool_results)``.  Used by the tool result assertions (:func:`assert_tool_invocation_succeeded` and related).
         output: Text output produced by this step (LLM reply, or user data via ``ProbeHandle.set_output``).
         duration_ms: Wall-clock duration of this step, if known.
         token_usage: Tokens consumed during this step, if known.
@@ -63,6 +64,27 @@ class Step:
     duration_ms: Optional[float] = None
     token_usage: Optional[TokenUsage] = None
     input_context: Optional[dict[str, Any]] = None
+    tool_results_meta: Optional[list[dict[str, Any]]] = None
+
+    def tool_result_is_error(self, i: int) -> Optional[bool]:
+        """Return the error status of tool result ``i``.
+
+        Returns ``True`` / ``False`` when the outcome is known, or ``None`` when it is unknown (no metadata, index out of range, or the entry has no ``"is_error"`` key).
+        """
+        meta = self.tool_results_meta
+        if meta is None or i < 0 or i >= len(meta):
+            return None
+        entry = meta[i]
+        if not isinstance(entry, dict) or "is_error" not in entry:
+            return None
+        return bool(entry["is_error"])
+
+    def has_tool_error(self) -> bool:
+        """Return True if any tool result at this step is a known error."""
+        meta = self.tool_results_meta
+        if meta is None:
+            return False
+        return any(self.tool_result_is_error(i) is True for i in range(len(meta)))
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize this step to a plain dict."""
@@ -86,6 +108,11 @@ class Step:
                 else None
             ),
             "input_context": self.input_context,
+            "tool_results_meta": (
+                [dict(m) for m in self.tool_results_meta]
+                if self.tool_results_meta is not None
+                else None
+            ),
         }
 
     @classmethod
@@ -119,6 +146,12 @@ class Step:
                 f"step.source must be one of 'llm', 'probe', 'tool' — got {source!r}"
             )
 
+        tool_results_meta = data.get("tool_results_meta")
+        if tool_results_meta is not None and not isinstance(tool_results_meta, list):
+            raise ValueError(
+                f"step.tool_results_meta must be a list or None, got {tool_results_meta!r}"
+            )
+
         return cls(
             index=data.get("index", 0),
             name=data.get("name"),
@@ -129,6 +162,11 @@ class Step:
             duration_ms=data.get("duration_ms"),
             token_usage=token_usage,
             input_context=data.get("input_context"),
+            tool_results_meta=(
+                [dict(m) for m in tool_results_meta]
+                if tool_results_meta is not None
+                else None
+            ),
         )
 
 

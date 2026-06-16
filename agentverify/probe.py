@@ -51,8 +51,8 @@ class ProbeSession(Protocol):
     def probe_exit(self, handle_id: int, output: str | None) -> None:
         """Record a probe-exit event."""
 
-    def probe_attach_tool_result(self, handle_id: int, result: Any) -> None:
-        """Attach a tool result to the step produced by this probe."""
+    def probe_attach_tool_result(self, handle_id: int, result: Any, is_error: bool = False) -> None:
+        """Attach a tool result (with optional error flag) to this probe's step."""
 
 
 @dataclass
@@ -72,11 +72,14 @@ class ProbeHandle:
         """Set the step's text output (for pure compute/cache steps)."""
         self._output = value
 
-    def set_tool_result(self, result: Any) -> None:
-        """Attach a tool execution result to this step."""
+    def set_tool_result(self, result: Any, is_error: bool = False) -> None:
+        """Attach a tool execution result to this step.
+
+        Pass ``is_error=True`` to mark the result as a failed tool invocation, so the tool result assertions (:func:`assert_tool_invocation_succeeded`, :func:`assert_no_tool_errors`) treat it as an error.
+        """
         self._tool_results.append(result)
         if self._session is not None and self._handle_id is not None:
-            self._session.probe_attach_tool_result(self._handle_id, result)
+            self._session.probe_attach_tool_result(self._handle_id, result, is_error)
 
 
 @contextmanager

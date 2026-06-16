@@ -44,3 +44,16 @@ def test_public_api_types():
     assert CassetteMode is not None
     assert MockLLM is not None
     assert callable(mock_response)
+
+
+def test_tool_result_assertions_public_api():
+    """The tool result assertion primitives and errors are exported."""
+    import agentverify
+
+    assert callable(agentverify.assert_tool_invocation_succeeded)
+    assert callable(agentverify.assert_no_tool_errors)
+    assert callable(agentverify.assert_tool_result_matches)
+    assert callable(agentverify.assert_retry_count)
+    assert issubclass(agentverify.ToolInvocationError, AssertionError)
+    assert issubclass(agentverify.ToolResultMatchError, AssertionError)
+    assert issubclass(agentverify.RetryBudgetError, AssertionError)
