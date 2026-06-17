@@ -22,15 +22,21 @@ Specifically:
 
 Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
 
-## Who is this for?
+## Why I built this
+
+When I started building agents that call tools in a loop, I ran into a failure mode that is easy to introduce and easy to miss: the agent calls the wrong tool, ignores a tool result, or quietly retries a failing call until the budget runs over. I wanted those caught in CI the way any other regression is. But the usual options did not fit. Mocking everything proves nothing, and running against a real LLM is unreliable, costs money, and needs an API key in CI.
+
+What I wanted was boring. Run the agent once, record what it did, and assert on it in CI like any other function: the tool sequence, the arguments, the cost, the steps where one tool's output feeds the next. Review the recording in the PR next to the prompt change that produced it. No judge model, no scoring, no cloud account. agentverify is deliberately narrow, and the cassette-replay path is what keeps those tests in CI without a key or a bill.
+
+This is probably for you if:
 
 - You've shipped an agent that calls tools in a loop and need CI-safe regression tests for it
-- Your agent calls multiple tools and you've hit bugs like "it ignored the tool result" or "it called the wrong tool"
+- You've hit bugs like "it ignored the tool result" or "it called the wrong tool"
 - You want prompt and tool changes reviewed in PRs via a concrete diff, not an informal "looks fine locally" signoff
 - You're building on MCP servers and need to pin down which tools get called with which arguments
 - You want token, cost, and latency budgets enforced in CI, not caught only on the billing dashboard
 
-This is the **regression-test layer** for agents: deterministic assertions on what the agent did. It's distinct from quality evaluation (LLM-as-judge scoring on open-ended output) and production trace observability, both of which are often used alongside agentverify rather than instead of it.
+This is the **regression-test layer** for agents: deterministic assertions on what the agent did. It's distinct from quality evaluation (LLM-as-judge scoring on open-ended output) and production trace observability, both of which are often used alongside agentverify rather than instead of it. See [How agentverify compares](#how-agentverify-compares) for when to reach for each.
 
 ## Install
 
@@ -724,6 +730,28 @@ See each example's README for setup and recording mode details.
 
 The [`benchmarks/execution-model-trajectory/`](benchmarks/execution-model-trajectory/) directory contains a comparison study that writes the same execution-trajectory assertion in three different assertion-execution-model styles (inline pytest via agentverify, separate-runner via [DeepEval](https://www.deepeval.com/docs/evaluation-llm-tracing) [`ToolCorrectnessMetric`](https://www.deepeval.com/docs/metrics-tool-correctness) + `@observe`, managed remote via [Amazon Bedrock AgentCore Evaluations Custom code-based evaluator](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-based-evaluators.html) on Lambda) over two agents (Strands single-agent ReAct and LangGraph multi-agent supervisor). Per-cell numbers (LOC, wall time, API calls, dollar cost, CI secrets, cold-start) are recorded under [`results/`](benchmarks/execution-model-trajectory/results/). See the bench's [`README.md`](benchmarks/execution-model-trajectory/README.md) for the operating manual and [`DESIGN.md`](benchmarks/execution-model-trajectory/DESIGN.md) for the methodology and explicit non-goals. The benchmark is a one-time exercise that refreshes when tooling versions change materially, not a continuous CI gate.
 
+## How agentverify compares
+
+Agent evaluation covers a few different jobs, and agentverify does one of them. This table is meant to help you pick the right tool for a given job, not to rank them. In practice they are often used together.
+
+| Tool | Best at | Execution model |
+|---|---|---|
+| **agentverify** | Deterministic regression tests on what the agent did: tool calls, arguments, step-to-step data flow, cost, latency, safety | Inline pytest, in-process, no LLM call on replay, no cloud account |
+| [DeepEval](https://github.com/confident-ai/deepeval) (Confident AI) | A large catalog of quality metrics (relevancy, faithfulness, and 40+ others), run locally or on a cloud platform | Separate test runner / cloud |
+| [LangSmith](https://www.langchain.com/langsmith) (LangChain) | Agent tracing and dataset-based evaluation for the LangChain / LangGraph stack: trajectory matching and LLM-as-judge, with a pytest / vitest integration | Hosted platform (plus open-source evaluator packages) |
+| Managed cloud eval services: [Amazon Bedrock AgentCore Evaluations](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations), [Google Vertex AI Gen AI evaluation](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview), [Azure AI Foundry evaluators](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-evaluators/agent-evaluators) | Hosted quality scoring (LLM-as-judge) plus some deterministic trajectory and metric checks, with datasets, dashboards, and reuse across CI and production | Managed, tied to a cloud account |
+| [Scenario](https://github.com/langwatch/scenario) (LangWatch) | Multi-turn simulation of a user conversing with the agent | Simulation against a live LLM |
+
+Most of these tools focus on output quality, often via LLM-as-judge, and several now add deterministic trajectory checks too. The line agentverify draws is narrower and lower in the stack: it asserts the **trajectory** (what tools ran, with what arguments, in what order, feeding what into what) inline in pytest, with no LLM in the loop on replay and no cloud account. Quality judgements ("was this a good answer?") need a judge model and fit better on a separate stage of the pipeline, usually against a live agent in staging rather than on every PR. The two are complementary: one gates the agent's actions cheaply on every commit, the other scores answer quality less often, where the judge cost is justified.
+
+A rough guide:
+
+- Want a broad catalog of quality metrics you can run locally? DeepEval has the widest catalog.
+- Building entirely on the LangChain / LangGraph stack and want tracing plus evaluation in one place? LangSmith fits naturally.
+- Already invested in a cloud agent platform (AWS, Google, or Azure) and want hosted quality scoring with datasets and dashboards? The managed eval services fit, and several now include deterministic trajectory checks too.
+- Need to stress-test multi-turn conversations with a simulated user? Scenario is built for that.
+- Want trajectory assertions inline in pytest, on every PR, with no API key, no secrets, and no cloud account to stand up? That is what agentverify is for.
+
 ## Roadmap
 
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
@@ -732,7 +760,6 @@ We want agentverify to become the way people regression-test agents in CI: tests
 - Responses API cassette adapter: record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Framework adapters for Google ADK and CrewAI: pending async support and stable tool-call APIs from these frameworks
 - Cost estimation from tokens: auto-calculate `total_cost_usd` from token usage and model pricing
-- Eval-framework bridges: compose quality scores from LLM-as-judge tools (ragas, deepeval) with agentverify's action assertions in a single test report
 
 ## Changelog
 
