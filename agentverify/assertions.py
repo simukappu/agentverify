@@ -271,9 +271,10 @@ def assert_no_tool_call(
 
 def assert_final_output(
     result: ExecutionResult,
-    contains: Optional[str] = None,
+    contains: Optional[str | list[str]] = None,
     equals: Optional[str] = None,
     matches: Optional[str] = None,
+    case_sensitive: bool = True,
 ) -> None:
     """Verify the agent's final text output.
 
@@ -281,9 +282,14 @@ def assert_final_output(
 
     Args:
         result: The ExecutionResult to verify.
-        contains: Substring that must appear in final_output.
+        contains: Substring (or list of substrings,
+            all of which must be present) that must appear
+            in final_output.
         equals: Exact string that final_output must equal.
         matches: Regex pattern that final_output must match.
+        case_sensitive: When False, both the output and the
+            *contains* substring(s) are lowercased before
+            comparison.  Defaults to True (backward compatible).
 
     Raises:
         FinalOutputError: When the final output does not meet expectations.
@@ -296,33 +302,48 @@ def assert_final_output(
     if result.final_output is None:
         raise FinalOutputError("final_output is None")
 
+    output = result.final_output
+
     if equals is not None:
-        if result.final_output != equals:
+        if output != equals:
             raise FinalOutputError(
                 f"final_output does not equal expected\n"
                 f"\n"
                 f"  Expected: {equals!r}\n"
-                f"  Actual:   {result.final_output!r}"
+                f"  Actual:   {output!r}"
             )
 
     if contains is not None:
-        if contains not in result.final_output:
+        # Normalise to list for uniform handling
+        substrings: list[str] = [contains] if isinstance(contains, str) else list(contains)
+
+        if not case_sensitive:
+            output_lower = output.lower()
+            missing = [s for s in substrings if s.lower() not in output_lower]
+        else:
+            missing = [s for s in substrings if s not in output]
+
+        if missing:
+            if len(substrings) == 1:
+                detail = f"  Substring: {missing[0]!r}\n"
+            else:
+                detail = f"  Missing:   {missing!r}\n"
             raise FinalOutputError(
                 f"final_output does not contain expected substring\n"
                 f"\n"
-                f"  Substring: {contains!r}\n"
-                f"  Actual:    {result.final_output!r}"
+                + detail +
+                f"  Actual:    {output!r}"
             )
 
     if matches is not None:
         import re
 
-        if not re.search(matches, result.final_output):
+        if not re.search(matches, output):
             raise FinalOutputError(
                 f"final_output does not match pattern\n"
                 f"\n"
                 f"  Pattern: {matches!r}\n"
-                f"  Actual:  {result.final_output!r}"
+                f"  Actual:  {output!r}"
             )
 
 
