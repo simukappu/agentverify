@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Improvements
+
+- **`contains=` accepts a list** in `assert_final_output`, `assert_step_output`, and `assert_tool_result_matches`. Every substring must appear; for `assert_tool_result_matches`, in the same tool result. `case_sensitive=False` ignores case in `contains`. Thanks to @Neohu-ceo ([#4](https://github.com/simukappu/agentverify/pull/4)). See README "Final Output Assertions".
+
 ## 0.4.0 (2026-06-19)
 
 ### Features

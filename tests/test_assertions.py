@@ -387,6 +387,66 @@ class TestAssertFinalOutput:
         with pytest.raises(FinalOutputError):
             assert_final_output(result, contains="Tokyo", matches=r"\d+°C")
 
+    def test_contains_list_all_present(self):
+        result = ExecutionResult(final_output="The weather in Tokyo is sunny, 22°C.")
+        assert_final_output(result, contains=["Tokyo", "22°C"])
+
+    def test_contains_list_names_only_missing_substrings(self):
+        result = ExecutionResult(final_output="The weather in Tokyo is sunny.")
+        with pytest.raises(FinalOutputError) as exc_info:
+            assert_final_output(result, contains=["Tokyo", "22°C", "Monday"])
+        message = str(exc_info.value)
+        assert "does not contain expected substrings\n" in message
+        assert "Missing:   ['22°C', 'Monday']" in message
+        assert "'Tokyo'" not in message.split("Actual:")[0]
+
+    def test_contains_single_element_list_reports_as_list(self):
+        result = ExecutionResult(final_output="sunny")
+        with pytest.raises(FinalOutputError, match=r"Missing:   \['Tokyo'\]"):
+            assert_final_output(result, contains=["Tokyo"])
+
+    def test_contains_string_reports_substring(self):
+        result = ExecutionResult(final_output="sunny")
+        with pytest.raises(FinalOutputError, match="Substring: 'Tokyo'"):
+            assert_final_output(result, contains="Tokyo")
+
+    def test_contains_empty_list_raises_value_error(self):
+        result = ExecutionResult(final_output="hello")
+        with pytest.raises(ValueError, match="must not be empty"):
+            assert_final_output(result, contains=[])
+
+    def test_contains_empty_iterator_raises_value_error(self):
+        result = ExecutionResult(final_output="hello")
+        with pytest.raises(ValueError, match="must not be empty"):
+            assert_final_output(result, contains=(s for s in []))
+
+    def test_contains_case_insensitive_hit(self):
+        result = ExecutionResult(final_output="The weather in TOKYO is sunny.")
+        assert_final_output(result, contains="tokyo", case_sensitive=False)
+        assert_final_output(result, contains=["tokyo", "Sunny"], case_sensitive=False)
+
+    def test_contains_case_insensitive_miss(self):
+        result = ExecutionResult(final_output="The weather in Tokyo is sunny.")
+        with pytest.raises(FinalOutputError, match="Substring: 'berlin'") as exc_info:
+            assert_final_output(result, contains="berlin", case_sensitive=False)
+        assert "substring (case-insensitive)" in str(exc_info.value)
+
+    def test_contains_case_insensitive_uses_casefold(self):
+        result = ExecutionResult(final_output="STRASSE gesperrt")
+        assert_final_output(result, contains="Straße", case_sensitive=False)
+
+    def test_contains_case_sensitive_by_default(self):
+        result = ExecutionResult(final_output="The weather in Tokyo is sunny.")
+        with pytest.raises(FinalOutputError):
+            assert_final_output(result, contains="tokyo")
+
+    def test_case_sensitive_does_not_affect_equals_or_matches(self):
+        result = ExecutionResult(final_output="Tokyo")
+        with pytest.raises(FinalOutputError, match="does not equal"):
+            assert_final_output(result, equals="tokyo", case_sensitive=False)
+        with pytest.raises(FinalOutputError, match="does not match pattern"):
+            assert_final_output(result, matches="tokyo", case_sensitive=False)
+
 
 # ---------------------------------------------------------------------------
 # assert_all
@@ -595,6 +655,26 @@ class TestAssertStepOutput:
         result = self._make([Step(index=0, source="llm", output="x")])
         with pytest.raises(ValueError):
             assert_step_output(result, step=0)
+
+    def test_contains_list_all_present(self):
+        result = self._make([Step(index=0, source="llm", output="3 flights, from $120")])
+        assert_step_output(result, step=0, contains=["flights", "$120"])
+
+    def test_contains_list_names_missing(self):
+        result = self._make([Step(index=0, source="llm", output="3 flights")])
+        with pytest.raises(StepOutputError, match=r"expected substrings\n\n  Missing:   \['price'\]"):
+            assert_step_output(result, step=0, contains=["flights", "price"])
+
+    def test_contains_case_insensitive(self):
+        result = self._make([Step(index=0, source="llm", output="SUNNY")])
+        assert_step_output(result, step=0, contains="sunny", case_sensitive=False)
+        with pytest.raises(StepOutputError, match=r"substring \(case-insensitive\)"):
+            assert_step_output(result, step=0, contains="rain", case_sensitive=False)
+
+    def test_contains_empty_list_raises_value_error(self):
+        result = self._make([Step(index=0, source="llm", output="x")])
+        with pytest.raises(ValueError, match="assert_step_output contains= must not be empty"):
+            assert_step_output(result, step=0, contains=[])
 
 
 class TestAssertStepUsesResultFrom:
@@ -1384,6 +1464,46 @@ class TestAssertToolResultMatches:
         with pytest.raises(ToolResultMatchError) as exc:
             assert_tool_result_matches(r, name="weather", contains="rain")
         assert "weather" in str(exc.value)
+
+    def test_contains_list_in_one_result_passes(self):
+        r = ExecutionResult(steps=[_step(0, "f", ['{"temp": 22, "unit": "C"}'], [{}])])
+        assert_tool_result_matches(r, step=0, contains=["temp", "unit"])
+
+    def test_contains_list_must_appear_in_the_same_result(self):
+        r = ExecutionResult(steps=[
+            Step(index=0, tool_calls=[ToolCall("f"), ToolCall("g")], tool_results=["temp", "unit"]),
+        ])
+        with pytest.raises(ToolResultMatchError, match=r"Expected:  \['temp', 'unit'\]"):
+            assert_tool_result_matches(r, step=0, contains=["temp", "unit"])
+
+    def test_contains_list_passes_when_a_later_result_has_all(self):
+        r = ExecutionResult(steps=[
+            Step(index=0, tool_calls=[ToolCall("f"), ToolCall("g")], tool_results=["temp", "TEMP UNIT"]),
+        ])
+        assert_tool_result_matches(r, step=0, contains=["temp", "unit"], case_sensitive=False)
+
+    def test_contains_list_names_missing_when_all_results_miss_the_same(self):
+        r = ExecutionResult(steps=[
+            Step(index=0, tool_calls=[ToolCall("f"), ToolCall("g")], tool_results=["temp", "temp"]),
+        ])
+        with pytest.raises(ToolResultMatchError, match=r"Missing:   \['unit'\]"):
+            assert_tool_result_matches(r, step=0, contains=["temp", "unit"])
+
+    def test_contains_list_single_result_names_missing(self):
+        r = ExecutionResult(steps=[_step(0, "f", ["temp"], [{}])])
+        with pytest.raises(ToolResultMatchError, match=r"Missing:   \['unit'\]"):
+            assert_tool_result_matches(r, step=0, contains=["temp", "unit"])
+
+    def test_contains_case_insensitive(self):
+        r = ExecutionResult(steps=[_step(0, "f", ['{"City": "TOKYO"}'], [{}])])
+        assert_tool_result_matches(r, step=0, contains="tokyo", case_sensitive=False)
+        with pytest.raises(ToolResultMatchError, match=r"substring \(case-insensitive\)"):
+            assert_tool_result_matches(r, step=0, contains="osaka", case_sensitive=False)
+
+    def test_contains_empty_list_raises_value_error(self):
+        r = ExecutionResult(steps=[_step(0, "f", ["x"], [{}])])
+        with pytest.raises(ValueError, match="assert_tool_result_matches contains= must not be empty"):
+            assert_tool_result_matches(r, step=0, contains=[])
 
 
 class TestAssertRetryCount:

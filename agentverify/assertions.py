@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional
 
 from agentverify.errors import (
     AgentVerifyError,
@@ -269,6 +269,33 @@ def assert_no_tool_call(
         raise SafetyRuleViolationError(violations=violations)
 
 
+def _normalize_contains(
+    fn_name: str, contains: str | Iterable[str] | None
+) -> tuple[list[str] | None, bool]:
+    """Return *contains* as a list of substrings, plus whether it was given as a single string."""
+    single = isinstance(contains, str)
+    substrings = None if contains is None else [contains] if single else list(contains)
+    if substrings == []:
+        raise ValueError(f"{fn_name} contains= must not be empty")
+    return substrings, single
+
+
+def _missing_substrings(text: str, substrings: list[str], case_sensitive: bool) -> list[str]:
+    """Return the substrings that do not appear in *text*, compared with ``str.casefold()`` when not case-sensitive."""
+    fold = (lambda t: t) if case_sensitive else str.casefold
+    haystack = fold(text)
+    return [sub for sub in substrings if fold(sub) not in haystack]
+
+
+def _contains_failure(single: bool, case_sensitive: bool, missing: list[str]) -> tuple[str, str]:
+    """Return the ``expected substring(s)`` header phrase and the detail line for a failed *contains* check."""
+    header = "expected substring" if single else "expected substrings"
+    if not case_sensitive:
+        header += " (case-insensitive)"
+    detail = f"  Substring: {missing[0]!r}" if single else f"  Missing:   {missing!r}"
+    return header, detail
+
+
 def assert_final_output(
     result: ExecutionResult,
     contains: Optional[str | list[str]] = None,
@@ -282,14 +309,10 @@ def assert_final_output(
 
     Args:
         result: The ExecutionResult to verify.
-        contains: Substring (or list of substrings,
-            all of which must be present) that must appear
-            in final_output.
+        contains: Substring that must appear in final_output, or a list of substrings that must all appear.
         equals: Exact string that final_output must equal.
         matches: Regex pattern that final_output must match.
-        case_sensitive: When False, both the output and the
-            *contains* substring(s) are lowercased before
-            comparison.  Defaults to True (backward compatible).
+        case_sensitive: When False, *contains* ignores case. *equals* and *matches* are unaffected; use ``(?i)`` in the pattern for a case-insensitive regex.
 
     Raises:
         FinalOutputError: When the final output does not meet expectations.
@@ -298,6 +321,8 @@ def assert_final_output(
         raise ValueError(
             "assert_final_output requires at least one of: contains, equals, matches"
         )
+
+    substrings, single = _normalize_contains("assert_final_output", contains)
 
     if result.final_output is None:
         raise FinalOutputError("final_output is None")
@@ -313,31 +338,18 @@ def assert_final_output(
                 f"  Actual:   {output!r}"
             )
 
-    if contains is not None:
-        # Normalise to list for uniform handling
-        substrings: list[str] = [contains] if isinstance(contains, str) else list(contains)
-
-        if not case_sensitive:
-            output_lower = output.lower()
-            missing = [s for s in substrings if s.lower() not in output_lower]
-        else:
-            missing = [s for s in substrings if s not in output]
-
+    if substrings is not None:
+        missing = _missing_substrings(output, substrings, case_sensitive)
         if missing:
-            if len(substrings) == 1:
-                detail = f"  Substring: {missing[0]!r}\n"
-            else:
-                detail = f"  Missing:   {missing!r}\n"
+            header, detail = _contains_failure(single, case_sensitive, missing)
             raise FinalOutputError(
-                f"final_output does not contain expected substring\n"
+                f"final_output does not contain {header}\n"
                 f"\n"
-                + detail +
+                f"{detail}\n"
                 f"  Actual:    {output!r}"
             )
 
     if matches is not None:
-        import re
-
         if not re.search(matches, output):
             raise FinalOutputError(
                 f"final_output does not match pattern\n"
@@ -521,13 +533,14 @@ def assert_step_output(
     result: ExecutionResult,
     step: int | None = None,
     name: str | None = None,
-    contains: str | None = None,
+    contains: str | list[str] | None = None,
     equals: str | None = None,
     matches: str | None = None,
+    case_sensitive: bool = True,
 ) -> None:
     """Verify the intermediate text output of a specific step.
 
-    Exactly one of ``step`` or ``name`` must be provided.  At least one of ``contains``, ``equals``, or ``matches`` must be provided.
+    Exactly one of ``step`` or ``name`` must be provided.  At least one of ``contains``, ``equals``, or ``matches`` must be provided.  ``contains`` and ``case_sensitive`` behave as in :func:`assert_final_output`.
     """
     from agentverify.errors import StepOutputError
 
@@ -535,6 +548,7 @@ def assert_step_output(
         raise ValueError(
             "assert_step_output requires at least one of: contains, equals, matches"
         )
+    substrings, single = _normalize_contains("assert_step_output", contains)
 
     resolved_step = _resolve_step(result, step, name)
     output = resolved_step.output
@@ -553,16 +567,17 @@ def assert_step_output(
             f"  Expected: {equals!r}\n"
             f"  Actual:   {output!r}"
         )
-    if contains is not None and contains not in output:
-        raise StepOutputError(
-            f"{step_label} output does not contain expected substring\n"
-            f"\n"
-            f"  Substring: {contains!r}\n"
-            f"  Actual:    {output!r}"
-        )
+    if substrings is not None:
+        missing = _missing_substrings(output, substrings, case_sensitive)
+        if missing:
+            header, detail = _contains_failure(single, case_sensitive, missing)
+            raise StepOutputError(
+                f"{step_label} output does not contain {header}\n"
+                f"\n"
+                f"{detail}\n"
+                f"  Actual:    {output!r}"
+            )
     if matches is not None:
-        import re
-
         if not re.search(matches, output):
             raise StepOutputError(
                 f"{step_label} output does not match pattern\n"
@@ -891,14 +906,15 @@ def assert_tool_result_matches(
     result: ExecutionResult,
     step: int | None = None,
     name: str | None = None,
-    contains: str | None = None,
+    contains: str | list[str] | None = None,
     matches: str | None = None,
+    case_sensitive: bool = True,
 ) -> None:
     """Verify that a tool result at a step matches expected content.
 
-    Exactly one of ``step`` or ``name`` must be provided.  Exactly one of ``contains`` (substring) or ``matches`` (regex, ``re.search`` semantics) must be provided.
+    Exactly one of ``step`` or ``name`` must be provided.  Exactly one of ``contains`` (substring, or a list of substrings) or ``matches`` (regex, ``re.search`` semantics) must be provided.  ``case_sensitive=False`` ignores case in ``contains`` only.
 
-    Each tool result at the step is stringified (strings pass through; other values are JSON-encoded).  The assertion passes if **any** tool result matches.
+    Each tool result at the step is stringified (strings pass through; other values are JSON-encoded).  The assertion passes if **any** tool result matches; with a list, every substring must appear in that same result.
 
     Raises:
         ToolResultMatchError: When no tool result matches, or the step has no tool results to match against.
@@ -907,6 +923,7 @@ def assert_tool_result_matches(
         raise ValueError(
             "assert_tool_result_matches requires exactly one of: contains, matches"
         )
+    substrings, single = _normalize_contains("assert_tool_result_matches", contains)
 
     resolved = _resolve_step(result, step, name)
 
@@ -921,13 +938,21 @@ def assert_tool_result_matches(
 
     rendered = [_stringify_tool_result(r) for r in resolved.tool_results]
 
-    if contains is not None:
-        if any(contains in r for r in rendered):
-            return
+    if substrings is not None:
+        missing_per_result = []
+        for r in rendered:
+            missing = _missing_substrings(r, substrings, case_sensitive)
+            if not missing:
+                return
+            missing_per_result.append(missing)
+        header, detail = _contains_failure(single, case_sensitive, missing_per_result[0])
+        if any(m != missing_per_result[0] for m in missing_per_result):
+            # Results miss different subsets, so there is no single "missing" list to report.
+            detail = f"  Expected:  {substrings!r}"
         raise ToolResultMatchError(
-            f"{step_label} has no tool result containing expected substring\n"
+            f"{step_label} has no tool result containing {header}\n"
             f"\n"
-            f"  Substring: {contains!r}\n"
+            f"{detail}\n"
             f"  Results:   {[_truncate(r) for r in rendered]}"
         )
 

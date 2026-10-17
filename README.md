@@ -426,6 +426,13 @@ assert_final_output(result, equals="The weather in Tokyo is sunny, 22°C.")
 assert_final_output(result, matches=r"\d+°C")
 ```
 
+`contains` also accepts a list; every substring must appear. `case_sensitive=False` ignores case in `contains` only; for a case-insensitive regex, put `(?i)` in the pattern. `assert_step_output` and `assert_tool_result_matches` accept the same options:
+
+```python
+assert_final_output(result, contains=["Tokyo", "22°C"])
+assert_final_output(result, contains="tokyo", case_sensitive=False)
+```
+
 ### Strict Mode
 
 `assert_cost()` and `assert_latency()` silently pass when the underlying data (`token_usage`, `total_cost_usd`, `duration_ms`) is `None`. Useful during cassette replay where some data may be unavailable. Pass `strict=True` to require the data to be present:
@@ -539,6 +546,8 @@ assert_no_tool_errors(result)
 # The tool returned a well-shaped / non-empty result
 assert_tool_result_matches(result, step=1, contains="temperature")
 assert_tool_result_matches(result, step=1, matches=r'"temp":\s*\d+')
+# Every substring must appear in the same tool result; case_sensitive=False ignores case
+assert_tool_result_matches(result, step=1, contains=["temp", "unit"], case_sensitive=False)
 
 # Budget on retries of a flaky tool (counted from consecutive repeat calls)
 assert_retry_count(result, tool_name="http_request", max=2)
