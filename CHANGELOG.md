@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+- **LLM calls a cassette cannot replay fail instead of reaching the real API.** In replay mode (cassette or `MockLLM`), requests through the OpenAI, Anthropic, or Gemini SDK client other than the recorded chat call, such as the Responses API, `parse()`, embeddings, or the async Anthropic and Gemini clients, used to reach the provider silently. They now raise `CassetteUnsupportedCallError`, as do streaming calls and the Bedrock and LiteLLM calls listed in README "Calls Cassettes Cannot Record". Make live non-chat calls such as embeddings outside the cassette.
 - **Credentials passed as call arguments are redacted from cassettes.** Arguments and headers under keys such as `api_key`, `authorization`, or `x-api-key` (for example in `extra_headers`) were saved as-is unless they matched a known key format. Default patterns now also cover Google, Bedrock (long- and short-term), AWS temporary, and GitHub keys. `sanitize=[]` still applies the key-based redaction; only `sanitize=False` turns sanitization off. The `cassette` fixture now accepts `sanitize=`, as the README already showed. See README "Cassette Sanitization".
 - **OpenAI Agents SDK tool failures are detected.** The SDK's default failure and timeout messages now count as tool errors, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` fail on them instead of passing. Applies to `from_openai_agents` and to replayed Chat Completions cassettes.
 

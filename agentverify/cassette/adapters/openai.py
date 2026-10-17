@@ -7,12 +7,20 @@ openai is an **optional** dependency.  Import this module only when the openai e
 
 from __future__ import annotations
 
+import importlib
 import json
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
+    allow_live_call,
+    block_transport_in_replay,
+    guard_unintercepted,
+    patch_scope,
+    redispatch,
+    reject_stream_kwarg,
+    reject_streaming,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
@@ -29,6 +37,11 @@ except ImportError:  # pragma: no cover
 
 _PATCH_TARGET = "openai.resources.chat.completions.Completions.create"
 _ASYNC_PATCH_TARGET = "openai.resources.chat.completions.AsyncCompletions.create"
+
+# Responses API entry points the adapter does not record yet. Each is patched
+# only if the installed SDK has it.
+_RESPONSES_UNINTERCEPTED = ("create", "parse")
+_RESPONSES_STREAMING = ("stream", "connect")
 
 
 def _is_openai_sentinel(value: Any) -> bool:
@@ -294,15 +307,21 @@ class OpenAIAdapter(LLMProviderAdapter):
                 return _RawResponseWrapper(denormalized)
             return denormalized
 
-        def _patched_sync_create(original_fn):  # type: ignore[no-untyped-def]
+        def _patched_sync_create(original_fn, scope, cls):  # type: ignore[no-untyped-def]
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 from agentverify.cassette.recorder import CassetteMode
 
+                if not scope.active:  # a cached bound method outliving the cassette
+                    return redispatch(lambda: cls.create, wrapper, original_fn, args, kwargs)
+                if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
+                    return original_fn(*args, **kwargs)  # passthrough: nothing is saved
+                reject_stream_kwarg("openai", "chat.completions.create", kwargs)
                 norm_req = adapter.normalize_request(kwargs)
                 raw_mode = _is_raw_response_call(kwargs)
 
                 if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                    response = original_fn(*args, **kwargs)
+                    with allow_live_call():
+                        response = original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -310,7 +329,8 @@ class OpenAIAdapter(LLMProviderAdapter):
                 # REPLAY
                 result = _handle_replay(norm_req, original_fn, args, kwargs, raw_mode)
                 if result is _REPLAY_MISS:  # FALLBACK
-                    response = original_fn(*args, **kwargs)
+                    with allow_live_call():
+                        response = original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -318,15 +338,21 @@ class OpenAIAdapter(LLMProviderAdapter):
 
             return wrapper
 
-        def _patched_async_create(original_fn):  # type: ignore[no-untyped-def]
+        def _patched_async_create(original_fn, scope, cls):  # type: ignore[no-untyped-def]
             async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 from agentverify.cassette.recorder import CassetteMode
 
+                if not scope.active:  # a cached bound method outliving the cassette
+                    return await redispatch(lambda: cls.create, wrapper, original_fn, args, kwargs)
+                if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
+                    return await original_fn(*args, **kwargs)  # passthrough: nothing is saved
+                reject_stream_kwarg("openai", "chat.completions.create", kwargs)
                 norm_req = adapter.normalize_request(kwargs)
                 raw_mode = _is_raw_response_call(kwargs)
 
                 if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                    response = await original_fn(*args, **kwargs)
+                    with allow_live_call():
+                        response = await original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -334,7 +360,8 @@ class OpenAIAdapter(LLMProviderAdapter):
                 # REPLAY
                 result = _handle_replay(norm_req, original_fn, args, kwargs, raw_mode)
                 if result is _REPLAY_MISS:  # FALLBACK
-                    response = await original_fn(*args, **kwargs)
+                    with allow_live_call():
+                        response = await original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -343,14 +370,46 @@ class OpenAIAdapter(LLMProviderAdapter):
             return wrapper
 
         openai_mod = __import__("openai")
-        sync_original = openai_mod.resources.chat.completions.Completions.create
-        async_original = openai_mod.resources.chat.completions.AsyncCompletions.create
+        completions_mod = openai_mod.resources.chat.completions
+        Completions, AsyncCompletions = completions_mod.Completions, completions_mod.AsyncCompletions
+        base_client = importlib.import_module("openai._base_client")
 
-        # Patch both sync and async entry points. ``unittest.mock.patch``
-        # restores the originals on context exit even if the body raises.
-        with patch(_PATCH_TARGET, new=_patched_sync_create(sync_original)), patch(
-            _ASYNC_PATCH_TARGET, new=_patched_async_create(async_original)
-        ):
+        def _guard(stack, scope, cls, method, call, guard):  # type: ignore[no-untyped-def]
+            original = getattr(cls, method)
+            current = lambda: getattr(cls, method)  # noqa: E731
+            stack.enter_context(patch.object(cls, method, new=guard(scope, recorder, "openai", call, original, current)))
+
+        # ``unittest.mock.patch`` restores the originals on context exit even if
+        # the body raises. The scope closes after the patches are removed.
+        with ExitStack() as stack:
+            scope = stack.enter_context(patch_scope())
+            stack.enter_context(patch(_PATCH_TARGET, new=_patched_sync_create(Completions.create, scope, Completions)))
+            stack.enter_context(
+                patch(_ASYNC_PATCH_TARGET, new=_patched_async_create(AsyncCompletions.create, scope, AsyncCompletions))
+            )
+            for cls in (Completions, AsyncCompletions):
+                if hasattr(cls, "parse"):  # pragma: no branch — older SDKs lack parse
+                    _guard(stack, scope, cls, "parse", "chat.completions.parse", guard_unintercepted)
+            try:
+                # Imported explicitly: the SDK loads resource submodules lazily.
+                responses_mod = importlib.import_module("openai.resources.responses")
+            except ImportError:  # pragma: no cover — openai without the Responses API
+                responses_mod = None
+            for cls_name in ("Responses", "AsyncResponses"):
+                cls = getattr(responses_mod, cls_name, None)
+                if cls is None:  # pragma: no cover — openai without the Responses API
+                    continue
+                for method in _RESPONSES_UNINTERCEPTED:
+                    if hasattr(cls, method):  # pragma: no branch — older SDKs lack some methods
+                        _guard(stack, scope, cls, method, f"responses.{method}", guard_unintercepted)
+                for method in _RESPONSES_STREAMING:
+                    if hasattr(cls, method):  # pragma: no branch — older SDKs lack some methods
+                        _guard(stack, scope, cls, method, f"responses.{method}", reject_streaming)
+            # Anything else that reaches the HTTP layer in replay mode raises.
+            for cls, is_async in ((base_client.SyncAPIClient, False), (base_client.AsyncAPIClient, True)):
+                stack.enter_context(
+                    patch.object(cls, "request", new=block_transport_in_replay(recorder, "openai", cls.request, is_async))
+                )
             yield
 
 

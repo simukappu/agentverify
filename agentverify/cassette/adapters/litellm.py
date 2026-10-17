@@ -9,11 +9,15 @@ litellm is an **optional** dependency.  Import this module only when the litellm
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
+    allow_live_call,
+    guard_unintercepted,
+    patch_scope,
+    reject_stream_kwarg,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
@@ -29,6 +33,7 @@ except ImportError:  # pragma: no cover
     _litellm_module = None  # type: ignore[assignment]
 
 _PATCH_TARGET = "litellm.completion"
+_UNINTERCEPTED = ("acompletion", "text_completion", "atext_completion", "responses", "aresponses")
 
 # Shared OpenAI adapter instance for normalize/denormalize delegation.
 _openai_adapter = OpenAIAdapter()
@@ -95,10 +100,14 @@ class LiteLLMAdapter(LLMProviderAdapter):
             """Intercept litellm.completion() calls."""
             from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
 
+            if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
+                return original_fn(*args, **kwargs)  # passthrough: nothing is saved
+            reject_stream_kwarg("litellm", "completion", kwargs)
             norm_req = adapter.normalize_request(kwargs)
 
             if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                response = original_fn(*args, **kwargs)
+                with allow_live_call():
+                    response = original_fn(*args, **kwargs)
                 norm_resp = adapter.normalize_response(response)
                 recorder.record(norm_req, norm_resp)
                 return response
@@ -107,7 +116,8 @@ class LiteLLMAdapter(LLMProviderAdapter):
             norm_resp = recorder.lookup(norm_req)
             if norm_resp is None:
                 if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    response = original_fn(*args, **kwargs)
+                    with allow_live_call():
+                        response = original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -118,5 +128,21 @@ class LiteLLMAdapter(LLMProviderAdapter):
                 )
             return adapter.denormalize_response(norm_resp)
 
-        with patch(_PATCH_TARGET, new=_patched_completion):
+        # litellm has no shared HTTP layer to guard, so its other LLM entry points
+        # are wrapped one by one. Names imported before the cassette started
+        # (``from litellm import acompletion``) are not affected.
+        with ExitStack() as stack:
+            scope = stack.enter_context(patch_scope())
+            stack.enter_context(patch(_PATCH_TARGET, new=_patched_completion))
+            for name in _UNINTERCEPTED:
+                if hasattr(litellm, name):  # pragma: no branch — older litellm lacks some
+                    stack.enter_context(
+                        patch.object(
+                            litellm,
+                            name,
+                            new=guard_unintercepted(
+                                scope, recorder, "litellm", name, getattr(litellm, name), lambda name=name: getattr(litellm, name)
+                            ),
+                        )
+                    )
             yield

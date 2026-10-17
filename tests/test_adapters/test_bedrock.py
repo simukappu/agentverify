@@ -372,6 +372,13 @@ class TestRoundTrip:
 # ---------------------------------------------------------------------------
 
 
+def _runtime_client(service: str = "bedrock-runtime") -> MagicMock:
+    """A mock botocore client that reports the given service name, like a real client does."""
+    client = MagicMock()
+    client.meta.service_model.service_name = service
+    return client
+
+
 class TestPatch:
     """Test the patch() context manager for record and replay modes."""
 
@@ -391,7 +398,7 @@ class TestPatch:
             with adapter.patch(recorder):
                 import botocore.client
 
-                client = MagicMock(spec=botocore.client.BaseClient)
+                client = _runtime_client()
                 result = botocore.client.BaseClient._make_api_call(
                     client,
                     "Converse",
@@ -423,7 +430,7 @@ class TestPatch:
             with adapter.patch(recorder):
                 import botocore.client
 
-                client = MagicMock(spec=botocore.client.BaseClient)
+                client = _runtime_client()
                 result = botocore.client.BaseClient._make_api_call(
                     client,
                     "Converse",
@@ -454,7 +461,7 @@ class TestPatch:
             with adapter.patch(recorder):
                 import botocore.client
 
-                client = MagicMock(spec=botocore.client.BaseClient)
+                client = _runtime_client()
                 with pytest.raises(CassetteMissingRequestError):
                     botocore.client.BaseClient._make_api_call(
                         client,
@@ -483,7 +490,7 @@ class TestPatch:
             with adapter.patch(recorder):
                 import botocore.client
 
-                client = MagicMock(spec=botocore.client.BaseClient)
+                client = _runtime_client()
                 result = botocore.client.BaseClient._make_api_call(
                     client,
                     "Converse",
@@ -515,7 +522,7 @@ class TestPatch:
             with adapter.patch(recorder):
                 import botocore.client
 
-                client = MagicMock(spec=botocore.client.BaseClient)
+                client = _runtime_client()
                 result = botocore.client.BaseClient._make_api_call(
                     client,
                     "Converse",
@@ -545,7 +552,7 @@ class TestPatch:
             with adapter.patch(recorder):
                 import botocore.client
 
-                client = MagicMock(spec=botocore.client.BaseClient)
+                client = _runtime_client("dynamodb")
                 result = botocore.client.BaseClient._make_api_call(
                     client, "ListTables", {}
                 )

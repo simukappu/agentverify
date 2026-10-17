@@ -7,12 +7,18 @@ google-genai is an **optional** dependency.  Import this module only when the go
 
 from __future__ import annotations
 
+import importlib
 import json
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
+    allow_live_call,
+    block_transport_in_replay,
+    guard_unintercepted,
+    patch_scope,
+    reject_streaming,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
@@ -332,7 +338,8 @@ class GeminiAdapter(LLMProviderAdapter):
             norm_req = adapter.normalize_request(kwargs)
 
             if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                response = original_fn(self_client, **kwargs)
+                with allow_live_call():
+                    response = original_fn(self_client, **kwargs)
                 norm_resp = adapter.normalize_response(response)
                 recorder.record(norm_req, norm_resp)
                 return response
@@ -341,7 +348,8 @@ class GeminiAdapter(LLMProviderAdapter):
             norm_resp = recorder.lookup(norm_req)
             if norm_resp is None:
                 if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    response = original_fn(self_client, **kwargs)
+                    with allow_live_call():
+                        response = original_fn(self_client, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -352,5 +360,32 @@ class GeminiAdapter(LLMProviderAdapter):
                 )
             return adapter.denormalize_response(norm_resp)
 
-        with patch(_PATCH_TARGET, new=_patched_generate_content):
+        models = google.genai.models
+        api_client = importlib.import_module("google.genai._api_client").BaseApiClient
+        with ExitStack() as stack:
+            scope = stack.enter_context(patch_scope())
+            stack.enter_context(patch(_PATCH_TARGET, new=_patched_generate_content))
+            def _guard(cls, method, call, guard):  # type: ignore[no-untyped-def]
+                original = getattr(cls, method)
+                current = lambda: getattr(cls, method)  # noqa: E731
+                stack.enter_context(patch.object(cls, method, new=guard(scope, recorder, "gemini", call, original, current)))
+
+            _guard(models.Models, "generate_content_stream", "models.generate_content_stream", reject_streaming)
+            _guard(models.AsyncModels, "generate_content_stream", "aio.models.generate_content_stream", reject_streaming)
+            _guard(models.AsyncModels, "generate_content", "aio.models.generate_content", guard_unintercepted)
+            # Anything else that reaches the HTTP layer in replay mode raises.
+            for method, is_async in (
+                ("request", False),
+                ("request_streamed", False),
+                ("async_request", True),
+                ("async_request_streamed", True),
+            ):
+                if hasattr(api_client, method):  # pragma: no branch — older SDKs lack some methods
+                    stack.enter_context(
+                        patch.object(
+                            api_client,
+                            method,
+                            new=block_transport_in_replay(recorder, "gemini", getattr(api_client, method), is_async),
+                        )
+                    )
             yield

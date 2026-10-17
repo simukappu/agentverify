@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
+    _guards_off,
+    allow_live_call,
+    check_unrecorded,
+    unsupported_call_error,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
@@ -30,6 +34,25 @@ except ImportError:  # pragma: no cover
     _botocore_available = False
 
 _PATCH_TARGET = "botocore.client.BaseClient._make_api_call"
+
+# Operations that ask a model to generate, other than the recorded Converse. Other
+# operations on these services (CountTokens, ApplyGuardrail, Retrieve, ...) do not
+# generate and pass through untouched. Not exhaustive: AWS adds operations.
+_GENERATING_OPERATIONS: dict[str, frozenset[str]] = {
+    "bedrock-runtime": frozenset({"InvokeModel", "InvokeModelWithResponseStream", "ConverseStream", "StartAsyncInvoke"}),
+    "bedrock-agent-runtime": frozenset(
+        {
+            "InvokeAgent",
+            "InvokeInlineAgent",
+            "InvokeFlow",
+            "RetrieveAndGenerate",
+            "RetrieveAndGenerateStream",
+            "GenerateQuery",
+            "OptimizePrompt",
+        }
+    ),
+    "bedrock-agentcore": frozenset({"InvokeAgentRuntime"}),
+}
 
 
 def _ensure_boto3_installed() -> None:
@@ -207,7 +230,7 @@ class BedrockAdapter(LLMProviderAdapter):
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch ``botocore.client.BaseClient._make_api_call``.
 
-        Only intercepts the ``Converse`` operation; all other API calls pass through to the original implementation.
+        Records and replays the ``bedrock-runtime`` ``Converse`` operation. Other operations that make a model generate (``InvokeModel``, ``ConverseStream``, ``InvokeAgent``, ``RetrieveAndGenerate``, ...) are guarded: streaming ones raise :class:`~agentverify.errors.CassetteUnsupportedCallError` in every mode, the rest raise in replay mode and pass through with a warning in record mode. Every other AWS call passes through untouched.
 
         In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
@@ -222,8 +245,15 @@ class BedrockAdapter(LLMProviderAdapter):
         original_fn = botocore.client.BaseClient._make_api_call
 
         def _patched_make_api_call(self_client: Any, operation_name: str, api_params: dict[str, Any]) -> Any:
-            """Intercept Converse calls; pass through everything else."""
+            """Intercept Converse calls; guard other bedrock-runtime calls; pass through everything else."""
+            # Converse exists only on bedrock-runtime, so the operation name alone selects the recorded path.
             if operation_name != "Converse":
+                service = getattr(getattr(getattr(self_client, "meta", None), "service_model", None), "service_name", None)
+                if operation_name in _GENERATING_OPERATIONS.get(service, ()) and not _guards_off(recorder):
+                    if "Stream" in operation_name:
+                        raise unsupported_call_error("bedrock", operation_name, "streaming is not recorded")
+                    # this wrapper, botocore's generated client method, the caller
+                    check_unrecorded(recorder, "bedrock", operation_name, api_params, stacklevel=3)
                 return original_fn(self_client, operation_name, api_params)
 
             from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
@@ -231,7 +261,8 @@ class BedrockAdapter(LLMProviderAdapter):
             norm_req = adapter.normalize_request(api_params)
 
             if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                response = original_fn(self_client, operation_name, api_params)
+                with allow_live_call():
+                    response = original_fn(self_client, operation_name, api_params)
                 norm_resp = adapter.normalize_response(response)
                 recorder.record(norm_req, norm_resp)
                 return response
@@ -240,7 +271,8 @@ class BedrockAdapter(LLMProviderAdapter):
             norm_resp = recorder.lookup(norm_req)
             if norm_resp is None:
                 if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    response = original_fn(self_client, operation_name, api_params)
+                    with allow_live_call():
+                        response = original_fn(self_client, operation_name, api_params)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response

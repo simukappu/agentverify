@@ -160,6 +160,15 @@ class CassetteMissingRequestError(AgentVerifyError):
     pass
 
 
+class CassetteUnsupportedCallError(AgentVerifyError):
+    """Raised when an LLM call inside a cassette cannot be recorded or replayed.
+
+    Streaming calls are rejected in every mode. Other calls the provider adapter does not intercept are rejected in replay mode, where they would otherwise reach the real API.
+    """
+
+    pass
+
+
 class LatencyBudgetError(AgentVerifyError):
     """Raised when execution latency exceeds the allowed threshold."""
 

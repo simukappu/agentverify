@@ -300,6 +300,16 @@ Cassettes drift when your prompts, tool schemas, or model versions change. agent
 - Treat cassette diffs as part of the PR review. A YAML diff next to the prompt diff is a feature, not noise
 - Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments, so small wording changes in LLM outputs don't cascade into test failures
 
+### Calls Cassettes Cannot Record
+
+Cassettes record non-streaming chat calls: OpenAI `chat.completions.create`, Anthropic `messages.create`, Gemini `models.generate_content`, Bedrock `Converse`, and LiteLLM `completion`. Inside a cassette or `MockLLM`, agentverify raises `CassetteUnsupportedCallError` instead of letting other LLM calls reach the real API:
+- Streaming entry points (`stream=True`, `messages.stream()`, `generate_content_stream()`, Bedrock `ConverseStream`, OpenAI Responses `stream()`), in record and replay mode.
+- In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client, including the Responses API, `parse()`, embeddings, and the async Anthropic and Gemini clients. Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...) and LiteLLM `acompletion`, `text_completion`, and `responses` raise too.
+- In record mode, the entry points named above run with a warning. Other requests (beta resources, WebSocket APIs) run without one, and replay then fails at that call.
+- With no cassette file (`AUTO` passthrough), nothing is saved and no guard applies.
+
+Frameworks that stream by default need streaming turned off, e.g. `BedrockModel(streaming=False)` in Strands.
+
 ### Cassette Sanitization
 
 Cassettes are sanitized by default when recording. Before saving, agentverify redacts:

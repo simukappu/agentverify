@@ -7,12 +7,20 @@ anthropic is an **optional** dependency.  Import this module only when the anthr
 
 from __future__ import annotations
 
+import importlib
 import json
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
+    allow_live_call,
+    block_transport_in_replay,
+    guard_unintercepted,
+    patch_scope,
+    redispatch,
+    reject_stream_kwarg,
+    reject_streaming,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
@@ -286,17 +294,23 @@ class AnthropicAdapter(LLMProviderAdapter):
 
         adapter = self
 
-        def _patched_create(original_fn):  # type: ignore[no-untyped-def]
+        def _patched_create(original_fn, scope):  # type: ignore[no-untyped-def]
             """Return a wrapper that intercepts ``create()`` calls."""
 
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
 
+                if not scope.active:  # a cached bound method outliving the cassette
+                    return redispatch(lambda: messages_mod.Messages.create, wrapper, original_fn, args, kwargs)
+                if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
+                    return original_fn(*args, **kwargs)  # passthrough: nothing is saved
+                reject_stream_kwarg("anthropic", "messages.create", kwargs)
                 norm_req = adapter.normalize_request(kwargs)
 
                 if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
                     # Call the real API and record the interaction
-                    response = original_fn(*args, **kwargs)
+                    with allow_live_call():
+                        response = original_fn(*args, **kwargs)
                     norm_resp = adapter.normalize_response(response)
                     recorder.record(norm_req, norm_resp)
                     return response
@@ -305,7 +319,8 @@ class AnthropicAdapter(LLMProviderAdapter):
                 norm_resp = recorder.lookup(norm_req)
                 if norm_resp is None:
                     if recorder.on_missing == OnMissingRequest.FALLBACK:
-                        response = original_fn(*args, **kwargs)
+                        with allow_live_call():
+                            response = original_fn(*args, **kwargs)
                         norm_resp = adapter.normalize_response(response)
                         recorder.record(norm_req, norm_resp)
                         return response
@@ -318,12 +333,31 @@ class AnthropicAdapter(LLMProviderAdapter):
 
             return wrapper
 
+        anthropic_mod = __import__("anthropic")
+        messages_mod = anthropic_mod.resources.messages
+        base_client = importlib.import_module("anthropic._base_client")
+        Messages, AsyncMessages = messages_mod.Messages, messages_mod.AsyncMessages
+
+        def _guard(stack, scope, cls, method, call, guard):  # type: ignore[no-untyped-def]
+            original = getattr(cls, method)
+            current = lambda: getattr(cls, method)  # noqa: E731
+            stack.enter_context(patch.object(cls, method, new=guard(scope, recorder, "anthropic", call, original, current)))
+
         # Use unittest.mock.patch to ensure clean teardown
-        with patch(
-            _PATCH_TARGET,
-            new=_patched_create(
-                # Grab the real function *before* patching
-                __import__("anthropic").resources.messages.Messages.create
-            ),
-        ):
+        with ExitStack() as stack:
+            scope = stack.enter_context(patch_scope())
+            stack.enter_context(patch(_PATCH_TARGET, new=_patched_create(Messages.create, scope)))
+            # messages.stream() posts directly, bypassing create().
+            _guard(stack, scope, Messages, "stream", "messages.stream", reject_streaming)
+            _guard(stack, scope, AsyncMessages, "create", "AsyncMessages.create", guard_unintercepted)
+            _guard(stack, scope, AsyncMessages, "stream", "AsyncMessages.stream", reject_streaming)
+            for cls in (Messages, AsyncMessages):
+                if hasattr(cls, "parse"):  # pragma: no branch — older SDKs lack parse
+                    _guard(stack, scope, cls, "parse", "messages.parse", guard_unintercepted)
+            # Anything else that reaches the HTTP layer in replay mode raises
+            # (beta.messages, count_tokens, cached with_raw_response wrappers, ...).
+            for cls, is_async in ((base_client.SyncAPIClient, False), (base_client.AsyncAPIClient, True)):
+                stack.enter_context(
+                    patch.object(cls, "request", new=block_transport_in_replay(recorder, "anthropic", cls.request, is_async))
+                )
             yield

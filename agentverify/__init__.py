@@ -40,6 +40,7 @@ from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.errors import (
     CassetteRequestMismatchError,
+    CassetteUnsupportedCallError,
     RetryBudgetError,
     StepDependencyError,
     StepIndexError,
@@ -86,6 +87,7 @@ __all__ = [
     "LLMCassetteRecorder",
     "CassetteMode",
     "CassetteRequestMismatchError",
+    "CassetteUnsupportedCallError",
     "SanitizePattern",
     "DEFAULT_PATTERNS",
     # Mocking
