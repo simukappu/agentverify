@@ -5,6 +5,7 @@ Since LiteLLM uses an OpenAI-compatible format, the normalize/denormalize method
 
 from __future__ import annotations
 
+import importlib.util
 from unittest.mock import MagicMock
 from unittest.mock import patch as unittest_mock_patch
 
@@ -194,6 +195,10 @@ class TestRoundTrip:
 # ---------------------------------------------------------------------------
 
 
+# litellm caps requires_python below 3.15, so the extra is absent on some CI jobs.
+@pytest.mark.skipif(
+    importlib.util.find_spec("litellm") is None, reason="litellm extra not installed"
+)
 class TestPatch:
     """Test the patch() context manager for record and replay modes."""
 
