@@ -98,8 +98,10 @@ def from_openai_agents(result: Any) -> ExecutionResult:
                     if isinstance(raw, dict)
                     else getattr(raw, "output", None)
                 )
-            # Detect tool error: the SDK exposes an is_error flag on the
-            # output item / raw_item for failed tool calls.
+            # Detect tool error. The SDK itself sets no error flag on function
+            # tool outputs, but honour an explicit is_error from wrappers or custom
+            # items; otherwise classify the output (which recognises the SDK's
+            # default failure message).
             is_error: bool | None = None
             flag = getattr(item, "is_error", None)
             if flag is None and raw_item is not None:

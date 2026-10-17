@@ -553,7 +553,7 @@ assert_tool_result_matches(result, step=1, contains=["temp", "unit"], case_sensi
 assert_retry_count(result, tool_name="http_request", max=2)
 ```
 
-agentverify reads a per-result error signal that the built-in adapters populate from each framework's native tool-error convention (LangGraph `ToolMessage.status == "error"`, Strands `toolResult` status, OpenAI Agents `is_error`, LangChain error-shaped observations), and that cassette replay reconstructs from the recorded tool messages.
+agentverify reads a per-result error signal that the built-in adapters populate from each framework's native tool-error convention (LangGraph `ToolMessage.status == "error"`, Strands `toolResult` status, OpenAI Agents SDK default failure and timeout messages, LangChain error-shaped observations), and that cassette replay reconstructs from the recorded tool messages.
 
 The signal is three-valued: a result is a **known error**, a **known success**, or **unknown** (for example, a plain-string tool output on cassette replay where no structured status survived). `assert_tool_invocation_succeeded` and `assert_no_tool_errors` fail only on a *known* error; unknown and absent results pass, so the same test gives the same verdict whether it runs against a live agent or a replayed cassette. To require that a result is actually present and well-formed, use `assert_tool_result_matches`, which fails when the step has no tool result at all.
 

@@ -6,6 +6,10 @@
 
 - **`contains=` accepts a list** in `assert_final_output`, `assert_step_output`, and `assert_tool_result_matches`. Every substring must appear; for `assert_tool_result_matches`, in the same tool result. `case_sensitive=False` ignores case in `contains`. Thanks to @Neohu-ceo ([#4](https://github.com/simukappu/agentverify/pull/4)). See README "Final Output Assertions".
 
+### Bug Fixes
+
+- **OpenAI Agents SDK tool failures are detected.** The SDK's default failure and timeout messages now count as tool errors, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` fail on them instead of passing. Applies to `from_openai_agents` and to replayed Chat Completions cassettes.
+
 ### Dependency
 
 - **Python 3.15 and openai 3.x** are tested in CI. The `litellm` extra is not tested on Python 3.15, where pip falls back to an older litellm release.

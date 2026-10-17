@@ -101,6 +101,19 @@ class TestClassifyToolResultError:
     def test_is_error_false(self):
         assert classify_tool_result_error({"is_error": False}) is False
 
+    def test_openai_agents_default_failure_message(self):
+        msg = "An error occurred while running the tool. Please try again."
+        assert classify_tool_result_error(msg) is True
+        assert classify_tool_result_error(msg + " Error: timeout") is True
+        assert classify_tool_result_error("\n" + msg + "\n") is True
+        # Only the SDK's exact prefix counts; similar prose stays unknown.
+        assert classify_tool_result_error("An error occurred, but we recovered.") is None
+
+    def test_openai_agents_default_timeout_message(self):
+        assert classify_tool_result_error("Tool 'fetch' timed out after 5 seconds.") is True
+        assert classify_tool_result_error("Tool 'fetch' timed out after 0.5 seconds.") is True
+        assert classify_tool_result_error("Tool 'fetch' timed out after 5 seconds. Retrying.") is None
+
     def test_status_error(self):
         assert classify_tool_result_error({"status": "error"}) is True
 

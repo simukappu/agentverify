@@ -443,6 +443,35 @@ class TestOpenAIAgentsToolOutcome:
         er = from_openai_agents(result)
         assert er.steps[0].tool_result_is_error(0) is True
 
+    @pytest.mark.parametrize(
+        "output",
+        [
+            # openai-agents >= 0.23 redacts the details by default.
+            "An error occurred while running the tool. Please try again.",
+            # Earlier releases appended the exception text.
+            "An error occurred while running the tool. Please try again. Error: 503 Service Unavailable",
+        ],
+    )
+    def test_sdk_default_failure_message_is_error(self, output):
+        result = SimpleNamespace(
+            new_items=[_tool_call_item("fetch", {}), _tool_output_item(output)],
+            final_output="x",
+            context_wrapper=None,
+        )
+        er = from_openai_agents(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
+    def test_sdk_default_failure_message_in_raw_item_only(self):
+        msg = "An error occurred while running the tool. Please try again."
+        item = SimpleNamespace(type="tool_call_output_item", output=None, raw_item={"output": msg})
+        result = SimpleNamespace(
+            new_items=[_tool_call_item("fetch", {}), item],
+            final_output="x",
+            context_wrapper=None,
+        )
+        er = from_openai_agents(result)
+        assert er.steps[0].tool_result_is_error(0) is True
+
     def test_plain_string_output_is_unknown(self):
         result = SimpleNamespace(
             new_items=[_tool_call_item("fetch", {}), _tool_output_item("sunny")],

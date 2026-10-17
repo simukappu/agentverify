@@ -931,6 +931,28 @@ class TestCassetteToolOutcomeBackfill:
         # The backfilled tool message is a JSON string; classifier descends it.
         assert result.steps[0].tool_result_is_error(0) is True
 
+    def test_backfill_openai_agents_default_failure_is_error(self):
+        """The OpenAI Agents SDK failure message replays with the same verdict as a live run."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify.cassette.recorder import _build_execution_result
+
+        req0 = NormalizedRequest(messages=[], model="gpt-4")
+        resp0 = NormalizedResponse(content=None, tool_calls=[{"name": "fetch", "arguments": {}}])
+        req1 = NormalizedRequest(
+            messages=[{"role": "tool", "content": "An error occurred while running the tool. Please try again."}],
+            model="gpt-4",
+        )
+        resp1 = NormalizedResponse(content="failed", tool_calls=[])
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1)],
+            probe_stacks=[[], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps[0].tool_result_is_error(0) is True
+
     def test_backfill_plain_string_is_unknown(self):
         from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
         from agentverify.cassette.recorder import _build_execution_result

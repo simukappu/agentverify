@@ -6,9 +6,19 @@ Used by recorder, MockLLM, and framework adapters.  Not part of the public API.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Optional
 
 from agentverify.models import Step, TokenUsage, ToolCall
+
+
+# The OpenAI Agents SDK has no error flag on function tool outputs. A failed tool
+# returns a fixed message instead: default_tool_error_function (followed by
+# " Error: <details>" before openai-agents 0.23), or default_tool_timeout_error_message
+# under the default timeout behaviour. They are matched here rather than in the
+# framework adapter so that cassette replay classifies the same way as a live run.
+_OPENAI_AGENTS_TOOL_ERROR_PREFIX = "An error occurred while running the tool. Please try again."
+_OPENAI_AGENTS_TOOL_TIMEOUT = re.compile(r"Tool '.+' timed out after [0-9.e+-]+ seconds\.")
 
 
 def classify_tool_result_error(payload: Any) -> Optional[bool]:
@@ -22,11 +32,13 @@ def classify_tool_result_error(payload: Any) -> Optional[bool]:
     It never raises: arbitrary untrusted payloads are treated strictly as data.
     """
     if isinstance(payload, str):
+        stripped = payload.strip()
+        if stripped.startswith(_OPENAI_AGENTS_TOOL_ERROR_PREFIX) or _OPENAI_AGENTS_TOOL_TIMEOUT.fullmatch(stripped):
+            return True
         # A tool result may arrive as a JSON-encoded string (common on
         # cassette replay, where the tool message content is serialized).
         # Try to parse an object out of it; a plain non-JSON string
         # (e.g. "sunny, 22C") stays unknown.
-        stripped = payload.strip()
         if stripped[:1] == "{":
             try:
                 parsed = json.loads(stripped)
