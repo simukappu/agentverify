@@ -302,20 +302,25 @@ Cassettes drift when your prompts, tool schemas, or model versions change. agent
 
 ### Cassette Sanitization
 
-Cassette files are sanitized by default when recording. API keys, tokens, and other sensitive data are automatically redacted before saving to disk.
+Cassettes are sanitized by default when recording. Before saving, agentverify redacts:
+- values that match a built-in key pattern, anywhere in the cassette
+- call arguments and headers under a credential key, whatever their format: `api_key`, `authorization`, `x-api-key`, `cookie`, and names ending in `token`, `secret`, `password`, and similar (for example in `extra_headers`)
 
-Built-in patterns cover:
-- OpenAI API keys (`sk-...`)
-- Anthropic API keys (`sk-ant-...`)
-- AWS access keys (`AKIA...`)
+Built-in patterns (`DEFAULT_PATTERNS`) cover:
+- OpenAI and Anthropic API keys (`sk-...`, `sk-ant-...`)
+- AWS access keys (`AKIA...`, `ASIA...`)
+- Amazon Bedrock API keys (`ABSK...`, `bedrock-api-key-...`)
+- Google API keys (`AIza...`)
+- GitHub tokens (`ghp_...`, `github_pat_...`)
 - Bearer tokens (`Bearer ...`)
 
-Add custom patterns:
+A custom list replaces the built-in patterns, so extend `DEFAULT_PATTERNS` to keep them. Credential keys in call arguments are redacted either way:
 
 ```python
-from agentverify import SanitizePattern
+from agentverify import DEFAULT_PATTERNS, SanitizePattern
 
 custom_patterns = [
+    *DEFAULT_PATTERNS,
     SanitizePattern(name="internal_token", pattern=r"tok-[a-f0-9]{32}", replacement="tok-***REDACTED***"),
 ]
 

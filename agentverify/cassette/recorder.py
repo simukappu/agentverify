@@ -211,7 +211,7 @@ class LLMCassetteRecorder:
 
         if self.mode == CassetteMode.RECORD:
             interactions = self._interactions
-            if self._sanitize_patterns:
+            if self._sanitize_patterns is not None:
                 interactions = sanitize_interactions(interactions, self._sanitize_patterns)
             save_cassette(
                 self.cassette_path,

@@ -11,6 +11,7 @@ from typing import Union
 import pytest
 
 from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder, OnMissingRequest
+from agentverify.cassette.sanitize import SanitizePattern
 
 #: Sentinel value to distinguish "caller didn't pass mode" from "caller
 #: explicitly passed CassetteMode.AUTO".
@@ -45,6 +46,7 @@ def cassette(request):
         cassette_dir: Union[str, Path, None] = None,
         on_missing: Union[str, OnMissingRequest] = OnMissingRequest.ERROR,
         match_requests: Union[bool, None] = None,
+        sanitize: Union[bool, list[SanitizePattern]] = True,
     ) -> LLMCassetteRecorder:
         # Resolve mode: explicit arg > CLI option > default AUTO
         if mode is _MODE_NOT_SET:
@@ -82,6 +84,7 @@ def cassette(request):
             provider=provider,
             on_missing=on_missing,
             match_requests=match_requests,
+            sanitize=sanitize,
         )
 
     return _cassette

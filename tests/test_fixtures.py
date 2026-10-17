@@ -106,3 +106,15 @@ class TestCassetteFixtureMatchRequests:
             assert rec.match_requests is False
         finally:
             request.config.getoption = original
+
+
+class TestCassetteFixtureSanitize:
+    def test_sanitize_defaults_to_built_in_patterns(self, cassette, tmp_path):
+        from agentverify.cassette.sanitize import DEFAULT_PATTERNS
+
+        rec = cassette("s.yaml", cassette_dir=tmp_path)
+        assert rec._sanitize_patterns == DEFAULT_PATTERNS
+
+    def test_sanitize_passed_through(self, cassette, tmp_path):
+        assert cassette("s.yaml", cassette_dir=tmp_path, sanitize=False)._sanitize_patterns is None
+        assert cassette("t.yaml", cassette_dir=tmp_path, sanitize=[])._sanitize_patterns == []
