@@ -1,6 +1,13 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  # Dependencies are unpinned, so a weekly run catches upstream releases that break agentverify
+  # between pushes. GitHub runs scheduled workflows from the default branch only.
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
