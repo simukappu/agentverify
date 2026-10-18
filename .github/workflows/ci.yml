@@ -95,15 +95,16 @@ jobs:
       - name: Install agentverify and example dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install agentverify without [all] to avoid the litellm pin
-          # conflicting with openai-agents (litellm pins openai<2.25,
-          # openai-agents requires openai>=2.26).
+          # agentverify without [all]: the examples pull in the provider SDKs
+          # they need, and openai-agents[litellm] picks a litellm that fits
+          # its openai requirement.
           pip install -e ".[dev]"
           pip install -e "examples/strands-weather-forecaster[dev]"
           pip install -e "examples/langchain-issue-triage[dev]"
           pip install -e "examples/langgraph-multi-agent-supervisor[dev]"
           pip install -e "examples/openai-agents-llm-as-a-judge[dev]"
           pip install -e "examples/custom-converter-python-agent[dev]"
+          pip install -e "examples/openai-agents-litellm-provider[dev]"
 
       - name: Run examples smoke tests
         run: python -m pytest examples/tests -v
@@ -122,3 +123,6 @@ jobs:
 
       - name: Run custom-converter-python-agent tests
         run: python -m pytest examples/custom-converter-python-agent/tests -v
+
+      - name: Run openai-agents-litellm-provider tests
+        run: python -m pytest examples/openai-agents-litellm-provider/tests -v

@@ -195,6 +195,33 @@ Because each `Runner.run` call is recorded individually and the workflow spans s
 
 See [`examples/openai-agents-llm-as-a-judge/`](examples/openai-agents-llm-as-a-judge/) for the full loop, the cassette, and the remaining flat + step-level assertions (budget, safety, pass-verdict reached).
 
+### OpenAI Agents SDK on LiteLLM — An Async Agent
+
+Test the [OpenAI Agents SDK `model_providers/litellm_provider.py`](https://github.com/openai/openai-agents-python/blob/main/examples/model_providers/litellm_provider.py) sample. `Runner.run` is async and `LitellmModel` calls `litellm.acompletion`, so the cassette is opened inside a coroutine:
+
+```python
+import asyncio
+import pytest
+from agentverify import ToolCall, assert_step_uses_result_from, assert_tool_calls
+
+from agent import run_agent  # examples/openai-agents-litellm-provider/
+
+
+@pytest.mark.agentverify
+def test_answer_uses_the_weather_tool(cassette):
+    async def main():
+        with cassette("weather_tokyo.yaml", provider="litellm") as rec:
+            await run_agent("What's the weather in Tokyo?")
+        return rec.to_execution_result()
+
+    result = asyncio.run(main())
+    assert_tool_calls(result, expected=[ToolCall("get_weather", {"city": "Tokyo"})])
+    # The answer step must read the tool's result, not guess the weather.
+    assert_step_uses_result_from(result, step=1, depends_on=0, via="tool_result")
+```
+
+See [`examples/openai-agents-litellm-provider/`](examples/openai-agents-litellm-provider/) for the agent, the cassette recorded against Claude Haiku 5.5 on Amazon Bedrock, and the remaining assertions.
+
 ### LangGraph + LangChain — Multi-Agent Handoff and MCP Tool Loops
 
 Full-depth examples for the LangChain ecosystem live under [`examples/`](examples/):
@@ -763,6 +790,7 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 | [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with running-total data flow |
 | [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it |
 | [`openai-agents-llm-as-a-judge`](examples/openai-agents-llm-as-a-judge/) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test with feedback-chain data flow |
+| [`openai-agents-litellm-provider`](examples/openai-agents-litellm-provider/) | OpenAI Agents SDK + LiteLLM + Bedrock | Async agent (`Runner.run` → `litellm.acompletion`) with a weather tool, cassette opened inside a coroutine |
 | [`custom-converter-python-agent`](examples/custom-converter-python-agent/) | Anthropic SDK (no framework) | Reference for writing a custom converter: a hand-rolled ReAct loop calling the Anthropic Messages API directly |
 | [`mcp-server`](examples/mcp-server/) | (shared utility) | Mock GitHub MCP server for token-free testing |
 

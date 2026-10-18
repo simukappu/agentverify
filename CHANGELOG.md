@@ -4,7 +4,7 @@
 
 ### Features
 
-- **Async agents**: cassettes record and replay, and `MockLLM` answers, the async clients of Anthropic, Gemini, and LiteLLM, as they already did for OpenAI. See README "Async Agents".
+- **Async agents**: cassettes record and replay, and `MockLLM` answers, the async clients of Anthropic, Gemini, and LiteLLM, as they already did for OpenAI. See README "Async Agents" and the new `openai-agents-litellm-provider` example.
 
 ### Bug Fixes
 

@@ -1,0 +1,117 @@
+metadata:
+  agentverify_version: 0.5.0
+  recorded_at: '2026-10-18T08:00:45.515047+00:00'
+  provider: litellm
+  model: bedrock/global.anthropic.claude-haiku-5-5
+interactions:
+- request:
+    messages:
+    - content: You only respond in haikus.
+      role: system
+    - role: user
+      content: What's the weather in Tokyo?
+    model: bedrock/global.anthropic.claude-haiku-5-5
+    tools:
+    - name: get_weather
+      parameters:
+        properties:
+          city:
+            title: City
+            type: string
+        required:
+        - city
+        title: get_weather_args
+        type: object
+        additionalProperties: false
+    parameters:
+      temperature: null
+      top_p: null
+      frequency_penalty: null
+      presence_penalty: null
+      max_tokens: null
+      tool_choice: null
+      response_format: null
+      parallel_tool_calls: null
+      stream: false
+      stream_options: null
+      reasoning_effort: null
+      top_logprobs: null
+      extra_headers:
+        User-Agent: Agents/Python 0.24.0
+      api_key: null
+      base_url: null
+      _skip_mcp_handler: true
+  response:
+    content: 'Checking Tokyo''s skies,
+
+      the answer soon will reach you,
+
+      patience, friend, a moment.'
+    tool_calls:
+    - name: get_weather
+      arguments: '{"city": "Tokyo"}'
+    token_usage:
+      input_tokens: 388
+      output_tokens: 196
+- request:
+    messages:
+    - content: You only respond in haikus.
+      role: system
+    - role: user
+      content: What's the weather in Tokyo?
+    - role: assistant
+      content: 'Checking Tokyo''s skies,
+
+        the answer soon will reach you,
+
+        patience, friend, a moment.'
+      tool_calls:
+      - id: tooluse_kivtrgkYRlkeJ2LmtjgM6w
+        type: function
+        function:
+          name: get_weather
+          arguments: '{"city": "Tokyo"}'
+    - role: tool
+      tool_call_id: tooluse_kivtrgkYRlkeJ2LmtjgM6w
+      content: The weather in Tokyo is sunny.
+    model: bedrock/global.anthropic.claude-haiku-5-5
+    tools:
+    - name: get_weather
+      parameters:
+        properties:
+          city:
+            title: City
+            type: string
+        required:
+        - city
+        title: get_weather_args
+        type: object
+        additionalProperties: false
+    parameters:
+      temperature: null
+      top_p: null
+      frequency_penalty: null
+      presence_penalty: null
+      max_tokens: null
+      tool_choice: null
+      response_format: null
+      parallel_tool_calls: null
+      stream: false
+      stream_options: null
+      reasoning_effort: null
+      top_logprobs: null
+      extra_headers:
+        User-Agent: Agents/Python 0.24.0
+      api_key: null
+      base_url: null
+      _skip_mcp_handler: true
+  response:
+    content: 'The sun shines bright,
+
+      Tokyo bathes in warm light,
+
+      clear skies all around.'
+    tool_calls: null
+    token_usage:
+      input_tokens: 494
+      output_tokens: 32

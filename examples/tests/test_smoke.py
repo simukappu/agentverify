@@ -113,6 +113,11 @@ class TestDirectoryStructure:
             / "detective_in_space.yaml"
         ).is_file()
 
+    def test_openai_agents_litellm_provider_files(self):
+        root = EXAMPLES_DIR / "openai-agents-litellm-provider"
+        for rel in ("agent.py", "pyproject.toml", "README.md", "tests/conftest.py", "tests/test_weather_agent.py"):
+            assert (root / rel).is_file(), rel
+
     def test_custom_converter_python_agent_agent(self):
         assert (EXAMPLES_DIR / "custom-converter-python-agent" / "agent.py").is_file()
 
@@ -196,6 +201,13 @@ class TestCassetteYamlValidity:
         with open(path) as f:
             data = yaml.safe_load(f)
         assert "metadata" in data
+        assert "interactions" in data
+
+    def test_openai_agents_litellm_provider_cassette_yaml(self):
+        path = EXAMPLES_DIR / "openai-agents-litellm-provider" / "tests" / "cassettes" / "weather_tokyo.yaml"
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        assert data["metadata"]["provider"] == "litellm"
         assert "interactions" in data
 
     def test_custom_converter_python_agent_cassette_yaml(self):
