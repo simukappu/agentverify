@@ -73,11 +73,12 @@ class LiteLLMAdapter(LLMProviderAdapter):
         return _openai_adapter.normalize_response(raw_response)
 
     def denormalize_response(self, normalized: NormalizedResponse) -> Any:
-        """Build a lightweight object that mimics an OpenAI-compatible response.
+        """Build a ``litellm.ModelResponse``, the type ``litellm.completion`` returns.
 
-        Reuses the OpenAI adapter's denormalize since LiteLLM consumers expect the same attribute-access pattern.
+        The OpenAI adapter builds the OpenAI-compatible payload. Callers such as the OpenAI Agents SDK's ``LitellmModel`` check ``isinstance(response, litellm.ModelResponse)`` and treat anything else as a stream, so the payload is wrapped in LiteLLM's own type.
         """
-        return _openai_adapter.denormalize_response(normalized)
+        _ensure_litellm_installed()
+        return _litellm_module.ModelResponse(**_openai_adapter.denormalize_response(normalized).model_dump())
 
     # -- monkey-patching -----------------------------------------------------
 

@@ -185,10 +185,11 @@ class OpenAIAdapter(LLMProviderAdapter):
                 )
 
         token_usage: TokenUsage | None = None
-        if raw_response.usage is not None:
+        usage = getattr(raw_response, "usage", None)  # litellm.ModelResponse drops a None usage
+        if usage is not None:
             token_usage = TokenUsage(
-                input_tokens=raw_response.usage.prompt_tokens,
-                output_tokens=raw_response.usage.completion_tokens,
+                input_tokens=usage.prompt_tokens,
+                output_tokens=usage.completion_tokens,
             )
 
         return NormalizedResponse(

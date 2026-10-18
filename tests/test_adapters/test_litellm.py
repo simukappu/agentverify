@@ -129,7 +129,26 @@ class TestNormalizeResponse:
 # ---------------------------------------------------------------------------
 
 
+# Replay builds litellm.ModelResponse, so these need the extra.
+@pytest.mark.skipif(
+    importlib.util.find_spec("litellm") is None, reason="litellm extra not installed"
+)
 class TestDenormalizeResponse:
+    def test_returns_litellm_model_response(self, adapter: LiteLLMAdapter) -> None:
+        """Callers such as the OpenAI Agents SDK's LitellmModel check isinstance(response, litellm.ModelResponse)."""
+        litellm = pytest.importorskip("litellm")
+        result = adapter.denormalize_response(
+            NormalizedResponse(
+                content=None,
+                tool_calls=[{"name": "get_weather", "arguments": {"city": "Tokyo"}}],
+                token_usage=TokenUsage(input_tokens=3, output_tokens=4),
+            )
+        )
+        assert isinstance(result, litellm.ModelResponse)
+        assert isinstance(result.choices[0], litellm.types.utils.Choices)
+        assert result.choices[0].message.tool_calls[0].function.name == "get_weather"
+        assert result.usage.prompt_tokens == 3
+
     def test_text_response(self, adapter: LiteLLMAdapter) -> None:
         normalized = NormalizedResponse(
             content="Hello",
@@ -161,6 +180,10 @@ class TestDenormalizeResponse:
 # ---------------------------------------------------------------------------
 
 
+# Replay builds litellm.ModelResponse, so these need the extra.
+@pytest.mark.skipif(
+    importlib.util.find_spec("litellm") is None, reason="litellm extra not installed"
+)
 class TestRoundTrip:
     def test_text_round_trip(self, adapter: LiteLLMAdapter) -> None:
         raw = _make_litellm_response(content="Hello world", prompt_tokens=50, completion_tokens=20)
