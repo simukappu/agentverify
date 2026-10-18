@@ -1,125 +1,105 @@
 metadata:
-  agentverify_version: 0.2.0
-  recorded_at: '2026-04-23T15:27:29.482462+00:00'
+  agentverify_version: 0.5.0
+  recorded_at: '2026-10-18T15:42:18.873645+00:00'
   provider: openai
   model: gpt-4o-mini
 interactions:
 - request:
     messages:
-    - content: You generate a very short story outline based on the user's input.
+    - role: system
+      content: You generate a very short story outline based on the user's input.
         If there is any feedback provided, use it to improve the outline.
-      role: system
     - role: user
       content: A detective story in space.
     model: gpt-4o-mini
+    tools: []
     parameters:
-      store: true
+      include: []
       extra_headers:
-        User-Agent: Agents/Python 0.14.5
+        User-Agent: Agents/Python 0.24.0
       extra_query: null
       extra_body: null
-      prompt_cache_key: agents-sdk:run:1294a149af3543f5abff53f280039fb0
   response:
-    content: '**Outline for "Galactic Shadows"**
-
-
-      1. **Setting the Scene**: In a sprawling space station orbiting a distant planet,
-      a wealthy mining corporation operates under a veil of secrecy. The station is
-      a hub for intergalactic trade and a melting pot of diverse species.
-
-
-      2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
-      with a reputation for solving the toughest cases, is called in after a high-profile
-      corporate executive is found dead under mysterious circumstances.
-
-
-      3. **The Investigation Begins**: Mira interviews a range of suspects, including
-      colleagues, security personnel, and alien traders, each revealing fragments
-      of a larger conspiracy involving illegal mining operations and stolen technology.
-
-
-      4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
-      deceit that suggests corporate espionage intertwined with a personal vendetta,
-      leading her to question her own motives and loyalties.
-
-
-      5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
-      murder—a rival corporate agent who will stop at nothing to control the station''s
-      lucrative resources.
-
-
-      6. **Resolution**: With the culprit apprehended, Mira reflects on the gray morality
-      of justice amidst corporate greed and considers what comes next in a universe
-      where nothing is ever truly black and white.
-
-
-      7. **Final Hook**: As she departs the station, an encrypted message arrives,
-      hinting at an even larger threat lurking in the shadows of the galaxy, setting
-      the stage for her next adventure.
-
-
-      Would you like to adjust any elements or add more depth to certain characters?'
+    content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+      \ space station orbiting a distant planet, filled with remnants of a once-thriving\
+      \ research community.\n\n**Main Character:** Detective Lyra Quinn, a skilled\
+      \ investigator known for her unconventional methods and tenacity.\n\n**Plot\
+      \ Outline:**\n\n1. **Introduction:**\n   - Lyra is called to the space station\
+      \ after a scientist goes missing during a crucial experiment involving dark\
+      \ matter.\n   - Initial investigation reveals strange energy fluctuations and\
+      \ signs of a possible cover-up.\n\n2. **Rising Action:**\n   - As Lyra interviews\
+      \ the remaining crew members, she uncovers secrets about the experiments and\
+      \ tensions among the team, leading to several suspects.\n   - Mysterious sightings\
+      \ of ghostly figures and bizarre occurrences heighten the tension, suggesting\
+      \ something supernatural or extraterrestrial.\n\n3. **Climax:**\n   - Lyra uncovers\
+      \ a conspiracy involving the misuse of dark matter, with some crew members willing\
+      \ to do anything to hide the truth.\n   - A confrontation occurs in the reactor\
+      \ room, where the truth about the missing scientist is revealed: they discovered\
+      \ a portal and tried to escape the station.\n\n4. **Falling Action:**\n   -\
+      \ Lyra navigates through the chaos as the station's systems begin to fail, threatening\
+      \ to tear the station apart.\n   - With clever detective work, she neutralizes\
+      \ the conspirators and attempts to rescue the missing scientist.\n\n5. **Resolution:**\n\
+      \   - Back on the planet, Lyra brings the truth to light, exposing the dark\
+      \ experiments conducted at the station.\n   - The experience leaves her with\
+      \ lingering questions about the nature of space and humanity’s reach into the\
+      \ unknown.\n\n**Themes:** The dangers of ambition, the unknown in the cosmos,\
+      \ and the moral dilemmas of scientific exploration.\n\n**Ending Hook:** As Lyra\
+      \ gazes out into the vastness of space, she receives a signal from another uncharted\
+      \ station—hinting that the mysteries of the universe are far from over."
     tool_calls: null
     token_usage:
       input_tokens: 44
-      output_tokens: 320
+      output_tokens: 406
 - request:
     messages:
-    - content: You evaluate a story outline and decide if it's good enough. If it's
+    - role: system
+      content: You evaluate a story outline and decide if it's good enough. If it's
         not good enough, you provide feedback on what needs to be improved. Never
         give it a pass on the first try; return ``needs_improvement`` with concrete,
         actionable feedback. On the second attempt, if the outline has clearly incorporated
         your earlier feedback, return ``pass`` — do not go for perfection.
-      role: system
     - role: user
       content: A detective story in space.
     - role: assistant
-      content: '**Outline for "Galactic Shadows"**
-
-
-        1. **Setting the Scene**: In a sprawling space station orbiting a distant
-        planet, a wealthy mining corporation operates under a veil of secrecy. The
-        station is a hub for intergalactic trade and a melting pot of diverse species.
-
-
-        2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
-        with a reputation for solving the toughest cases, is called in after a high-profile
-        corporate executive is found dead under mysterious circumstances.
-
-
-        3. **The Investigation Begins**: Mira interviews a range of suspects, including
-        colleagues, security personnel, and alien traders, each revealing fragments
-        of a larger conspiracy involving illegal mining operations and stolen technology.
-
-
-        4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
-        deceit that suggests corporate espionage intertwined with a personal vendetta,
-        leading her to question her own motives and loyalties.
-
-
-        5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
-        murder—a rival corporate agent who will stop at nothing to control the station''s
-        lucrative resources.
-
-
-        6. **Resolution**: With the culprit apprehended, Mira reflects on the gray
-        morality of justice amidst corporate greed and considers what comes next in
-        a universe where nothing is ever truly black and white.
-
-
-        7. **Final Hook**: As she departs the station, an encrypted message arrives,
-        hinting at an even larger threat lurking in the shadows of the galaxy, setting
-        the stage for her next adventure.
-
-
-        Would you like to adjust any elements or add more depth to certain characters?'
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, filled with remnants of a once-thriving\
+        \ research community.\n\n**Main Character:** Detective Lyra Quinn, a skilled\
+        \ investigator known for her unconventional methods and tenacity.\n\n**Plot\
+        \ Outline:**\n\n1. **Introduction:**\n   - Lyra is called to the space station\
+        \ after a scientist goes missing during a crucial experiment involving dark\
+        \ matter.\n   - Initial investigation reveals strange energy fluctuations\
+        \ and signs of a possible cover-up.\n\n2. **Rising Action:**\n   - As Lyra\
+        \ interviews the remaining crew members, she uncovers secrets about the experiments\
+        \ and tensions among the team, leading to several suspects.\n   - Mysterious\
+        \ sightings of ghostly figures and bizarre occurrences heighten the tension,\
+        \ suggesting something supernatural or extraterrestrial.\n\n3. **Climax:**\n\
+        \   - Lyra uncovers a conspiracy involving the misuse of dark matter, with\
+        \ some crew members willing to do anything to hide the truth.\n   - A confrontation\
+        \ occurs in the reactor room, where the truth about the missing scientist\
+        \ is revealed: they discovered a portal and tried to escape the station.\n\
+        \n4. **Falling Action:**\n   - Lyra navigates through the chaos as the station's\
+        \ systems begin to fail, threatening to tear the station apart.\n   - With\
+        \ clever detective work, she neutralizes the conspirators and attempts to\
+        \ rescue the missing scientist.\n\n5. **Resolution:**\n   - Back on the planet,\
+        \ Lyra brings the truth to light, exposing the dark experiments conducted\
+        \ at the station.\n   - The experience leaves her with lingering questions\
+        \ about the nature of space and humanity’s reach into the unknown.\n\n**Themes:**\
+        \ The dangers of ambition, the unknown in the cosmos, and the moral dilemmas\
+        \ of scientific exploration.\n\n**Ending Hook:** As Lyra gazes out into the\
+        \ vastness of space, she receives a signal from another uncharted station—hinting\
+        \ that the mysteries of the universe are far from over."
     model: gpt-4o-mini
+    tools: []
     parameters:
-      response_format:
-        type: json_schema
-        json_schema:
+      include: []
+      extra_headers:
+        User-Agent: Agents/Python 0.24.0
+      extra_query: null
+      extra_body: null
+      text:
+        format:
+          type: json_schema
           name: final_output
-          strict: true
           schema:
             $defs:
               EvaluationFeedback:
@@ -148,307 +128,230 @@ interactions:
             title: OutputType
             type: object
             additionalProperties: false
-      store: true
-      extra_headers:
-        User-Agent: Agents/Python 0.14.5
-      extra_query: null
-      extra_body: null
-      prompt_cache_key: agents-sdk:run:5b48b03dda5148ea83988e1f2e1df700
+          strict: true
   response:
-    content: '{"response":{"feedback":"This outline has potential for an engaging
-      detective story in space, but it needs improvement in several areas:\n\n1. **Character
-      Development**: Give Mira Fox more depth. What are her personal struggles or
-      motivations beyond being a detective? Consider adding a backstory that influences
-      her actions and decisions.\n\n2. **Suspense and Intrigue**: The investigation
-      feels somewhat linear; introduce unexpected twists or red herrings to maintain
-      suspense. Perhaps one suspect provides false information, leading Mira down
-      a false path.\n\n3. **World-Building**: Flesh out the setting more. What are
-      the social dynamics on the space station? How do different species interact,
-      and how does this affect Mira''s investigation?\n\n4. **Conflict and Stakes**:
-      Clarify the stakes involved in the murder beyond corporate greed. What does
-      it mean for the locals or the broader galaxy if the murderer isn''t caught?
-      \n\n5. **Ending and Continuation**: While the final hook sets up for a sequel,
-      ensure that the resolution of this story is satisfying. Mira''s arc should provide
-      closure, yet also leave room for further adventures without feeling incomplete.","score":"needs_improvement"}}'
+    content: '{"response":{"feedback":"The outline has intriguing elements, such as
+      a detective in space and themes of ambition and the unknown. However, it lacks
+      depth in character development and motivation. We should clearly define the
+      backstory of Detective Lyra Quinn to create a stronger emotional connection
+      with readers. Additionally, while the plot hints at a supernatural aspect, it
+      feels vague and would benefit from more structure and clarity. The resolution
+      can be elaborated to show personal growth for Lyra and the implications of her
+      discoveries. Consider refining the antagonist''s motivation and clarifying the
+      nature of the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+      description of the relationships between characters to increase engagement.","score":"needs_improvement"}}'
     tool_calls: null
     token_usage:
-      input_tokens: 509
-      output_tokens: 244
+      input_tokens: 587
+      output_tokens: 143
 - request:
     messages:
-    - content: You generate a very short story outline based on the user's input.
+    - role: system
+      content: You generate a very short story outline based on the user's input.
         If there is any feedback provided, use it to improve the outline.
-      role: system
     - role: user
       content: A detective story in space.
     - role: assistant
-      content: '**Outline for "Galactic Shadows"**
-
-
-        1. **Setting the Scene**: In a sprawling space station orbiting a distant
-        planet, a wealthy mining corporation operates under a veil of secrecy. The
-        station is a hub for intergalactic trade and a melting pot of diverse species.
-
-
-        2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
-        with a reputation for solving the toughest cases, is called in after a high-profile
-        corporate executive is found dead under mysterious circumstances.
-
-
-        3. **The Investigation Begins**: Mira interviews a range of suspects, including
-        colleagues, security personnel, and alien traders, each revealing fragments
-        of a larger conspiracy involving illegal mining operations and stolen technology.
-
-
-        4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
-        deceit that suggests corporate espionage intertwined with a personal vendetta,
-        leading her to question her own motives and loyalties.
-
-
-        5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
-        murder—a rival corporate agent who will stop at nothing to control the station''s
-        lucrative resources.
-
-
-        6. **Resolution**: With the culprit apprehended, Mira reflects on the gray
-        morality of justice amidst corporate greed and considers what comes next in
-        a universe where nothing is ever truly black and white.
-
-
-        7. **Final Hook**: As she departs the station, an encrypted message arrives,
-        hinting at an even larger threat lurking in the shadows of the galaxy, setting
-        the stage for her next adventure.
-
-
-        Would you like to adjust any elements or add more depth to certain characters?'
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, filled with remnants of a once-thriving\
+        \ research community.\n\n**Main Character:** Detective Lyra Quinn, a skilled\
+        \ investigator known for her unconventional methods and tenacity.\n\n**Plot\
+        \ Outline:**\n\n1. **Introduction:**\n   - Lyra is called to the space station\
+        \ after a scientist goes missing during a crucial experiment involving dark\
+        \ matter.\n   - Initial investigation reveals strange energy fluctuations\
+        \ and signs of a possible cover-up.\n\n2. **Rising Action:**\n   - As Lyra\
+        \ interviews the remaining crew members, she uncovers secrets about the experiments\
+        \ and tensions among the team, leading to several suspects.\n   - Mysterious\
+        \ sightings of ghostly figures and bizarre occurrences heighten the tension,\
+        \ suggesting something supernatural or extraterrestrial.\n\n3. **Climax:**\n\
+        \   - Lyra uncovers a conspiracy involving the misuse of dark matter, with\
+        \ some crew members willing to do anything to hide the truth.\n   - A confrontation\
+        \ occurs in the reactor room, where the truth about the missing scientist\
+        \ is revealed: they discovered a portal and tried to escape the station.\n\
+        \n4. **Falling Action:**\n   - Lyra navigates through the chaos as the station's\
+        \ systems begin to fail, threatening to tear the station apart.\n   - With\
+        \ clever detective work, she neutralizes the conspirators and attempts to\
+        \ rescue the missing scientist.\n\n5. **Resolution:**\n   - Back on the planet,\
+        \ Lyra brings the truth to light, exposing the dark experiments conducted\
+        \ at the station.\n   - The experience leaves her with lingering questions\
+        \ about the nature of space and humanity’s reach into the unknown.\n\n**Themes:**\
+        \ The dangers of ambition, the unknown in the cosmos, and the moral dilemmas\
+        \ of scientific exploration.\n\n**Ending Hook:** As Lyra gazes out into the\
+        \ vastness of space, she receives a signal from another uncharted station—hinting\
+        \ that the mysteries of the universe are far from over."
     - role: user
-      content: "Feedback: This outline has potential for an engaging detective story\
-        \ in space, but it needs improvement in several areas:\n\n1. **Character Development**:\
-        \ Give Mira Fox more depth. What are her personal struggles or motivations\
-        \ beyond being a detective? Consider adding a backstory that influences her\
-        \ actions and decisions.\n\n2. **Suspense and Intrigue**: The investigation\
-        \ feels somewhat linear; introduce unexpected twists or red herrings to maintain\
-        \ suspense. Perhaps one suspect provides false information, leading Mira down\
-        \ a false path.\n\n3. **World-Building**: Flesh out the setting more. What\
-        \ are the social dynamics on the space station? How do different species interact,\
-        \ and how does this affect Mira's investigation?\n\n4. **Conflict and Stakes**:\
-        \ Clarify the stakes involved in the murder beyond corporate greed. What does\
-        \ it mean for the locals or the broader galaxy if the murderer isn't caught?\
-        \ \n\n5. **Ending and Continuation**: While the final hook sets up for a sequel,\
-        \ ensure that the resolution of this story is satisfying. Mira's arc should\
-        \ provide closure, yet also leave room for further adventures without feeling\
-        \ incomplete."
+      content: 'Feedback: The outline has intriguing elements, such as a detective
+        in space and themes of ambition and the unknown. However, it lacks depth in
+        character development and motivation. We should clearly define the backstory
+        of Detective Lyra Quinn to create a stronger emotional connection with readers.
+        Additionally, while the plot hints at a supernatural aspect, it feels vague
+        and would benefit from more structure and clarity. The resolution can be elaborated
+        to show personal growth for Lyra and the implications of her discoveries.
+        Consider refining the antagonist''s motivation and clarifying the nature of
+        the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+        description of the relationships between characters to increase engagement.'
     model: gpt-4o-mini
+    tools: []
     parameters:
-      store: true
+      include: []
       extra_headers:
-        User-Agent: Agents/Python 0.14.5
+        User-Agent: Agents/Python 0.24.0
       extra_query: null
       extra_body: null
-      prompt_cache_key: agents-sdk:run:b9d319e755e9486ba896ccbb3ede049f
   response:
-    content: '**Revised Outline for "Galactic Shadows"**
-
-
-      1. **Setting the Scene**: A bustling space station, **Orbital Nexus**, is the
-      central hub for interstellar trade. It features diverse habitats for various
-      alien species, with clear social hierarchies and tensions due to cultural differences.
-      Rumors of corporate corruption stir discontent among the lower-class residents
-      who struggle against the powerful mining corporations.
-
-
-      2. **Introduction of Protagonist**: Detective Mira Fox, a half-human, half-Celestian
-      (a species known for their telepathic abilities), battles personal demons stemming
-      from her troubled past. After losing her partner in a previous case gone wrong,
-      she is haunted by guilt and struggles to connect with others emotionally. Her
-      motivation now extends beyond her job; she seeks redemption by solving cases
-      that matter to those overlooked.
-
-
-      3. **The Investigation Begins**: After the murder of executive **Ralan Garde**,
-      Mira dives into a complex web of deceit. Interactions with suspects reveal diverse
-      perspectives on the corporate landscape. One suspect, a low-level technician,
-      misleads her with a fabricated alibi, planting the seeds of distrust and sending
-      her on a wild goose chase.
-
-
-      4. **Unraveling the Mystery**: Mira discovers that Garde was involved in a secretive
-      project that threatened local communities. As she investigates, she faces pressure
-      from the corporate board to drop the case, introducing an element of danger.
-      Tension escalates when Mira’s inquiries lead to threats against her life, coming
-      from both the corporate elite and local crime syndicates.
-
-
-      5. **Twists and Revelations**: Mira learns that the murder may be linked to
-      a broader rebellion against the mining corporation, with unexpected allies emerging
-      in the form of local activists. A shocking twist reveals that Garde was planning
-      to expose the corporation’s illegal activities, complicating Mira''s understanding
-      of right and wrong.
-
-
-      6. **Climax**: In a tense showdown in the station’s underbelly, where the different
-      factions collide, Mira confronts the real murderer—an undercover operative working
-      for a rival corporation, fueled by revenge against Garde for exposing corrupt
-      practices. Their confrontation delves into themes of loyalty and betrayal.
-
-
-      7. **Resolution**: With the murderer captured, Mira finds closure in her personal
-      journey, having finally confronted her past. She gains the trust of the local
-      community, initiating a dialogue for reform in the mining operations. The corporate
-      breach is revealed, causing ripples in the industry, highlighting the importance
-      of accountability.
-
-
-      8. **Final Hook**: As Mira prepares to leave Orbital Nexus for a new assignment,
-      she receives a mysterious communication hinting at an intergalactic conspiracy
-      involving more powerful entities. While she takes the step toward healing, the
-      galaxy''s instability pulls her back into action, setting the stage for her
-      next thrilling adventure.
-
-
-      Does this revised outline align better with your vision, or are there further
-      adjustments you would like to explore?'
+    content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+      \ space station orbiting a distant planet, with eerie remnants of a previously\
+      \ vibrant research community.\n\n**Main Character:**\n- **Detective Lyra Quinn:**\
+      \ Once a bright astrophysicist, Lyra left her promising career after a catastrophic\
+      \ experiment claimed the life of a loved one. Driven by guilt and a desire for\
+      \ redemption, she now solves crimes in the depths of space, tethered to her\
+      \ past but seeking to reclaim her identity.\n\n**Character Development:**\n\
+      - **Backstory:**\n  - Lyra's brother, a brilliant scientist, died in a failed\
+      \ experiment due to corporate negligence. This tragedy sparks her drive to uncover\
+      \ the truth, often clashing with authority to ensure justice.\n\n**Plot Outline:**\n\
+      \n1. **Introduction:**\n   - Lyra is summoned to the station after the disappearance\
+      \ of Dr. Elias Drake, the lead scientist on a dark matter project. Suspicion\
+      \ arises when clues hint at a rushed experiment potentially linked to corporate\
+      \ corruption.\n\n2. **Rising Action:**\n   - As Lyra interviews the remaining\
+      \ crew, she forms close relationships with:\n     - **Mara,** the anxious technician,\
+      \ who harbors feelings of guilt over her role in the experiment.\n     - **Captain\
+      \ Niles,** a disgraced officer eager to redeem himself while hiding secrets\
+      \ that link him to the corporate powers.\n   - Evidence reveals not just personal\
+      \ vendettas but a **corporate conspiracy** to weaponize dark matter, raising\
+      \ ethical questions and risks of manipulation.\n\n3. **Climax:**\n   - Lyra\
+      \ discovers a hidden chamber revealing that Dr. Drake was close to proving that\
+      \ dark matter could transcend dimensions, leading to a conspiracy involving\
+      \ the crew trying to silence him.\n   - The tension escalates when the conspirators\
+      \ confront her, revealing their unhinged motivations: power and profit. A battle\
+      \ ensues in the reactor room, where the true horrors of the project unfold.\
+      \ \n\n4. **Falling Action:**\n   - In the chaos, Lyra rescues Dr. Drake, who\
+      \ has been trapped in a laboratory made unstable by the dark matter experiments.\
+      \ They work together to stabilize the reactor, using Lyra’s scientific knowledge\
+      \ and detective skills.\n   - Relationships deepen as Lyra reconciles with Mara’s\
+      \ guilt and helps Niles face his past.\n\n5. **Resolution:**\n   - Back on the\
+      \ planet, Lyra reveals the conspiracy, seeking to dismantle the corporate apparatus\
+      \ that exploited the research community. The truths she uncovers not only liberate\
+      \ the crew but also aid in her healing.\n   - Lyra emerges with a renewed sense\
+      \ of self and purpose, deciding to continue her work as a detective but now\
+      \ with a commitment to protecting ethical research.\n   - The connection she\
+      \ forms with her rescued brother’s work cements her role in reshaping how science\
+      \ interacts with ethics, leading her to initiate safer practices in future investigations.\n\
+      \n**Themes:** The consequences of ambition, the struggle with personal guilt,\
+      \ redemption, and ethical boundaries in scientific advancement.\n\n**Ending\
+      \ Hook:** As she gazes into the cosmos, Lyra receives a signal from an uncharted\
+      \ station. This discovery signals not just new mysteries but the potential for\
+      \ further healing and understanding of her own past, compelling her to continue\
+      \ her journey among the stars."
     tool_calls: null
     token_usage:
-      input_tokens: 597
-      output_tokens: 594
+      input_tokens: 590
+      output_tokens: 672
 - request:
     messages:
-    - content: You evaluate a story outline and decide if it's good enough. If it's
+    - role: system
+      content: You evaluate a story outline and decide if it's good enough. If it's
         not good enough, you provide feedback on what needs to be improved. Never
         give it a pass on the first try; return ``needs_improvement`` with concrete,
         actionable feedback. On the second attempt, if the outline has clearly incorporated
         your earlier feedback, return ``pass`` — do not go for perfection.
-      role: system
     - role: user
       content: A detective story in space.
     - role: assistant
-      content: '**Outline for "Galactic Shadows"**
-
-
-        1. **Setting the Scene**: In a sprawling space station orbiting a distant
-        planet, a wealthy mining corporation operates under a veil of secrecy. The
-        station is a hub for intergalactic trade and a melting pot of diverse species.
-
-
-        2. **Introduction of Protagonist**: Detective Mira Fox, a seasoned investigator
-        with a reputation for solving the toughest cases, is called in after a high-profile
-        corporate executive is found dead under mysterious circumstances.
-
-
-        3. **The Investigation Begins**: Mira interviews a range of suspects, including
-        colleagues, security personnel, and alien traders, each revealing fragments
-        of a larger conspiracy involving illegal mining operations and stolen technology.
-
-
-        4. **Unraveling the Mystery**: As Mira delves deeper, she uncovers a web of
-        deceit that suggests corporate espionage intertwined with a personal vendetta,
-        leading her to question her own motives and loyalties.
-
-
-        5. **Climax**: In a tense showdown, Mira confronts the mastermind behind the
-        murder—a rival corporate agent who will stop at nothing to control the station''s
-        lucrative resources.
-
-
-        6. **Resolution**: With the culprit apprehended, Mira reflects on the gray
-        morality of justice amidst corporate greed and considers what comes next in
-        a universe where nothing is ever truly black and white.
-
-
-        7. **Final Hook**: As she departs the station, an encrypted message arrives,
-        hinting at an even larger threat lurking in the shadows of the galaxy, setting
-        the stage for her next adventure.
-
-
-        Would you like to adjust any elements or add more depth to certain characters?'
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, filled with remnants of a once-thriving\
+        \ research community.\n\n**Main Character:** Detective Lyra Quinn, a skilled\
+        \ investigator known for her unconventional methods and tenacity.\n\n**Plot\
+        \ Outline:**\n\n1. **Introduction:**\n   - Lyra is called to the space station\
+        \ after a scientist goes missing during a crucial experiment involving dark\
+        \ matter.\n   - Initial investigation reveals strange energy fluctuations\
+        \ and signs of a possible cover-up.\n\n2. **Rising Action:**\n   - As Lyra\
+        \ interviews the remaining crew members, she uncovers secrets about the experiments\
+        \ and tensions among the team, leading to several suspects.\n   - Mysterious\
+        \ sightings of ghostly figures and bizarre occurrences heighten the tension,\
+        \ suggesting something supernatural or extraterrestrial.\n\n3. **Climax:**\n\
+        \   - Lyra uncovers a conspiracy involving the misuse of dark matter, with\
+        \ some crew members willing to do anything to hide the truth.\n   - A confrontation\
+        \ occurs in the reactor room, where the truth about the missing scientist\
+        \ is revealed: they discovered a portal and tried to escape the station.\n\
+        \n4. **Falling Action:**\n   - Lyra navigates through the chaos as the station's\
+        \ systems begin to fail, threatening to tear the station apart.\n   - With\
+        \ clever detective work, she neutralizes the conspirators and attempts to\
+        \ rescue the missing scientist.\n\n5. **Resolution:**\n   - Back on the planet,\
+        \ Lyra brings the truth to light, exposing the dark experiments conducted\
+        \ at the station.\n   - The experience leaves her with lingering questions\
+        \ about the nature of space and humanity’s reach into the unknown.\n\n**Themes:**\
+        \ The dangers of ambition, the unknown in the cosmos, and the moral dilemmas\
+        \ of scientific exploration.\n\n**Ending Hook:** As Lyra gazes out into the\
+        \ vastness of space, she receives a signal from another uncharted station—hinting\
+        \ that the mysteries of the universe are far from over."
     - role: user
-      content: "Feedback: This outline has potential for an engaging detective story\
-        \ in space, but it needs improvement in several areas:\n\n1. **Character Development**:\
-        \ Give Mira Fox more depth. What are her personal struggles or motivations\
-        \ beyond being a detective? Consider adding a backstory that influences her\
-        \ actions and decisions.\n\n2. **Suspense and Intrigue**: The investigation\
-        \ feels somewhat linear; introduce unexpected twists or red herrings to maintain\
-        \ suspense. Perhaps one suspect provides false information, leading Mira down\
-        \ a false path.\n\n3. **World-Building**: Flesh out the setting more. What\
-        \ are the social dynamics on the space station? How do different species interact,\
-        \ and how does this affect Mira's investigation?\n\n4. **Conflict and Stakes**:\
-        \ Clarify the stakes involved in the murder beyond corporate greed. What does\
-        \ it mean for the locals or the broader galaxy if the murderer isn't caught?\
-        \ \n\n5. **Ending and Continuation**: While the final hook sets up for a sequel,\
-        \ ensure that the resolution of this story is satisfying. Mira's arc should\
-        \ provide closure, yet also leave room for further adventures without feeling\
-        \ incomplete."
+      content: 'Feedback: The outline has intriguing elements, such as a detective
+        in space and themes of ambition and the unknown. However, it lacks depth in
+        character development and motivation. We should clearly define the backstory
+        of Detective Lyra Quinn to create a stronger emotional connection with readers.
+        Additionally, while the plot hints at a supernatural aspect, it feels vague
+        and would benefit from more structure and clarity. The resolution can be elaborated
+        to show personal growth for Lyra and the implications of her discoveries.
+        Consider refining the antagonist''s motivation and clarifying the nature of
+        the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+        description of the relationships between characters to increase engagement.'
     - role: assistant
-      content: '**Revised Outline for "Galactic Shadows"**
-
-
-        1. **Setting the Scene**: A bustling space station, **Orbital Nexus**, is
-        the central hub for interstellar trade. It features diverse habitats for various
-        alien species, with clear social hierarchies and tensions due to cultural
-        differences. Rumors of corporate corruption stir discontent among the lower-class
-        residents who struggle against the powerful mining corporations.
-
-
-        2. **Introduction of Protagonist**: Detective Mira Fox, a half-human, half-Celestian
-        (a species known for their telepathic abilities), battles personal demons
-        stemming from her troubled past. After losing her partner in a previous case
-        gone wrong, she is haunted by guilt and struggles to connect with others emotionally.
-        Her motivation now extends beyond her job; she seeks redemption by solving
-        cases that matter to those overlooked.
-
-
-        3. **The Investigation Begins**: After the murder of executive **Ralan Garde**,
-        Mira dives into a complex web of deceit. Interactions with suspects reveal
-        diverse perspectives on the corporate landscape. One suspect, a low-level
-        technician, misleads her with a fabricated alibi, planting the seeds of distrust
-        and sending her on a wild goose chase.
-
-
-        4. **Unraveling the Mystery**: Mira discovers that Garde was involved in a
-        secretive project that threatened local communities. As she investigates,
-        she faces pressure from the corporate board to drop the case, introducing
-        an element of danger. Tension escalates when Mira’s inquiries lead to threats
-        against her life, coming from both the corporate elite and local crime syndicates.
-
-
-        5. **Twists and Revelations**: Mira learns that the murder may be linked to
-        a broader rebellion against the mining corporation, with unexpected allies
-        emerging in the form of local activists. A shocking twist reveals that Garde
-        was planning to expose the corporation’s illegal activities, complicating
-        Mira''s understanding of right and wrong.
-
-
-        6. **Climax**: In a tense showdown in the station’s underbelly, where the
-        different factions collide, Mira confronts the real murderer—an undercover
-        operative working for a rival corporation, fueled by revenge against Garde
-        for exposing corrupt practices. Their confrontation delves into themes of
-        loyalty and betrayal.
-
-
-        7. **Resolution**: With the murderer captured, Mira finds closure in her personal
-        journey, having finally confronted her past. She gains the trust of the local
-        community, initiating a dialogue for reform in the mining operations. The
-        corporate breach is revealed, causing ripples in the industry, highlighting
-        the importance of accountability.
-
-
-        8. **Final Hook**: As Mira prepares to leave Orbital Nexus for a new assignment,
-        she receives a mysterious communication hinting at an intergalactic conspiracy
-        involving more powerful entities. While she takes the step toward healing,
-        the galaxy''s instability pulls her back into action, setting the stage for
-        her next thrilling adventure.
-
-
-        Does this revised outline align better with your vision, or are there further
-        adjustments you would like to explore?'
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, with eerie remnants of a previously\
+        \ vibrant research community.\n\n**Main Character:**\n- **Detective Lyra Quinn:**\
+        \ Once a bright astrophysicist, Lyra left her promising career after a catastrophic\
+        \ experiment claimed the life of a loved one. Driven by guilt and a desire\
+        \ for redemption, she now solves crimes in the depths of space, tethered to\
+        \ her past but seeking to reclaim her identity.\n\n**Character Development:**\n\
+        - **Backstory:**\n  - Lyra's brother, a brilliant scientist, died in a failed\
+        \ experiment due to corporate negligence. This tragedy sparks her drive to\
+        \ uncover the truth, often clashing with authority to ensure justice.\n\n\
+        **Plot Outline:**\n\n1. **Introduction:**\n   - Lyra is summoned to the station\
+        \ after the disappearance of Dr. Elias Drake, the lead scientist on a dark\
+        \ matter project. Suspicion arises when clues hint at a rushed experiment\
+        \ potentially linked to corporate corruption.\n\n2. **Rising Action:**\n \
+        \  - As Lyra interviews the remaining crew, she forms close relationships\
+        \ with:\n     - **Mara,** the anxious technician, who harbors feelings of\
+        \ guilt over her role in the experiment.\n     - **Captain Niles,** a disgraced\
+        \ officer eager to redeem himself while hiding secrets that link him to the\
+        \ corporate powers.\n   - Evidence reveals not just personal vendettas but\
+        \ a **corporate conspiracy** to weaponize dark matter, raising ethical questions\
+        \ and risks of manipulation.\n\n3. **Climax:**\n   - Lyra discovers a hidden\
+        \ chamber revealing that Dr. Drake was close to proving that dark matter could\
+        \ transcend dimensions, leading to a conspiracy involving the crew trying\
+        \ to silence him.\n   - The tension escalates when the conspirators confront\
+        \ her, revealing their unhinged motivations: power and profit. A battle ensues\
+        \ in the reactor room, where the true horrors of the project unfold. \n\n\
+        4. **Falling Action:**\n   - In the chaos, Lyra rescues Dr. Drake, who has\
+        \ been trapped in a laboratory made unstable by the dark matter experiments.\
+        \ They work together to stabilize the reactor, using Lyra’s scientific knowledge\
+        \ and detective skills.\n   - Relationships deepen as Lyra reconciles with\
+        \ Mara’s guilt and helps Niles face his past.\n\n5. **Resolution:**\n   -\
+        \ Back on the planet, Lyra reveals the conspiracy, seeking to dismantle the\
+        \ corporate apparatus that exploited the research community. The truths she\
+        \ uncovers not only liberate the crew but also aid in her healing.\n   - Lyra\
+        \ emerges with a renewed sense of self and purpose, deciding to continue her\
+        \ work as a detective but now with a commitment to protecting ethical research.\n\
+        \   - The connection she forms with her rescued brother’s work cements her\
+        \ role in reshaping how science interacts with ethics, leading her to initiate\
+        \ safer practices in future investigations.\n\n**Themes:** The consequences\
+        \ of ambition, the struggle with personal guilt, redemption, and ethical boundaries\
+        \ in scientific advancement.\n\n**Ending Hook:** As she gazes into the cosmos,\
+        \ Lyra receives a signal from an uncharted station. This discovery signals\
+        \ not just new mysteries but the potential for further healing and understanding\
+        \ of her own past, compelling her to continue her journey among the stars."
     model: gpt-4o-mini
+    tools: []
     parameters:
-      response_format:
-        type: json_schema
-        json_schema:
+      include: []
+      extra_headers:
+        User-Agent: Agents/Python 0.24.0
+      extra_query: null
+      extra_body: null
+      text:
+        format:
+          type: json_schema
           name: final_output
-          strict: true
           schema:
             $defs:
               EvaluationFeedback:
@@ -477,15 +380,403 @@ interactions:
             title: OutputType
             type: object
             additionalProperties: false
-      store: true
-      extra_headers:
-        User-Agent: Agents/Python 0.14.5
-      extra_query: null
-      extra_body: null
-      prompt_cache_key: agents-sdk:run:bb3e53e1a6414a96b09f4f175f9097c1
+          strict: true
   response:
-    content: '{"response":{"feedback":"","score":"pass"}}'
+    content: '{"response":{"feedback":"The outline has intriguing elements, such as
+      a detective in space and themes of ambition and the unknown. However, it lacks
+      depth in character development and motivation. We should clearly define the
+      backstory of Detective Lyra Quinn to create a stronger emotional connection
+      with readers. Additionally, while the plot hints at a supernatural aspect, it
+      feels vague and would benefit from more structure and clarity. The resolution
+      can be elaborated to show personal growth for Lyra and the implications of her
+      discoveries. Consider refining the antagonist''s motivation and clarifying the
+      nature of the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+      description of the relationships between characters to increase engagement.","score":"needs_improvement"}}'
     tool_calls: null
     token_usage:
-      input_tokens: 1340
-      output_tokens: 9
+      input_tokens: 1399
+      output_tokens: 143
+- request:
+    messages:
+    - role: system
+      content: You generate a very short story outline based on the user's input.
+        If there is any feedback provided, use it to improve the outline.
+    - role: user
+      content: A detective story in space.
+    - role: assistant
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, filled with remnants of a once-thriving\
+        \ research community.\n\n**Main Character:** Detective Lyra Quinn, a skilled\
+        \ investigator known for her unconventional methods and tenacity.\n\n**Plot\
+        \ Outline:**\n\n1. **Introduction:**\n   - Lyra is called to the space station\
+        \ after a scientist goes missing during a crucial experiment involving dark\
+        \ matter.\n   - Initial investigation reveals strange energy fluctuations\
+        \ and signs of a possible cover-up.\n\n2. **Rising Action:**\n   - As Lyra\
+        \ interviews the remaining crew members, she uncovers secrets about the experiments\
+        \ and tensions among the team, leading to several suspects.\n   - Mysterious\
+        \ sightings of ghostly figures and bizarre occurrences heighten the tension,\
+        \ suggesting something supernatural or extraterrestrial.\n\n3. **Climax:**\n\
+        \   - Lyra uncovers a conspiracy involving the misuse of dark matter, with\
+        \ some crew members willing to do anything to hide the truth.\n   - A confrontation\
+        \ occurs in the reactor room, where the truth about the missing scientist\
+        \ is revealed: they discovered a portal and tried to escape the station.\n\
+        \n4. **Falling Action:**\n   - Lyra navigates through the chaos as the station's\
+        \ systems begin to fail, threatening to tear the station apart.\n   - With\
+        \ clever detective work, she neutralizes the conspirators and attempts to\
+        \ rescue the missing scientist.\n\n5. **Resolution:**\n   - Back on the planet,\
+        \ Lyra brings the truth to light, exposing the dark experiments conducted\
+        \ at the station.\n   - The experience leaves her with lingering questions\
+        \ about the nature of space and humanity’s reach into the unknown.\n\n**Themes:**\
+        \ The dangers of ambition, the unknown in the cosmos, and the moral dilemmas\
+        \ of scientific exploration.\n\n**Ending Hook:** As Lyra gazes out into the\
+        \ vastness of space, she receives a signal from another uncharted station—hinting\
+        \ that the mysteries of the universe are far from over."
+    - role: user
+      content: 'Feedback: The outline has intriguing elements, such as a detective
+        in space and themes of ambition and the unknown. However, it lacks depth in
+        character development and motivation. We should clearly define the backstory
+        of Detective Lyra Quinn to create a stronger emotional connection with readers.
+        Additionally, while the plot hints at a supernatural aspect, it feels vague
+        and would benefit from more structure and clarity. The resolution can be elaborated
+        to show personal growth for Lyra and the implications of her discoveries.
+        Consider refining the antagonist''s motivation and clarifying the nature of
+        the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+        description of the relationships between characters to increase engagement.'
+    - role: assistant
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, with eerie remnants of a previously\
+        \ vibrant research community.\n\n**Main Character:**\n- **Detective Lyra Quinn:**\
+        \ Once a bright astrophysicist, Lyra left her promising career after a catastrophic\
+        \ experiment claimed the life of a loved one. Driven by guilt and a desire\
+        \ for redemption, she now solves crimes in the depths of space, tethered to\
+        \ her past but seeking to reclaim her identity.\n\n**Character Development:**\n\
+        - **Backstory:**\n  - Lyra's brother, a brilliant scientist, died in a failed\
+        \ experiment due to corporate negligence. This tragedy sparks her drive to\
+        \ uncover the truth, often clashing with authority to ensure justice.\n\n\
+        **Plot Outline:**\n\n1. **Introduction:**\n   - Lyra is summoned to the station\
+        \ after the disappearance of Dr. Elias Drake, the lead scientist on a dark\
+        \ matter project. Suspicion arises when clues hint at a rushed experiment\
+        \ potentially linked to corporate corruption.\n\n2. **Rising Action:**\n \
+        \  - As Lyra interviews the remaining crew, she forms close relationships\
+        \ with:\n     - **Mara,** the anxious technician, who harbors feelings of\
+        \ guilt over her role in the experiment.\n     - **Captain Niles,** a disgraced\
+        \ officer eager to redeem himself while hiding secrets that link him to the\
+        \ corporate powers.\n   - Evidence reveals not just personal vendettas but\
+        \ a **corporate conspiracy** to weaponize dark matter, raising ethical questions\
+        \ and risks of manipulation.\n\n3. **Climax:**\n   - Lyra discovers a hidden\
+        \ chamber revealing that Dr. Drake was close to proving that dark matter could\
+        \ transcend dimensions, leading to a conspiracy involving the crew trying\
+        \ to silence him.\n   - The tension escalates when the conspirators confront\
+        \ her, revealing their unhinged motivations: power and profit. A battle ensues\
+        \ in the reactor room, where the true horrors of the project unfold. \n\n\
+        4. **Falling Action:**\n   - In the chaos, Lyra rescues Dr. Drake, who has\
+        \ been trapped in a laboratory made unstable by the dark matter experiments.\
+        \ They work together to stabilize the reactor, using Lyra’s scientific knowledge\
+        \ and detective skills.\n   - Relationships deepen as Lyra reconciles with\
+        \ Mara’s guilt and helps Niles face his past.\n\n5. **Resolution:**\n   -\
+        \ Back on the planet, Lyra reveals the conspiracy, seeking to dismantle the\
+        \ corporate apparatus that exploited the research community. The truths she\
+        \ uncovers not only liberate the crew but also aid in her healing.\n   - Lyra\
+        \ emerges with a renewed sense of self and purpose, deciding to continue her\
+        \ work as a detective but now with a commitment to protecting ethical research.\n\
+        \   - The connection she forms with her rescued brother’s work cements her\
+        \ role in reshaping how science interacts with ethics, leading her to initiate\
+        \ safer practices in future investigations.\n\n**Themes:** The consequences\
+        \ of ambition, the struggle with personal guilt, redemption, and ethical boundaries\
+        \ in scientific advancement.\n\n**Ending Hook:** As she gazes into the cosmos,\
+        \ Lyra receives a signal from an uncharted station. This discovery signals\
+        \ not just new mysteries but the potential for further healing and understanding\
+        \ of her own past, compelling her to continue her journey among the stars."
+    - role: user
+      content: 'Feedback: The outline has intriguing elements, such as a detective
+        in space and themes of ambition and the unknown. However, it lacks depth in
+        character development and motivation. We should clearly define the backstory
+        of Detective Lyra Quinn to create a stronger emotional connection with readers.
+        Additionally, while the plot hints at a supernatural aspect, it feels vague
+        and would benefit from more structure and clarity. The resolution can be elaborated
+        to show personal growth for Lyra and the implications of her discoveries.
+        Consider refining the antagonist''s motivation and clarifying the nature of
+        the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+        description of the relationships between characters to increase engagement.'
+    model: gpt-4o-mini
+    tools: []
+    parameters:
+      include: []
+      extra_headers:
+        User-Agent: Agents/Python 0.24.0
+      extra_query: null
+      extra_body: null
+  response:
+    content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** An abandoned space\
+      \ station, once a hub for advanced dark matter research, orbiting a remote planet.\
+      \ The station's haunting corridors echo with the whispers of its tragic past.\n\
+      \n**Main Character:**\n- **Detective Lyra Quinn:** A former astrophysicist whose\
+      \ career was shattered when an experiment led to her brother’s tragic death—a\
+      \ disaster tied to corporate negligence. Haunted by her past and driven by a\
+      \ desire for justice, she becomes a detective in space, using her scientific\
+      \ knowledge to solve mysteries while constantly grappling with guilt and trauma.\n\
+      \n**Backstory:**\n- Lyra’s brother, Dr. Ethan Quinn, was a pioneering researcher\
+      \ whose ambition to push the boundaries of science resulted in a tragic accident.\
+      \ His death propels Lyra into a life dedicated to uncovering the truth, especially\
+      \ in instances where corporate greed threatens human life.\n\n**Plot Outline:**\n\
+      \n1. **Introduction:**\n   - The story begins with a distress signal from the\
+      \ abandoned space station, prompting Lyra’s investigation. The missing Dr. Elias\
+      \ Drake was working on utilizing dark matter for energy, but rumors suggest\
+      \ he discovered something far more powerful and dangerous.\n\n2. **Rising Action:**\n\
+      \   - Characters are introduced:\n     - **Mara Valdez,** a young technician\
+      \ filled with remorse over her role in the failed experiment. She feels a connection\
+      \ to Lyra’s past and seeks redemption.\n     - **Captain Orion Niles,** a former\
+      \ commander now burdened by his disgrace, as he feels responsible for the safety\
+      \ of the crew and struggles to regain his honor while hiding a vital secret\
+      \ about corporate ties.\n   - As Lyra deepens her investigation, she unravels\
+      \ tensions between the crew, revealing each character's motivations:\n     -\
+      \ Mara believes she can amend her past mistakes; Niles is torn between loyalty\
+      \ to the corporation and his conscience.\n   - Strange phenomena begin to occur,\
+      \ hinting at a supernatural element connected to the dark matter experiments—a\
+      \ rift in space-time that may have been unintentionally opened.\n\n3. **Climax:**\n\
+      \   - A confrontation reveals that Dr. Drake was close to unlocking the secrets\
+      \ of interdimensional travel and was silenced by those who felt threatened by\
+      \ his discovery. \n   - The conspirators, including Captain Niles, had a deal\
+      \ with a corporation intent on weaponizing the research. Emotional stakes heighten\
+      \ as Lyra’s skills are put to the test: she must navigate the battle of wits\
+      \ and danger.\n   - A showdown in the reactor room introduces an unstable dark\
+      \ matter core, risking annihilation of the station but giving Lyra the opportunity\
+      \ to confront her own fears.\n\n4. **Falling Action:**\n   - With Dr. Drake\
+      \ rescued and the reactor’s stability restored through teamwork, relationships\
+      \ evolve. Lyra helps Mara understand the value of moving beyond guilt, inspiring\
+      \ confidence in her abilities. Niles must confront his past decisions and make\
+      \ amends.\n   - Revealed through their dialogue and collaboration, deeper emotional\
+      \ connections emerge, breathes life into their motivations, and solidifies their\
+      \ roles in the resolution.\n\n5. **Resolution:**\n   - Back on the planet, Lyra\
+      \ exposes the corporate conspiracy, pushing for accountability and ethical guidelines\
+      \ in dark matter research. In the process, she finds closure regarding her brother’s\
+      \ death, realizing it’s not just about uncovering secrets, but also about healing.\n\
+      \   - Embracing her role as a protector of truth, Lyra vows to prevent future\
+      \ tragedies, dedicating herself to ethical practices in science and serving\
+      \ as a mentor to Mara and others.\n   - The once-glimmering hope of her brother’s\
+      \ dreams becomes a guiding force in her new life.\n\n**Themes:** The struggle\
+      \ for redemption, the moral responsibilities of scientists, ambition’s consequences,\
+      \ and the deep ties of familial love.\n\n**Ending Hook:** As she gazes into\
+      \ the endless cosmos, a mysterious signal from an unknown station beckons. It\
+      \ offers Lyra a chance to explore more than just truths; it promises a journey\
+      \ toward her own self-discovery, revealing that the universe still holds many\
+      \ secrets."
+    tool_calls: null
+    token_usage:
+      input_tokens: 1402
+      output_tokens: 833
+- request:
+    messages:
+    - role: system
+      content: You evaluate a story outline and decide if it's good enough. If it's
+        not good enough, you provide feedback on what needs to be improved. Never
+        give it a pass on the first try; return ``needs_improvement`` with concrete,
+        actionable feedback. On the second attempt, if the outline has clearly incorporated
+        your earlier feedback, return ``pass`` — do not go for perfection.
+    - role: user
+      content: A detective story in space.
+    - role: assistant
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, filled with remnants of a once-thriving\
+        \ research community.\n\n**Main Character:** Detective Lyra Quinn, a skilled\
+        \ investigator known for her unconventional methods and tenacity.\n\n**Plot\
+        \ Outline:**\n\n1. **Introduction:**\n   - Lyra is called to the space station\
+        \ after a scientist goes missing during a crucial experiment involving dark\
+        \ matter.\n   - Initial investigation reveals strange energy fluctuations\
+        \ and signs of a possible cover-up.\n\n2. **Rising Action:**\n   - As Lyra\
+        \ interviews the remaining crew members, she uncovers secrets about the experiments\
+        \ and tensions among the team, leading to several suspects.\n   - Mysterious\
+        \ sightings of ghostly figures and bizarre occurrences heighten the tension,\
+        \ suggesting something supernatural or extraterrestrial.\n\n3. **Climax:**\n\
+        \   - Lyra uncovers a conspiracy involving the misuse of dark matter, with\
+        \ some crew members willing to do anything to hide the truth.\n   - A confrontation\
+        \ occurs in the reactor room, where the truth about the missing scientist\
+        \ is revealed: they discovered a portal and tried to escape the station.\n\
+        \n4. **Falling Action:**\n   - Lyra navigates through the chaos as the station's\
+        \ systems begin to fail, threatening to tear the station apart.\n   - With\
+        \ clever detective work, she neutralizes the conspirators and attempts to\
+        \ rescue the missing scientist.\n\n5. **Resolution:**\n   - Back on the planet,\
+        \ Lyra brings the truth to light, exposing the dark experiments conducted\
+        \ at the station.\n   - The experience leaves her with lingering questions\
+        \ about the nature of space and humanity’s reach into the unknown.\n\n**Themes:**\
+        \ The dangers of ambition, the unknown in the cosmos, and the moral dilemmas\
+        \ of scientific exploration.\n\n**Ending Hook:** As Lyra gazes out into the\
+        \ vastness of space, she receives a signal from another uncharted station—hinting\
+        \ that the mysteries of the universe are far from over."
+    - role: user
+      content: 'Feedback: The outline has intriguing elements, such as a detective
+        in space and themes of ambition and the unknown. However, it lacks depth in
+        character development and motivation. We should clearly define the backstory
+        of Detective Lyra Quinn to create a stronger emotional connection with readers.
+        Additionally, while the plot hints at a supernatural aspect, it feels vague
+        and would benefit from more structure and clarity. The resolution can be elaborated
+        to show personal growth for Lyra and the implications of her discoveries.
+        Consider refining the antagonist''s motivation and clarifying the nature of
+        the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+        description of the relationships between characters to increase engagement.'
+    - role: assistant
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** A massive, abandoned\
+        \ space station orbiting a distant planet, with eerie remnants of a previously\
+        \ vibrant research community.\n\n**Main Character:**\n- **Detective Lyra Quinn:**\
+        \ Once a bright astrophysicist, Lyra left her promising career after a catastrophic\
+        \ experiment claimed the life of a loved one. Driven by guilt and a desire\
+        \ for redemption, she now solves crimes in the depths of space, tethered to\
+        \ her past but seeking to reclaim her identity.\n\n**Character Development:**\n\
+        - **Backstory:**\n  - Lyra's brother, a brilliant scientist, died in a failed\
+        \ experiment due to corporate negligence. This tragedy sparks her drive to\
+        \ uncover the truth, often clashing with authority to ensure justice.\n\n\
+        **Plot Outline:**\n\n1. **Introduction:**\n   - Lyra is summoned to the station\
+        \ after the disappearance of Dr. Elias Drake, the lead scientist on a dark\
+        \ matter project. Suspicion arises when clues hint at a rushed experiment\
+        \ potentially linked to corporate corruption.\n\n2. **Rising Action:**\n \
+        \  - As Lyra interviews the remaining crew, she forms close relationships\
+        \ with:\n     - **Mara,** the anxious technician, who harbors feelings of\
+        \ guilt over her role in the experiment.\n     - **Captain Niles,** a disgraced\
+        \ officer eager to redeem himself while hiding secrets that link him to the\
+        \ corporate powers.\n   - Evidence reveals not just personal vendettas but\
+        \ a **corporate conspiracy** to weaponize dark matter, raising ethical questions\
+        \ and risks of manipulation.\n\n3. **Climax:**\n   - Lyra discovers a hidden\
+        \ chamber revealing that Dr. Drake was close to proving that dark matter could\
+        \ transcend dimensions, leading to a conspiracy involving the crew trying\
+        \ to silence him.\n   - The tension escalates when the conspirators confront\
+        \ her, revealing their unhinged motivations: power and profit. A battle ensues\
+        \ in the reactor room, where the true horrors of the project unfold. \n\n\
+        4. **Falling Action:**\n   - In the chaos, Lyra rescues Dr. Drake, who has\
+        \ been trapped in a laboratory made unstable by the dark matter experiments.\
+        \ They work together to stabilize the reactor, using Lyra’s scientific knowledge\
+        \ and detective skills.\n   - Relationships deepen as Lyra reconciles with\
+        \ Mara’s guilt and helps Niles face his past.\n\n5. **Resolution:**\n   -\
+        \ Back on the planet, Lyra reveals the conspiracy, seeking to dismantle the\
+        \ corporate apparatus that exploited the research community. The truths she\
+        \ uncovers not only liberate the crew but also aid in her healing.\n   - Lyra\
+        \ emerges with a renewed sense of self and purpose, deciding to continue her\
+        \ work as a detective but now with a commitment to protecting ethical research.\n\
+        \   - The connection she forms with her rescued brother’s work cements her\
+        \ role in reshaping how science interacts with ethics, leading her to initiate\
+        \ safer practices in future investigations.\n\n**Themes:** The consequences\
+        \ of ambition, the struggle with personal guilt, redemption, and ethical boundaries\
+        \ in scientific advancement.\n\n**Ending Hook:** As she gazes into the cosmos,\
+        \ Lyra receives a signal from an uncharted station. This discovery signals\
+        \ not just new mysteries but the potential for further healing and understanding\
+        \ of her own past, compelling her to continue her journey among the stars."
+    - role: user
+      content: 'Feedback: The outline has intriguing elements, such as a detective
+        in space and themes of ambition and the unknown. However, it lacks depth in
+        character development and motivation. We should clearly define the backstory
+        of Detective Lyra Quinn to create a stronger emotional connection with readers.
+        Additionally, while the plot hints at a supernatural aspect, it feels vague
+        and would benefit from more structure and clarity. The resolution can be elaborated
+        to show personal growth for Lyra and the implications of her discoveries.
+        Consider refining the antagonist''s motivation and clarifying the nature of
+        the conspiracy to enhance tension and stakes. Lastly, add a more detailed
+        description of the relationships between characters to increase engagement.'
+    - role: assistant
+      content: "**Title:** *Echoes Among the Stars*\n\n**Setting:** An abandoned space\
+        \ station, once a hub for advanced dark matter research, orbiting a remote\
+        \ planet. The station's haunting corridors echo with the whispers of its tragic\
+        \ past.\n\n**Main Character:**\n- **Detective Lyra Quinn:** A former astrophysicist\
+        \ whose career was shattered when an experiment led to her brother’s tragic\
+        \ death—a disaster tied to corporate negligence. Haunted by her past and driven\
+        \ by a desire for justice, she becomes a detective in space, using her scientific\
+        \ knowledge to solve mysteries while constantly grappling with guilt and trauma.\n\
+        \n**Backstory:**\n- Lyra’s brother, Dr. Ethan Quinn, was a pioneering researcher\
+        \ whose ambition to push the boundaries of science resulted in a tragic accident.\
+        \ His death propels Lyra into a life dedicated to uncovering the truth, especially\
+        \ in instances where corporate greed threatens human life.\n\n**Plot Outline:**\n\
+        \n1. **Introduction:**\n   - The story begins with a distress signal from\
+        \ the abandoned space station, prompting Lyra’s investigation. The missing\
+        \ Dr. Elias Drake was working on utilizing dark matter for energy, but rumors\
+        \ suggest he discovered something far more powerful and dangerous.\n\n2. **Rising\
+        \ Action:**\n   - Characters are introduced:\n     - **Mara Valdez,** a young\
+        \ technician filled with remorse over her role in the failed experiment. She\
+        \ feels a connection to Lyra’s past and seeks redemption.\n     - **Captain\
+        \ Orion Niles,** a former commander now burdened by his disgrace, as he feels\
+        \ responsible for the safety of the crew and struggles to regain his honor\
+        \ while hiding a vital secret about corporate ties.\n   - As Lyra deepens\
+        \ her investigation, she unravels tensions between the crew, revealing each\
+        \ character's motivations:\n     - Mara believes she can amend her past mistakes;\
+        \ Niles is torn between loyalty to the corporation and his conscience.\n \
+        \  - Strange phenomena begin to occur, hinting at a supernatural element connected\
+        \ to the dark matter experiments—a rift in space-time that may have been unintentionally\
+        \ opened.\n\n3. **Climax:**\n   - A confrontation reveals that Dr. Drake was\
+        \ close to unlocking the secrets of interdimensional travel and was silenced\
+        \ by those who felt threatened by his discovery. \n   - The conspirators,\
+        \ including Captain Niles, had a deal with a corporation intent on weaponizing\
+        \ the research. Emotional stakes heighten as Lyra’s skills are put to the\
+        \ test: she must navigate the battle of wits and danger.\n   - A showdown\
+        \ in the reactor room introduces an unstable dark matter core, risking annihilation\
+        \ of the station but giving Lyra the opportunity to confront her own fears.\n\
+        \n4. **Falling Action:**\n   - With Dr. Drake rescued and the reactor’s stability\
+        \ restored through teamwork, relationships evolve. Lyra helps Mara understand\
+        \ the value of moving beyond guilt, inspiring confidence in her abilities.\
+        \ Niles must confront his past decisions and make amends.\n   - Revealed through\
+        \ their dialogue and collaboration, deeper emotional connections emerge, breathes\
+        \ life into their motivations, and solidifies their roles in the resolution.\n\
+        \n5. **Resolution:**\n   - Back on the planet, Lyra exposes the corporate\
+        \ conspiracy, pushing for accountability and ethical guidelines in dark matter\
+        \ research. In the process, she finds closure regarding her brother’s death,\
+        \ realizing it’s not just about uncovering secrets, but also about healing.\n\
+        \   - Embracing her role as a protector of truth, Lyra vows to prevent future\
+        \ tragedies, dedicating herself to ethical practices in science and serving\
+        \ as a mentor to Mara and others.\n   - The once-glimmering hope of her brother’s\
+        \ dreams becomes a guiding force in her new life.\n\n**Themes:** The struggle\
+        \ for redemption, the moral responsibilities of scientists, ambition’s consequences,\
+        \ and the deep ties of familial love.\n\n**Ending Hook:** As she gazes into\
+        \ the endless cosmos, a mysterious signal from an unknown station beckons.\
+        \ It offers Lyra a chance to explore more than just truths; it promises a\
+        \ journey toward her own self-discovery, revealing that the universe still\
+        \ holds many secrets."
+    model: gpt-4o-mini
+    tools: []
+    parameters:
+      include: []
+      extra_headers:
+        User-Agent: Agents/Python 0.24.0
+      extra_query: null
+      extra_body: null
+      text:
+        format:
+          type: json_schema
+          name: final_output
+          schema:
+            $defs:
+              EvaluationFeedback:
+                properties:
+                  feedback:
+                    title: Feedback
+                    type: string
+                  score:
+                    enum:
+                    - pass
+                    - needs_improvement
+                    - fail
+                    title: Score
+                    type: string
+                required:
+                - feedback
+                - score
+                title: EvaluationFeedback
+                type: object
+                additionalProperties: false
+            properties:
+              response:
+                $ref: '#/$defs/EvaluationFeedback'
+            required:
+            - response
+            title: OutputType
+            type: object
+            additionalProperties: false
+          strict: true
+  response:
+    content: '{"response":{"feedback":"This outline has been significantly improved
+      with the addition of character backstories, clearer motivations, and emotional
+      connections that enhance reader engagement. The structure and clarity of the
+      plot have increased, particularly regarding the conspiracy and the antagonist''s
+      motivations. The resolution provides a satisfying sense of growth for Lyra,
+      exploring the implications of her discoveries effectively. Overall, the relationships
+      among characters have been fleshed out, allowing for deeper interactions that
+      drive the narrative forward. Great job!","score":"pass"}}'
+    tool_calls: null
+    token_usage:
+      input_tokens: 2372
+      output_tokens: 101

@@ -21,14 +21,7 @@ from agents import (
     ItemHelpers,
     Runner,
     TResponseInputItem,
-    set_default_openai_api,
 )
-
-# agentverify's OpenAI cassette adapter patches
-# ``openai.resources.chat.completions.Completions.create``. Switch the
-# Agents SDK default from Responses API to Chat Completions so cassette
-# recording and replay work out of the box.
-set_default_openai_api("chat_completions")
 
 
 DEFAULT_MODEL = "gpt-4o-mini"
