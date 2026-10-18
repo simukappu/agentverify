@@ -17,10 +17,11 @@ Specifically:
 - **Tool call sequences**: exact order, subsequence, or set membership, with regex / wildcard argument matching
 - **Step-level execution**: each LLM call is a step; assert what tool was called at step N, what the step's output was, and that step N's input references data produced by step M
 - **Tool outcomes**: whether each tool call actually returned a usable result (vs. errored, timed out, or came back empty), what the result contained, and how many times a flaky tool was retried
+- **Multi-agent routing**: which agent handed off to which, and which agent acted at each step
 - **Budgets**: token counts, cost in USD, end-to-end latency
 - **Safety**: a list of tools that must never be called, no matter what the LLM decides
 
-Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI, Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
+Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and agents may be sync or async. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
 
 ## Why I built this
 
@@ -841,32 +842,35 @@ The [`benchmarks/execution-model-trajectory/`](benchmarks/execution-model-trajec
 
 ## How agentverify compares
 
-Agent evaluation covers a few different jobs, and agentverify does one of them. This table is meant to help you pick the right tool for a given job, not to rank them. In practice they are often used together.
+Agent evaluation covers a few different jobs, and agentverify does one of them: deterministic regression tests on what the agent did. It is meant to run next to a quality-evaluation tool, not instead of one. A setup that keeps costs where they belong:
 
-| Tool | Best at | Execution model |
-|---|---|---|
-| **agentverify** | Deterministic regression tests on what the agent did: tool calls, arguments, step-to-step data flow, cost, latency, safety | Inline pytest, in-process, no LLM call on replay, no cloud account |
-| [DeepEval](https://github.com/confident-ai/deepeval) (Confident AI) | A large catalog of quality metrics (relevancy, faithfulness, and 40+ others), run locally or on a cloud platform | Separate test runner / cloud |
-| [LangSmith](https://www.langchain.com/langsmith) (LangChain) | Agent tracing and dataset-based evaluation for the LangChain / LangGraph stack: trajectory matching and LLM-as-judge, with a pytest / vitest integration | Hosted platform (plus open-source evaluator packages) |
-| Managed cloud eval services: [Amazon Bedrock AgentCore Evaluations](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations), [Google Vertex AI Gen AI evaluation](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview), [Azure AI Foundry evaluators](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-evaluators/agent-evaluators) | Hosted quality scoring (LLM-as-judge) plus some deterministic trajectory and metric checks, with datasets, dashboards, and reuse across CI and production | Managed, tied to a cloud account |
-| [Scenario](https://github.com/langwatch/scenario) (LangWatch) | Multi-turn simulation of a user conversing with the agent | Simulation against a live LLM |
+- **On every PR: agentverify.** Assert tool calls, arguments, step-to-step data flow, handoffs, cost, and latency in pytest. Replay needs no LLM call, no secret, and no cloud account, and runs in seconds.
+- **On staging, on a schedule: a judge-based evaluator** such as [Amazon Bedrock AgentCore Evaluations](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations), [DeepEval](https://github.com/confident-ai/deepeval), or [LangSmith](https://www.langchain.com/langsmith). Score answer quality, run datasets, and reuse production traces, where the judge model's cost is worth paying.
 
-Most of these tools focus on output quality, often via LLM-as-judge, and several now add deterministic trajectory checks too. The line agentverify draws is narrower and lower in the stack: it asserts the **trajectory** (what tools ran, with what arguments, in what order, feeding what into what) inline in pytest, with no LLM in the loop on replay and no cloud account. Quality judgements ("was this a good answer?") need a judge model and fit better on a separate stage of the pipeline, usually against a live agent in staging rather than on every PR. The two are complementary: one gates the agent's actions cheaply on every commit, the other scores answer quality less often, where the judge cost is justified.
+What each can check, as of October 2026, with AgentCore Evaluations as the managed example:
 
-A rough guide:
+| Check | agentverify | AgentCore built-in | AgentCore third-party (DeepEval) | AgentCore code-based (Lambda) | DeepEval, self-run |
+|---|---|---|---|---|---|
+| Tool names and their order | ✅ | ✅ `Builtin.Trajectory*Match` | judge | ✅ | ✅ `ToolCorrectnessMetric` |
+| Tool arguments | ✅ `ANY`, `MATCHES`, `partial_args` | ❌ | judge (`ToolUse`) | ✅ | judge (`ArgumentCorrectnessMetric`) |
+| Data flow between steps | ✅ `assert_step_uses_result_from` | ❌ | ❌ | ✅ | ❌ |
+| Tool success and retries | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Token, cost, and latency budgets | ✅ | partly | ❌ | ✅ | partly |
+| Answer quality | ❌ by design | judge | judge | — | judge |
+| Multi-turn user simulation | ❌ by design | ✅ | ✅ | — | ✅ |
+| No LLM call, secret, or cloud account in CI | ✅ cassette replay | ❌ | ❌ | ❌ | ❌ |
 
-- Want a broad catalog of quality metrics you can run locally? DeepEval has the widest catalog.
-- Building entirely on the LangChain / LangGraph stack and want tracing plus evaluation in one place? LangSmith fits naturally.
-- Already invested in a cloud agent platform (AWS, Google, or Azure) and want hosted quality scoring with datasets and dashboards? The managed eval services fit, and several now include deterministic trajectory checks too.
-- Need to stress-test multi-turn conversations with a simulated user? Scenario is built for that.
-- Want trajectory assertions inline in pytest, on every PR, with no API key, no secrets, and no cloud account to stand up? That is what agentverify is for.
+"judge" means an LLM grades it. A code-based evaluator can check anything, but it runs as a deployed Lambda behind the `Evaluate` API. The [benchmark](benchmarks/execution-model-trajectory/) puts numbers on that difference: lines of code, wall time, API calls, cost, and CI secrets for the same assertion written three ways.
+
+Other tools in the same space: [Google Vertex AI Gen AI evaluation](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview) and [Azure AI Foundry evaluators](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-evaluators/agent-evaluators) are managed services like AgentCore; LangSmith combines tracing with dataset evaluation for the LangChain stack; [Scenario](https://github.com/langwatch/scenario) simulates a user in multi-turn conversations.
 
 ## Roadmap
 
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
 - Concurrent LLM calls: record and replay calls that overlap (`asyncio.gather`), and async Bedrock (`aiobotocore`)
-- Framework adapters for Google ADK and CrewAI: pending async support and stable tool-call APIs from these frameworks
+- Streaming: record and replay streamed responses, which raise `CassetteUnsupportedCallError` today
+- Framework adapters for Google ADK and CrewAI
 
 ## Changelog
 
