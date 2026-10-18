@@ -8,7 +8,8 @@ An :class:`ExecutionResult` is made of an ordered list of :class:`Step` objects.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Optional
 
 
@@ -35,6 +36,72 @@ class TokenUsage:
 
 StepSource = Literal["llm", "probe", "tool"]
 
+# Handoff tools are named ``transfer_to_<agent>`` by the OpenAI Agents SDK and
+# langgraph-supervisor, and ``transfer_back_to_<agent>`` for returning to a supervisor.
+_HANDOFF_TOOL = re.compile(r"^transfer_(?:back_)?to_(.+)$")
+
+
+def _normalized(agent: str) -> str:
+    return re.sub(r"[^0-9a-z]+", "_", agent.lower()).strip("_")
+
+
+# How an agent name looks after a framework turned it into a tool name.
+_TOOL_FORM = re.compile(r"^[a-z0-9_]+$")
+
+
+def _same_agent(a: str, b: str) -> bool:
+    """Compare agent names, allowing for the normalized form handoff tool names carry.
+
+    ``transfer_to_billing_agent`` names ``Billing Agent``. The loose comparison only applies when one side is in that tool-name form, so two distinct agent names (``受付`` and ``請求``) never collapse into one.
+    """
+    if a == b:
+        return True
+    if not (_TOOL_FORM.match(a) or _TOOL_FORM.match(b)):
+        return False
+    na, nb = _normalized(a), _normalized(b)
+    return bool(na) and na == nb
+
+
+def _agent_named(target: str, later_steps: list[Any]) -> str:
+    """Use the agent's own spelling when a later step names it."""
+    for s in later_steps:
+        if s.agent is not None and _same_agent(s.agent, target):
+            return s.agent
+    return target
+
+
+def handoff_target(tool_name: str) -> Optional[str]:
+    """Return the agent a handoff tool call routes to, or ``None`` if the tool is not a handoff."""
+    match = _HANDOFF_TOOL.match(tool_name)
+    return match.group(1) if match else None
+
+
+def first_handoff(tool_calls: list[Any]) -> Optional[str]:
+    """Target of the first handoff call in one model response.
+
+    The OpenAI Agents SDK runs only the first handoff in a response and answers the rest with "Multiple handoffs detected, ignoring this one", so later ones are not handoffs that happened.
+    """
+    for tc in tool_calls:
+        target = handoff_target(tc.name)
+        if target is not None:
+            return target
+    return None
+
+
+@dataclass(frozen=True)
+class Handoff:
+    """Control passing from one agent to another.
+
+    Attributes:
+        from_agent: The agent that handed off, or ``None`` when unknown (the first agent of a cassette-recorded run has no name to read).
+        to_agent: The agent that receives control.
+        step: Index of the step that made the handoff, when known.
+    """
+
+    from_agent: Optional[Any]
+    to_agent: Any
+    step: Optional[int] = None
+
 
 @dataclass(frozen=True)
 class Step:
@@ -53,6 +120,7 @@ class Step:
         duration_ms: Wall-clock duration of this step, if known.
         token_usage: Tokens consumed during this step, if known.
         input_context: Snapshot of input messages / context that arrived at this step.  Used by :func:`assert_step_uses_result_from`.
+        agent: Name of the agent acting at this step in a multi-agent run, if known.  Framework adapters read it from the framework; cassette replay infers it from handoff tool calls, so steps before the first handoff have ``None``.
     """
 
     index: int
@@ -65,6 +133,7 @@ class Step:
     token_usage: Optional[TokenUsage] = None
     input_context: Optional[dict[str, Any]] = None
     tool_results_meta: Optional[list[dict[str, Any]]] = None
+    agent: Optional[str] = None
 
     def tool_result_is_error(self, i: int) -> Optional[bool]:
         """Return the error status of tool result ``i``.
@@ -113,6 +182,7 @@ class Step:
                 if self.tool_results_meta is not None
                 else None
             ),
+            "agent": self.agent,
         }
 
     @classmethod
@@ -167,6 +237,7 @@ class Step:
                 if tool_results_meta is not None
                 else None
             ),
+            agent=data.get("agent"),
         )
 
 
@@ -216,6 +287,26 @@ class ExecutionResult:
     def tool_calls(self) -> list[ToolCall]:
         """Flattened tool calls across all steps (read-only derived view)."""
         return [tc for s in self.steps for tc in s.tool_calls]
+
+    @property
+    def handoffs(self) -> list[Handoff]:
+        """Handoffs between agents, in order (read-only derived view).
+
+        A handoff is a tool call named ``transfer_to_<agent>`` or ``transfer_back_to_<agent>``. Its ``from_agent`` is the step's ``agent``, or the target of the previous handoff when the step has none. When the acting agent changes between steps without such a call (a framework that writes the handoff itself, such as langgraph-supervisor returning control to the supervisor, seen from a cassette), the change is reported as a handoff with ``step=None``.
+        """
+        handoffs: list[Handoff] = []
+        current: Optional[str] = None
+        for i, s in enumerate(self.steps):
+            if s.agent is not None and current is not None and not _same_agent(s.agent, current):
+                handoffs.append(Handoff(from_agent=current, to_agent=s.agent, step=None))
+            agent = s.agent if s.agent is not None else current
+            current = agent
+            target = first_handoff(s.tool_calls)
+            if target is not None:
+                target = _agent_named(target, self.steps[i + 1 :])
+                handoffs.append(Handoff(from_agent=agent, to_agent=target, step=s.index))
+                current = target
+        return handoffs
 
     @classmethod
     def from_flat_tool_calls(
@@ -314,3 +405,25 @@ class ExecutionResult:
     def to_json(self) -> str:
         """Convert this ExecutionResult to a JSON string."""
         return json.dumps(self.to_dict(), ensure_ascii=False)
+
+
+def attribute_agents(steps: list[Step]) -> list[Step]:
+    """Fill in ``Step.agent`` from handoff tool calls: after ``transfer_to_X``, steps belong to ``X`` until the next handoff.
+
+    Steps that already name their agent keep it and reset the inference from there.
+    """
+    current: Optional[str] = None
+    out: list[Step] = []
+    for s in steps:
+        if s.source != "llm":
+            # Probe and tool steps can be listed out of time order; leave them unnamed.
+            out.append(s)
+            continue
+        if s.agent is None and current is not None:
+            s = replace(s, agent=current)
+        current = s.agent
+        target = first_handoff(s.tool_calls)
+        if target is not None:
+            current = target
+        out.append(s)
+    return out

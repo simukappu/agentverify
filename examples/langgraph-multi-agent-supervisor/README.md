@@ -8,7 +8,7 @@ The example mirrors the official [langgraph-supervisor quickstart](https://githu
 
 This is the one place in agentverify where the **step-level + data-flow testing** story shines the brightest:
 
-- **Multi-agent handoff**: the supervisor's routing decisions are distinct steps, separate from the sub-agents' tool work.
+- **Multi-agent handoff**: the supervisor's routing decisions are distinct steps, separate from the sub-agents' tool work. `assert_handoffs` checks the route (supervisor → research_expert → supervisor → math_expert → supervisor) from both `from_langgraph` and the bare cassette.
 - **Parallel tool calls**: the research expert issues multiple `web_search` calls in a single step; `assert_step` with `expected_tools` + `OrderMode.ANY_ORDER` handles this cleanly.
 - **Cross-step numeric data flow**: each `add` call's running total feeds the next `add`'s input. `assert_step_uses_result_from` verifies the chain didn't drop a value.
 

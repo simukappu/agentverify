@@ -22,6 +22,7 @@ Step boundary: **each ``assistant`` message becomes one step** (``source="llm"``
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from agentverify._step_builder import aggregate_token_usage
@@ -115,18 +116,7 @@ def from_strands(result: Any) -> ExecutionResult:
                         prev_meta.append({"is_error": False})
                     else:
                         prev_meta.append({})
-                steps[-1] = Step(
-                    index=prev.index,
-                    name=prev.name,
-                    source=prev.source,
-                    tool_calls=prev.tool_calls,
-                    tool_results=new_results,
-                    output=prev.output,
-                    duration_ms=prev.duration_ms,
-                    token_usage=prev.token_usage,
-                    input_context=prev.input_context,
-                    tool_results_meta=prev_meta,
-                )
+                steps[-1] = replace(prev, tool_results=new_results, tool_results_meta=prev_meta)
             pending_input_context = {"messages": [msg]}
 
     # Token usage — Strands provides aggregate metrics at the top level,

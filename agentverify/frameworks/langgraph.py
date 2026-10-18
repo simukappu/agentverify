@@ -7,9 +7,10 @@ Step boundary: **each ``AIMessage`` becomes one step** (``source="llm"``).  ``To
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, attribute_agents
 
 
 def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
@@ -68,6 +69,9 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
             if not raw_tool_calls and isinstance(content, str) and content:
                 final_output = content
 
+            # In multi-agent graphs (langgraph-supervisor, swarm) each AIMessage
+            # carries the name of the agent that wrote it.
+            agent = getattr(msg, "name", None)
             steps.append(
                 Step(
                     index=len(steps),
@@ -75,6 +79,7 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
                     tool_calls=tool_calls,
                     output=output,
                     token_usage=step_token_usage,
+                    agent=agent if isinstance(agent, str) and agent else None,
                 )
             )
         elif msg_type == "tool":
@@ -93,18 +98,7 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
                 new_results = prev.tool_results + [tool_result]
                 prev_meta = list(prev.tool_results_meta or [])
                 prev_meta.append({"is_error": is_error} if is_error is not None else {})
-                steps[-1] = Step(
-                    index=prev.index,
-                    name=prev.name,
-                    source=prev.source,
-                    tool_calls=prev.tool_calls,
-                    tool_results=new_results,
-                    output=prev.output,
-                    duration_ms=prev.duration_ms,
-                    token_usage=prev.token_usage,
-                    input_context=prev.input_context,
-                    tool_results_meta=prev_meta,
-                )
+                steps[-1] = replace(prev, tool_results=new_results, tool_results_meta=prev_meta)
 
     token_usage = (
         TokenUsage(input_tokens=total_input, output_tokens=total_output)
@@ -113,7 +107,7 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
     )
 
     return ExecutionResult(
-        steps=steps,
+        steps=attribute_agents(steps),
         token_usage=token_usage,
         final_output=final_output,
     )

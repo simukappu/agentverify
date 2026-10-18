@@ -25,7 +25,9 @@ from agentverify.assertions import (
     assert_all,
     assert_cost,
     assert_final_output,
+    assert_handoffs,
     assert_latency,
+    assert_no_handoff,
     assert_no_tool_call,
     assert_no_tool_errors,
     assert_retry_count,
@@ -41,7 +43,9 @@ from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.errors import (
     CassetteRequestMismatchError,
     CassetteUnsupportedCallError,
+    HandoffError,
     RetryBudgetError,
+    StepAgentError,
     StepDependencyError,
     StepIndexError,
     StepNameAmbiguousError,
@@ -52,7 +56,7 @@ from agentverify.errors import (
 )
 from agentverify.matchers import ANY, MATCHES, OrderMode
 from agentverify.mocking import MockLLM, mock_response
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Handoff, Step, TokenUsage, ToolCall
 from agentverify.probe import ProbeHandle, step_probe
 
 __all__ = [
@@ -61,6 +65,7 @@ __all__ = [
     "ExecutionResult",
     "Step",
     "TokenUsage",
+    "Handoff",
     # Matchers
     "ANY",
     "MATCHES",
@@ -80,6 +85,11 @@ __all__ = [
     "assert_no_tool_errors",
     "assert_tool_result_matches",
     "assert_retry_count",
+    # Multi-agent handoffs
+    "assert_handoffs",
+    "assert_no_handoff",
+    "HandoffError",
+    "StepAgentError",
     # step_probe
     "step_probe",
     "ProbeHandle",

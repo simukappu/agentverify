@@ -5,6 +5,8 @@ Provides :class:`LLMCassetteRecorder` which intercepts LLM SDK chat completion c
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import time
 from enum import Enum
 from pathlib import Path
@@ -18,7 +20,7 @@ from agentverify.cassette.adapters.base import (
 from agentverify.cassette.io import load_cassette, save_cassette
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern, sanitize_interactions
 from agentverify.errors import CassetteRequestMismatchError
-from agentverify.models import ExecutionResult, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, TokenUsage, ToolCall, attribute_agents, handoff_target
 
 
 class CassetteMode(Enum):
@@ -532,17 +534,8 @@ def _build_execution_result(
             if isinstance(msg, dict) and msg.get("role") == "tool":
                 extracted.append(msg.get("content"))
         if extracted:
-            steps[i] = Step(
-                index=producer.index,
-                name=producer.name,
-                source=producer.source,
-                tool_calls=producer.tool_calls,
-                tool_results=extracted,
-                output=producer.output,
-                duration_ms=producer.duration_ms,
-                token_usage=producer.token_usage,
-                input_context=producer.input_context,
-                tool_results_meta=build_tool_results_meta(extracted),
+            steps[i] = replace(
+                producer, tool_results=extracted, tool_results_meta=build_tool_results_meta(extracted)
             )
 
     # Re-index steps to be contiguous 0..N-1 in case of out-of-order probe inserts.
@@ -558,9 +551,12 @@ def _build_execution_result(
             token_usage=s.token_usage,
             input_context=s.input_context,
             tool_results_meta=s.tool_results_meta,
+            agent=s.agent,
         )
         for i, s in enumerate(steps)
     ]
+    # Cassettes carry no agent names; infer them from handoff tool calls.
+    steps = attribute_agents([_agent_from_history(s) for s in steps])
 
     return ExecutionResult(
         steps=steps,
@@ -568,3 +564,53 @@ def _build_execution_result(
         final_output=final_output_from_steps(steps),
         duration_ms=duration_ms,
     )
+
+
+def _tool_names_in(message: Any) -> list[str]:
+    """Names of the tool calls a model message makes: OpenAI, Anthropic, Bedrock, and Gemini shapes."""
+    from agentverify.cassette.sanitize import _as_plain
+
+    # Recording keeps the request's SDK objects; replay loads dicts. Read both the same way.
+    message = _as_plain(message)
+    if not isinstance(message, dict) or message.get("role") not in ("assistant", "model"):
+        return []
+    names: list[str] = []
+    for tc in message.get("tool_calls") or []:  # OpenAI / LiteLLM
+        if isinstance(tc, dict):
+            fn = tc.get("function")
+            name = fn.get("name") if isinstance(fn, dict) else tc.get("name")
+            if isinstance(name, str):
+                names.append(name)
+    content = message.get("content")
+    for block in content if isinstance(content, list) else []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_use" and isinstance(block.get("name"), str):  # Anthropic
+            names.append(block["name"])
+        tool_use = block.get("toolUse")  # Bedrock Converse
+        if isinstance(tool_use, dict) and isinstance(tool_use.get("name"), str):
+            names.append(tool_use["name"])
+    for part in message.get("parts") or []:  # Gemini
+        part = _as_plain(part)
+        call = (part.get("function_call") or part.get("functionCall")) if isinstance(part, dict) else None
+        call = _as_plain(call)
+        if isinstance(call, dict) and isinstance(call.get("name"), str):
+            names.append(call["name"])
+    return names
+
+
+def _agent_from_history(step: Step) -> Step:
+    """Name the step's agent after the last handoff in its input history.
+
+    The request resends the conversation, including handoffs the framework writes without an LLM call (langgraph-supervisor's ``transfer_back_to_supervisor``), so the last handoff there names the agent making this call.
+    """
+    if step.agent is not None or not step.input_context:
+        return step
+    messages = step.input_context.get("messages")
+    agent = None
+    for message in messages if isinstance(messages, list) else []:
+        # Only the first handoff in a message takes effect (see first_handoff).
+        target = next((t for t in map(handoff_target, _tool_names_in(message)) if t is not None), None)
+        if target is not None:
+            agent = target
+    return step if agent is None else replace(step, agent=agent)

@@ -385,3 +385,35 @@ class RetryBudgetError(AgentVerifyError):
             f"  Observed: {self.observed} retr{'ies' if self.observed != 1 else 'y'}\n"
             f"  Limit:    {self.limit} retr{'ies' if self.limit != 1 else 'y'}"
         )
+
+
+class HandoffError(AgentVerifyError):
+    """Raised when the handoffs between agents do not match what was expected."""
+
+    def __init__(self, message: str, expected: list[Any] | None = None, actual: list[Any] | None = None) -> None:
+        self.expected = expected
+        self.actual = actual
+        lines = [message]
+        if expected is not None:
+            lines += ["", "Expected:"] + [f"  [{i}] {_format_handoff(h)}" for i, h in enumerate(expected)]
+        if actual is not None:
+            lines += ["", "Actual:"] + ([f"  [{i}] {_format_handoff(h)}" for i, h in enumerate(actual)] or ["  (no handoffs)"])
+        super().__init__("\n".join(lines))
+
+
+def _format_handoff(h: Any) -> str:
+    step = getattr(h, "step", None)
+    where = f"  (step {step})" if step is not None else ""
+    return f"{getattr(h, 'from_agent', None)!r} -> {getattr(h, 'to_agent', None)!r}{where}"
+
+
+class StepAgentError(AgentVerifyError):
+    """Raised when a step was taken by a different agent than expected."""
+
+    def __init__(self, step: int, expected: Any, actual: Any) -> None:
+        self.step = step
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"step {step} agent does not match\n\n  Expected: {expected!r}\n  Actual:   {actual!r}"
+        )

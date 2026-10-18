@@ -591,6 +591,28 @@ def test_cache_miss_path():
 
 **`step_probe` is a zero-cost no-op outside of test recording contexts.** When no `LLMCassetteRecorder` or `MockLLM` is active, it's a pass-through context manager. Safe to leave in production code.
 
+## Multi-Agent Handoffs
+
+In a multi-agent run, assert which agent handed control to which, and which agent acted at a step. Handoffs are the `transfer_to_<agent>` / `transfer_back_to_<agent>` tool calls that the OpenAI Agents SDK and langgraph-supervisor make.
+
+```python
+from agentverify import ANY, Handoff, ToolCall, assert_handoffs, assert_no_handoff, assert_step
+
+assert_handoffs(result, expected=[
+    Handoff("supervisor", "research_expert"),
+    Handoff("research_expert", "supervisor"),
+    Handoff("supervisor", "math_expert"),
+])  # order=OrderMode.EXACT (default), IN_ORDER, or ANY_ORDER
+
+assert_no_handoff(result, to_agent="admin_expert")
+
+assert_step(result, step=1, agent="research_expert", expected_tool=ToolCall("web_search", ANY))
+```
+
+`result.handoffs` lists them, and `Step.agent` names the agent at each step. `from_openai_agents` and `from_langgraph` read agent names from the framework. A cassette infers them from the handoff tool calls in each request's history, so the first agent is unnamed (`Handoff(ANY, "research_expert")`). Plain-string names compare as handoff tools spell them: `"Billing Agent"` matches `billing_agent`.
+
+Handoffs are recognized by tool name, so a function tool named `transfer_to_*` also counts as one, and a handoff renamed with `tool_name_override` is not seen. A cassette also relies on the framework writing returns to the supervisor into the history, as langgraph-supervisor does by default.
+
 ## Tool Result Assertions
 
 Knowing the agent *called* the right tool is not the same as knowing the call *worked*. A tool can return a 5xx, time out, or hand back an empty body, and the LLM will often smooth that over in its final reply. These assertions check the result a tool handed back, not just which tool was called and with what arguments.

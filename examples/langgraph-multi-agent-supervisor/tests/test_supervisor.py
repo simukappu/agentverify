@@ -13,11 +13,14 @@ import pytest
 from agentverify import (
     ANY,
     MATCHES,
+    Handoff,
     OrderMode,
     ToolCall,
     assert_all,
     assert_cost,
     assert_final_output,
+    assert_handoffs,
+    assert_no_handoff,
     assert_no_tool_call,
     assert_step,
     assert_step_output,
@@ -191,3 +194,35 @@ def _find_step_with_tool(result, tool_name):
             if tc.name == tool_name:
                 return step
     return None
+
+
+# ---------------------------------------------------------------------------
+# Routing between agents
+# ---------------------------------------------------------------------------
+
+
+class TestSupervisorRouting:
+    """The supervisor's routing decisions, asserted directly instead of through handoff tool names."""
+
+    ROUTE = [
+        Handoff("supervisor", "research_expert"),
+        Handoff("research_expert", "supervisor"),
+        Handoff("supervisor", "math_expert"),
+        Handoff("math_expert", "supervisor"),
+    ]
+
+    @pytest.mark.agentverify
+    def test_route_from_the_framework_adapter(self, cassette):
+        """``from_langgraph`` reads each message's agent name, so every handoff has both ends."""
+        _, result = _run_and_convert(cassette)
+        assert_handoffs(result, self.ROUTE)
+        assert_no_handoff(result, to_agent="admin_expert")
+        # The research step is the research expert's, not the supervisor's.
+        assert_step(result, step=1, agent="research_expert", expected_tool=ToolCall("web_search", ANY))
+
+    @pytest.mark.agentverify
+    def test_route_from_the_cassette(self, cassette):
+        """A cassette alone infers the same route; only the first agent is unnamed."""
+        rec, _ = _run_and_convert(cassette)
+        result = rec.to_execution_result()
+        assert_handoffs(result, [Handoff(ANY, "research_expert"), *self.ROUTE[1:]])

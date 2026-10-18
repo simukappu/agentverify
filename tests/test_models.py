@@ -122,6 +122,7 @@ class TestExecutionResult:
                 "token_usage": None,
                 "input_context": None,
                 "tool_results_meta": None,
+                "agent": None,
             }
         ]
         assert d["token_usage"] == {"input_tokens": 10, "output_tokens": 5}

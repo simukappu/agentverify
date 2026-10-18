@@ -2,7 +2,7 @@
 
 Converts an OpenAI Agents SDK ``RunResult`` into an agentverify ``ExecutionResult``.
 
-Step boundary: **each ``MessageOutputItem`` / ``ToolCallItem`` cluster that belongs to the same model response becomes one step** (``source="llm"``).  Because the SDK emits tool call items grouped by the assistant turn that produced them, we start a new step whenever we see a ``message_output_item`` or when we see a ``tool_call_item`` immediately after ``tool_call_output_item``(s).  ``tool_call_output_item`` values are attached to the preceding step's ``tool_results``.
+Step boundary: **each ``MessageOutputItem`` / ``ToolCallItem`` cluster that belongs to the same model response becomes one step** (``source="llm"``). Handoff items count as tool calls and tool outputs, and each step's ``agent`` is the name of the agent that produced its items.  Because the SDK emits tool call items grouped by the assistant turn that produced them, we start a new step whenever we see a ``message_output_item`` or when we see a ``tool_call_item`` immediately after ``tool_call_output_item``(s).  ``tool_call_output_item`` values are attached to the preceding step's ``tool_results``.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, attribute_agents
 
 
 def _parse_arguments(raw: Any) -> dict[str, Any]:
@@ -26,6 +26,11 @@ def _parse_arguments(raw: Any) -> dict[str, Any]:
     return {}
 
 
+def _agent_name(item: Any) -> str | None:
+    name = getattr(getattr(item, "agent", None), "name", None)
+    return name if isinstance(name, str) else None
+
+
 def from_openai_agents(result: Any) -> ExecutionResult:
     """Build an ``ExecutionResult`` from an OpenAI Agents SDK ``RunResult``.
 
@@ -38,10 +43,11 @@ def from_openai_agents(result: Any) -> ExecutionResult:
     current_tool_calls: list[ToolCall] = []
     current_tool_results: list[Any] = []
     current_tool_results_meta: list[dict[str, Any]] = []
+    current_agent: str | None = None
     just_saw_tool_output = False
 
     def flush_current_step() -> None:
-        nonlocal current_tool_calls, current_tool_results, current_tool_results_meta
+        nonlocal current_tool_calls, current_tool_results, current_tool_results_meta, current_agent
         if current_tool_calls or current_tool_results:
             steps.append(
                 Step(
@@ -54,21 +60,32 @@ def from_openai_agents(result: Any) -> ExecutionResult:
                         if current_tool_results
                         else None
                     ),
+                    agent=current_agent,
                 )
             )
         current_tool_calls = []
         current_tool_results = []
         current_tool_results_meta = []
+        current_agent = None
 
     for item in new_items:
         item_type = getattr(item, "type", None)
 
-        if item_type == "tool_call_item":
+        # A different agent speaking (after a handoff) starts a new step.
+        if item_type in ("tool_call_item", "handoff_call_item", "message_output_item"):
+            item_agent = _agent_name(item)
+            if current_agent is not None and item_agent is not None and item_agent != current_agent:
+                flush_current_step()
+                just_saw_tool_output = False
+
+        if item_type in ("tool_call_item", "handoff_call_item"):
             # If the previous step had a tool output, this tool_call
             # starts a new step (it's the next assistant turn).
             if just_saw_tool_output:
                 flush_current_step()
                 just_saw_tool_output = False
+            if current_agent is None:
+                current_agent = _agent_name(item)
 
             raw = getattr(item, "raw_item", None)
             if raw is None:
@@ -88,7 +105,7 @@ def from_openai_agents(result: Any) -> ExecutionResult:
             current_tool_calls.append(
                 ToolCall(name=name, arguments=_parse_arguments(args_raw))
             )
-        elif item_type == "tool_call_output_item":
+        elif item_type in ("tool_call_output_item", "handoff_output_item"):
             output = getattr(item, "output", None)
             raw_item = getattr(item, "raw_item", None)
             if output is None and raw_item is not None:
@@ -137,11 +154,13 @@ def from_openai_agents(result: Any) -> ExecutionResult:
                             else None
                         ),
                         output=text,
+                        agent=current_agent if current_agent is not None else _agent_name(item),
                     )
                 )
                 current_tool_calls = []
                 current_tool_results = []
                 current_tool_results_meta = []
+                current_agent = None
                 just_saw_tool_output = False
 
     # Flush any trailing tool_calls/results.
@@ -163,7 +182,7 @@ def from_openai_agents(result: Any) -> ExecutionResult:
         final_output = str(final_output)
 
     return ExecutionResult(
-        steps=steps,
+        steps=attribute_agents(steps),
         token_usage=token_usage,
         final_output=final_output,
     )

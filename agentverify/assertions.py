@@ -13,6 +13,7 @@ from agentverify.errors import (
     AgentVerifyError,
     CostBudgetError,
     FinalOutputError,
+    HandoffError,
     LatencyBudgetError,
     MultipleAssertionError,
     RetryBudgetError,
@@ -22,7 +23,7 @@ from agentverify.errors import (
     ToolResultMatchError,
 )
 from agentverify.matchers import OrderMode
-from agentverify.models import ExecutionResult, ToolCall
+from agentverify.models import ExecutionResult, Handoff, ToolCall, _same_agent
 
 
 def _tool_call_matches(
@@ -440,23 +441,31 @@ def assert_step(
     expected_tools: Optional[list["ToolCall"]] = None,
     order: OrderMode = OrderMode.EXACT,
     partial_args: bool = False,
+    agent: Any = None,
 ) -> None:
-    """Verify the tool call(s) at a specific step.
+    """Verify the tool call(s) at a specific step, and optionally which agent acted there.
 
-    Exactly one of ``step`` (0-indexed) or ``name`` (from :func:`step_probe`) must be provided.  Exactly one of ``expected_tool`` or ``expected_tools`` must be provided.  Use ``expected_tools=[]`` to assert the step made no tool calls.
+    Exactly one of ``step`` (0-indexed) or ``name`` (from :func:`step_probe`) must be provided.  Exactly one of ``expected_tool`` or ``expected_tools`` must be provided, unless only ``agent`` is checked.  Use ``expected_tools=[]`` to assert the step made no tool calls.  ``agent`` is compared with ``Step.agent`` and accepts ``ANY`` and ``MATCHES``.
 
     Raises:
         StepIndexError: step index out of range.
         StepNameNotFoundError: no step with the given name.
         StepNameAmbiguousError: multiple steps share the name.
         ToolCallSequenceError: the step's tool calls don't match.
+        StepAgentError: the step's agent doesn't match.
     """
+    if agent is not None and expected_tool is None and expected_tools is None:
+        resolved_step = _resolve_step(result, step, name)
+        _assert_step_agent(resolved_step, agent)
+        return
     if (expected_tool is None) == (expected_tools is None):
         raise ValueError(
             "Exactly one of `expected_tool` or `expected_tools` must be provided"
         )
 
     resolved_step = _resolve_step(result, step, name)
+    if agent is not None:
+        _assert_step_agent(resolved_step, agent)
     expected_list: list[ToolCall]
     if expected_tool is not None:
         expected_list = [expected_tool]
@@ -471,6 +480,13 @@ def assert_step(
         _assert_step_in_order(resolved_step, expected_list, actual, partial_args)
     else:  # OrderMode.ANY_ORDER — OrderMode is a closed enum
         _assert_step_any_order(resolved_step, expected_list, actual, partial_args)
+
+
+def _assert_step_agent(step_obj: Any, agent: Any) -> None:
+    from agentverify.errors import StepAgentError
+
+    if not _agent_matches(agent, step_obj.agent):
+        raise StepAgentError(step=step_obj.index, expected=agent, actual=step_obj.agent)
 
 
 def _assert_step_exact(step_obj, expected, actual, partial_args) -> None:
@@ -1010,3 +1026,76 @@ def assert_retry_count(
             observed=observed_max_retries,
             limit=max,
         )
+
+
+# ---------------------------------------------------------------------------
+# Handoffs between agents
+# ---------------------------------------------------------------------------
+
+
+def _agent_matches(expected: Any, actual: Any) -> bool:
+    """Compare agent names as handoff tool names spell them (``Billing Agent`` matches ``billing_agent``).
+
+    A cassette only knows the names in ``transfer_to_<agent>`` tool calls, which frameworks normalize, so one test works against both a cassette and a framework adapter. ``ANY`` and ``MATCHES`` apply as usual.
+    """
+    if isinstance(expected, str) and isinstance(actual, str):
+        return _same_agent(expected, actual)
+    return bool(expected == actual)  # expected on the left, so ANY / MATCHES apply
+
+
+def _handoff_matches(expected: Handoff, actual: Handoff) -> bool:
+    return (
+        _agent_matches(expected.from_agent, actual.from_agent)
+        and _agent_matches(expected.to_agent, actual.to_agent)
+        and (expected.step is None or expected.step == actual.step)
+    )
+
+
+def assert_handoffs(
+    result: ExecutionResult,
+    expected: list[Handoff],
+    order: OrderMode = OrderMode.EXACT,
+) -> None:
+    """Verify the handoffs between agents in a multi-agent run.
+
+    Handoffs are read from ``result.handoffs``: tool calls named ``transfer_to_<agent>`` or ``transfer_back_to_<agent>``. ``from_agent`` and ``to_agent`` accept ``ANY`` and ``MATCHES``. ``order`` works as in :func:`assert_tool_calls`: ``EXACT`` (the default) compares the whole sequence, ``IN_ORDER`` allows other handoffs in between, ``ANY_ORDER`` only requires each expected handoff to happen.
+
+    In a cassette-recorded run the first agent has no name to read, so its handoffs have ``from_agent=None``; use ``ANY`` there or build the result with a framework adapter.
+
+    Raises:
+        HandoffError: When the handoffs do not match.
+    """
+    actual = result.handoffs
+    if order == OrderMode.EXACT:
+        ok = len(expected) == len(actual) and all(_handoff_matches(e, a) for e, a in zip(expected, actual))
+    elif order == OrderMode.IN_ORDER:
+        it = iter(actual)
+        ok = all(any(_handoff_matches(e, a) for a in it) for e in expected)
+    else:  # OrderMode.ANY_ORDER — OrderMode is a closed enum
+        ok = all(any(_handoff_matches(e, a) for a in actual) for e in expected)
+    if not ok:
+        raise HandoffError(f"Handoffs do not match ({order.value})", expected=expected, actual=actual)
+
+
+def assert_no_handoff(
+    result: ExecutionResult,
+    to_agent: Any = None,
+    from_agent: Any = None,
+) -> None:
+    """Verify that no handoff goes to *to_agent* and/or comes from *from_agent*.
+
+    At least one of them must be given; both narrow the check to handoffs between those two agents. Both accept ``ANY`` and ``MATCHES``.
+
+    Raises:
+        HandoffError: When a matching handoff happened.
+    """
+    if to_agent is None and from_agent is None:
+        raise ValueError("assert_no_handoff requires at least one of: to_agent, from_agent")
+    found = [
+        h
+        for h in result.handoffs
+        if (to_agent is None or _agent_matches(to_agent, h.to_agent))
+        and (from_agent is None or _agent_matches(from_agent, h.from_agent))
+    ]
+    if found:
+        raise HandoffError("Forbidden handoff happened", actual=found)
