@@ -38,7 +38,7 @@ The agent prints the number of rounds the loop took, whether it reached a `pass`
 
 Two small changes let the sample run under agentverify's cassette layer while preserving the original pattern:
 
-1. `set_default_openai_api("chat_completions")` is called at module import so agentverify's existing `openai` cassette adapter (Chat Completions API) can record the interactions. A Responses API adapter is on the roadmap but not required for this example.
+1. `set_default_openai_api("chat_completions")` is called at module import. The cassette was recorded through Chat Completions before agentverify recorded the Responses API; dropping the call needs a re-recording.
 2. The evaluator's "when may I pass?" rule is tightened from *"after 5 attempts"* to *"on the second attempt once your earlier feedback has been incorporated"*. The intent (never pass on the first try, require feedback-driven revision) is preserved; the shorter horizon keeps the recording within a predictable round budget.
 
 The loop wrapper is packaged as `run_judge_loop` / `run_judge_loop_sync` returning a `JudgeLoopResult` dataclass so tests can assert on the loop shape (rounds, pass_reached) without re-running the agent.

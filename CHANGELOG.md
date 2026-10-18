@@ -5,9 +5,12 @@
 ### Features
 
 - **Async agents**: cassettes record and replay, and `MockLLM` answers, the async clients of Anthropic, Gemini, and LiteLLM, as they already did for OpenAI. See README "Async Agents" and the new `openai-agents-litellm-provider` example.
+- **OpenAI Responses API**: `responses.create` is recorded and replayed, sync and async, so the OpenAI Agents SDK works on its default model. See README "OpenAI Responses API".
 
 ### Bug Fixes
 
+- **Multi-turn tool runs replay.** Replayed OpenAI tool calls reused the id `call_0` in every turn, so frameworks that track tool call ids, such as the OpenAI Agents SDK, rejected or skipped them. Recorded ids are now kept.
+- **Each replayed step's `tool_results` holds only the results of its own tool calls**, not every earlier result the next request resends. `assert_step_uses_result_from` could pass on data from an earlier step.
 - **LiteLLM replay returns `litellm.ModelResponse`**, the type `litellm.completion` returns, instead of an OpenAI `ChatCompletion`. Callers that check the type, such as the OpenAI Agents SDK's `LitellmModel`, failed on replay.
 
 ### Breaking Changes

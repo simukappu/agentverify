@@ -20,12 +20,12 @@ from agentverify.cassette.adapters.base import (
     guard_unintercepted,
     patch_scope,
     redispatch,
-    reject_stream_kwarg,
     reject_streaming,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
 )
+from agentverify.cassette.adapters.openai_responses import ResponsesWire, fallback_call_id
 from agentverify.models import TokenUsage
 
 if TYPE_CHECKING:
@@ -41,7 +41,7 @@ _ASYNC_PATCH_TARGET = "openai.resources.chat.completions.AsyncCompletions.create
 
 # Responses API entry points the adapter does not record yet. Each is patched
 # only if the installed SDK has it.
-_RESPONSES_UNINTERCEPTED = ("create", "parse")
+_RESPONSES_UNINTERCEPTED = ("parse",)
 _RESPONSES_STREAMING = ("stream", "connect")
 
 
@@ -177,12 +177,12 @@ class OpenAIAdapter(LLMProviderAdapter):
         if message.tool_calls:
             tool_calls = []
             for tc in message.tool_calls:
-                tool_calls.append(
-                    {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    }
-                )
+                call = {"name": tc.function.name, "arguments": tc.function.arguments}
+                # Kept so replayed turns carry the recorded ids; frameworks such as the
+                # OpenAI Agents SDK reject a run that reuses a tool call id.
+                if isinstance(getattr(tc, "id", None), str):
+                    call["id"] = tc.id
+                tool_calls.append(call)
 
         token_usage: TokenUsage | None = None
         usage = getattr(raw_response, "usage", None)  # litellm.ModelResponse drops a None usage
@@ -217,7 +217,7 @@ class OpenAIAdapter(LLMProviderAdapter):
                     args = json.dumps(args, ensure_ascii=False)
                 tool_calls_data.append(
                     {
-                        "id": f"call_{i}",
+                        "id": tc.get("id") or fallback_call_id(),
                         "type": "function",
                         "function": {
                             "name": tc["name"],
@@ -288,44 +288,41 @@ class OpenAIAdapter(LLMProviderAdapter):
             extra = kwargs.get("extra_headers") or {}
             return bool(extra.get("X-Stainless-Raw-Response"))
 
-        def _replayed(raw_mode: bool):  # type: ignore[no-untyped-def]
+        def _replayed(wire, kwargs: dict[str, Any]):  # type: ignore[no-untyped-def]
+            """Build the replayed response; ``with_raw_response`` callers get a ``.parse()``-able wrapper."""
+            raw_mode = _is_raw_response_call(kwargs)
+
             def build(norm_resp: NormalizedResponse) -> Any:
-                denormalized = adapter.denormalize_response(norm_resp)
+                denormalized = wire.denormalize_response(norm_resp)
                 return _RawResponseWrapper(denormalized) if raw_mode else denormalized
 
             return build
 
-        def _patched_sync_create(original_fn, scope, cls):  # type: ignore[no-untyped-def]
+        def _patched_create(wire, call, original_fn, scope, cls, is_async):  # type: ignore[no-untyped-def]
+            """Wrap ``create`` for one wire format (Chat Completions or Responses)."""
+
+            def run(args: Any, kwargs: dict[str, Any], helper):  # type: ignore[no-untyped-def]
+                return helper(
+                    scope, recorder, wire, call, kwargs, lambda: original_fn(*args, **kwargs), _replayed(wire, kwargs)
+                )
+
+            if is_async:
+
+                async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    if not scope.active:  # a cached bound method outliving the cassette
+                        return await redispatch(lambda: cls.create, async_wrapper, original_fn, args, kwargs)
+                    return await run(args, kwargs, call_async)
+
+                return async_wrapper
+
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 if not scope.active:  # a cached bound method outliving the cassette
                     return redispatch(lambda: cls.create, wrapper, original_fn, args, kwargs)
-                return call_sync(
-                    scope,
-                    recorder,
-                    adapter,
-                    "chat.completions.create",
-                    kwargs,
-                    lambda: original_fn(*args, **kwargs),
-                    _replayed(_is_raw_response_call(kwargs)),
-                )
+                return run(args, kwargs, call_sync)
 
             return wrapper
 
-        def _patched_async_create(original_fn, scope, cls):  # type: ignore[no-untyped-def]
-            async def wrapper(*args: Any, **kwargs: Any) -> Any:
-                if not scope.active:  # a cached bound method outliving the cassette
-                    return await redispatch(lambda: cls.create, wrapper, original_fn, args, kwargs)
-                return await call_async(
-                    scope,
-                    recorder,
-                    adapter,
-                    "chat.completions.create",
-                    kwargs,
-                    lambda: original_fn(*args, **kwargs),
-                    _replayed(_is_raw_response_call(kwargs)),
-                )
-
-            return wrapper
+        responses_wire = ResponsesWire()
 
         openai_mod = __import__("openai")
         completions_mod = openai_mod.resources.chat.completions
@@ -341,10 +338,14 @@ class OpenAIAdapter(LLMProviderAdapter):
         # the body raises. The scope closes after the patches are removed.
         with ExitStack() as stack:
             scope = stack.enter_context(patch_scope())
-            stack.enter_context(patch(_PATCH_TARGET, new=_patched_sync_create(Completions.create, scope, Completions)))
-            stack.enter_context(
-                patch(_ASYNC_PATCH_TARGET, new=_patched_async_create(AsyncCompletions.create, scope, AsyncCompletions))
-            )
+            for cls, is_async in ((Completions, False), (AsyncCompletions, True)):
+                stack.enter_context(
+                    patch.object(
+                        cls,
+                        "create",
+                        new=_patched_create(adapter, "chat.completions.create", cls.create, scope, cls, is_async),
+                    )
+                )
             for cls in (Completions, AsyncCompletions):
                 if hasattr(cls, "parse"):  # pragma: no branch — older SDKs lack parse
                     _guard(stack, scope, cls, "parse", "chat.completions.parse", guard_unintercepted)
@@ -357,6 +358,15 @@ class OpenAIAdapter(LLMProviderAdapter):
                 cls = getattr(responses_mod, cls_name, None)
                 if cls is None:  # pragma: no cover — openai without the Responses API
                     continue
+                stack.enter_context(
+                    patch.object(
+                        cls,
+                        "create",
+                        new=_patched_create(
+                            responses_wire, "responses.create", cls.create, scope, cls, cls_name == "AsyncResponses"
+                        ),
+                    )
+                )
                 for method in _RESPONSES_UNINTERCEPTED:
                     if hasattr(cls, method):  # pragma: no branch — older SDKs lack some methods
                         _guard(stack, scope, cls, method, f"responses.{method}", guard_unintercepted)

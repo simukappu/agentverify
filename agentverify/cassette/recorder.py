@@ -519,8 +519,16 @@ def _build_execution_result(
         messages = consumer_next.input_context.get("messages")
         if not isinstance(messages, list):  # pragma: no cover — defensive
             continue
+        # The request resends the whole conversation, so take only the tool
+        # messages that answer the latest assistant tool call: the ones after
+        # the last assistant message that made tool calls. Without such a
+        # message (a provider shape without one), fall back to all of them.
+        start = 0
+        for pos, msg in enumerate(messages):
+            if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("tool_calls"):
+                start = pos + 1
         extracted: list[Any] = []
-        for msg in messages:
+        for msg in messages[start:]:
             if isinstance(msg, dict) and msg.get("role") == "tool":
                 extracted.append(msg.get("content"))
         if extracted:

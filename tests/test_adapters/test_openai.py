@@ -181,7 +181,7 @@ class TestDenormalizeResponse:
         assert tc.function.name == "get_weather"
         assert tc.function.arguments == '{"location": "Tokyo"}'
         assert tc.type == "function"
-        assert tc.id == "call_0"
+        assert tc.id.startswith("call_replayed_")  # unique fallback for calls recorded without an id
 
     def test_no_usage(self, adapter: OpenAIAdapter) -> None:
         normalized = NormalizedResponse(content="Hi")
@@ -228,7 +228,8 @@ class TestRoundTrip:
         re_normalized = adapter.normalize_response(restored)
 
         assert re_normalized.content == normalized.content
-        assert re_normalized.tool_calls == normalized.tool_calls
+        # The source has no ids, so replay assigns fallback ids; everything else survives.
+        assert [{k: v for k, v in tc.items() if k != "id"} for tc in re_normalized.tool_calls] == normalized.tool_calls
         assert re_normalized.token_usage == normalized.token_usage
 
 

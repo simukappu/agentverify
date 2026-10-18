@@ -953,6 +953,40 @@ class TestCassetteToolOutcomeBackfill:
         )
         assert result.steps[0].tool_result_is_error(0) is True
 
+    def test_backfill_takes_only_the_latest_tool_results(self):
+        """Requests resend the whole history; each step gets only the results that answer its own calls."""
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify.cassette.recorder import _build_execution_result
+
+        call = lambda city: {"role": "assistant", "tool_calls": [{"id": city, "function": {"name": "w"}}]}  # noqa: E731
+        req0 = NormalizedRequest(messages=[{"role": "user", "content": "q"}], model="m")
+        resp0 = NormalizedResponse(content=None, tool_calls=[{"name": "w", "arguments": {"city": "Tokyo"}}])
+        req1 = NormalizedRequest(
+            messages=[{"role": "user", "content": "q"}, call("Tokyo"), {"role": "tool", "content": "Tokyo sunny"}], model="m"
+        )
+        resp1 = NormalizedResponse(content=None, tool_calls=[{"name": "w", "arguments": {"city": "Osaka"}}])
+        req2 = NormalizedRequest(
+            messages=[
+                {"role": "user", "content": "q"},
+                call("Tokyo"),
+                {"role": "tool", "content": "Tokyo sunny"},
+                call("Osaka"),
+                {"role": "tool", "content": "Osaka rainy"},
+            ],
+            model="m",
+        )
+        resp2 = NormalizedResponse(content="done", tool_calls=[])
+
+        result = _build_execution_result(
+            interactions=[(req0, resp0), (req1, resp1), (req2, resp2)],
+            probe_stacks=[[], [], []],
+            probe_events=[],
+            probe_tool_results={},
+            duration_ms=None,
+        )
+        assert result.steps[0].tool_results == ["Tokyo sunny"]
+        assert result.steps[1].tool_results == ["Osaka rainy"]
+
     def test_backfill_plain_string_is_unknown(self):
         from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
         from agentverify.cassette.recorder import _build_execution_result

@@ -162,25 +162,25 @@ class TestOpenAIGuards:
     @pytest.mark.parametrize(
         "call",
         [
-            lambda c: c.responses.create(model="m", input="hi"),
+            lambda c: c.responses.parse(model="m", input="hi"),
             lambda c: c.chat.completions.parse(model="m", messages=[]),
             lambda c: c.embeddings.create(model="m", input="hi"),
             lambda c: c.completions.create(model="m", prompt="hi"),
         ],
-        ids=["responses", "chat-parse", "embeddings", "legacy-completions"],
+        ids=["responses-parse", "chat-parse", "embeddings", "legacy-completions"],
     )
     def test_unrecorded_calls_raise_in_replay(self, call):
         with self._adapter().patch(_recorder(CassetteMode.REPLAY)):
             with pytest.raises(CassetteUnsupportedCallError):
                 call(self._client())
 
-    def test_responses_create_passes_through_in_record(self):
+    def test_responses_parse_passes_through_in_record(self):
         import openai.resources.responses as responses
 
-        with unittest_mock_patch.object(responses.Responses, "create", return_value="real"):
+        with unittest_mock_patch.object(responses.Responses, "parse", return_value="real"):
             with self._adapter().patch(_recorder(CassetteMode.RECORD)):
-                with pytest.warns(UserWarning, match="responses.create is not recorded"):
-                    assert self._client().responses.create(model="m", input="hi") == "real"
+                with pytest.warns(UserWarning, match="responses.parse is not recorded"):
+                    assert self._client().responses.parse(model="m", input="hi") == "real"
 
     def test_responses_streaming_entry_points_raise(self):
         with self._adapter().patch(_recorder(CassetteMode.RECORD)):
@@ -223,7 +223,7 @@ class TestOpenAIGuards:
             rec = MagicMock(); rec.mode = CassetteMode.REPLAY
             with OpenAIAdapter().patch(rec):
                 try:
-                    openai.OpenAI(api_key="k").responses.create(model="m", input="hi")
+                    openai.OpenAI(api_key="k").responses.parse(model="m", input="hi")
                 except CassetteUnsupportedCallError:
                     print("guarded")
             """

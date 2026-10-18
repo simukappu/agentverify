@@ -209,7 +209,7 @@ class TestRoundTrip:
         re_normalized = adapter.normalize_response(restored)
 
         assert re_normalized.content == normalized.content
-        assert re_normalized.tool_calls == normalized.tool_calls
+        assert [{k: v for k, v in tc.items() if k != "id"} for tc in re_normalized.tool_calls] == normalized.tool_calls
         assert re_normalized.token_usage == normalized.token_usage
 
 
