@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import itertools
 import threading
 import warnings
 from abc import ABC, abstractmethod
@@ -39,6 +40,16 @@ class NormalizedResponse:
     tool_calls: list[dict[str, Any]] | None = None
     token_usage: TokenUsage | None = None
     raw_metadata: dict[str, Any] = field(default_factory=dict)
+
+
+# Fallback ids for tool calls recorded without one (cassettes from before ids were kept).
+# Unique per process, so replayed turns never reuse an id; frameworks such as the OpenAI
+# Agents SDK reject a run that does.
+_fallback_call_ids = itertools.count()
+
+
+def fallback_call_id(prefix: str = "call") -> str:
+    return f"{prefix}_replayed_{next(_fallback_call_ids)}"
 
 
 class LLMProviderAdapter(ABC):

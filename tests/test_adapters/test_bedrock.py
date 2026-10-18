@@ -305,9 +305,27 @@ class TestDenormalizeResponse:
         assert blocks[0]["toolUse"]["input"] == {"location": "Tokyo"}
 
     def test_no_usage(self, adapter: BedrockAdapter) -> None:
+        """A real Converse response without usage has no "usage" key; Strands copies it into its metadata event."""
         normalized = NormalizedResponse(content="Hi")
         result = adapter.denormalize_response(normalized)
-        assert result["usage"] is None
+        assert "usage" not in result
+
+    def test_tool_use_ids_are_kept_or_unique(self, adapter: BedrockAdapter) -> None:
+        raw = {
+            "output": {"message": {"role": "assistant", "content": [{"toolUse": {"toolUseId": "tooluse_abc", "name": "f", "input": {}}}]}},
+            "stopReason": "tool_use",
+        }
+        normalized = adapter.normalize_response(raw)
+        assert normalized.tool_calls[0]["id"] == "tooluse_abc"
+        replayed = adapter.denormalize_response(normalized)
+        assert replayed["output"]["message"]["content"][0]["toolUse"]["toolUseId"] == "tooluse_abc"
+        no_id = {"output": {"message": {"content": [{"toolUse": {"name": "f", "input": {}}}]}}}
+        assert "id" not in adapter.normalize_response(no_id).tool_calls[0]
+        # Calls recorded without an id get a fresh one each time, so replayed turns never collide.
+        legacy = NormalizedResponse(tool_calls=[{"name": "f", "arguments": "{}"}])
+        first = adapter.denormalize_response(legacy)["output"]["message"]["content"][0]["toolUse"]["toolUseId"]
+        second = adapter.denormalize_response(legacy)["output"]["message"]["content"][0]["toolUse"]["toolUseId"]
+        assert first != second and first.startswith("tooluse_replayed_")
 
     def test_invalid_json_arguments(self, adapter: BedrockAdapter) -> None:
         normalized = NormalizedResponse(

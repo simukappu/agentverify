@@ -9,7 +9,8 @@
 
 ### Bug Fixes
 
-- **Multi-turn tool runs replay.** Replayed OpenAI tool calls reused the id `call_0` in every turn, so frameworks that track tool call ids, such as the OpenAI Agents SDK, rejected or skipped them. Recorded ids are now kept.
+- **Multi-turn tool runs replay.** Replayed OpenAI tool calls reused the id `call_0` in every turn, so frameworks that track tool call ids, such as the OpenAI Agents SDK, rejected or skipped them. Recorded ids are now kept, for Bedrock `toolUseId` too.
+- **Bedrock replay leaves out `usage` when none was recorded**, as a real Converse response does, instead of returning `"usage": None`.
 - **Each replayed step's `tool_results` holds only the results of its own tool calls**, not every earlier result the next request resends. `assert_step_uses_result_from` could pass on data from an earlier step.
 - **LiteLLM replay returns `litellm.ModelResponse`**, the type `litellm.completion` returns, instead of an OpenAI `ChatCompletion`. Callers that check the type, such as the OpenAI Agents SDK's `LitellmModel`, failed on replay.
 

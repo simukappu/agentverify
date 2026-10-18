@@ -17,6 +17,7 @@ from agentverify.cassette.adapters.base import (
     block_transport_in_replay,
     call_async,
     call_sync,
+    fallback_call_id,
     guard_unintercepted,
     patch_scope,
     redispatch,
@@ -25,7 +26,7 @@ from agentverify.cassette.adapters.base import (
     NormalizedRequest,
     NormalizedResponse,
 )
-from agentverify.cassette.adapters.openai_responses import ResponsesWire, fallback_call_id
+from agentverify.cassette.adapters.openai_responses import ResponsesWire
 from agentverify.models import TokenUsage
 
 if TYPE_CHECKING:

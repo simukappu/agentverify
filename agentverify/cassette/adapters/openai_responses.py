@@ -7,12 +7,11 @@ It is used by :class:`~agentverify.cassette.adapters.openai.OpenAIAdapter`, not 
 
 from __future__ import annotations
 
-import itertools
 import json
 import warnings
 from typing import Any
 
-from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse, fallback_call_id
 from agentverify.models import TokenUsage
 
 def _plain(value: Any) -> Any:
@@ -44,13 +43,6 @@ _UNSUPPORTED_CALL_ITEMS = frozenset(
 # sets a per-run prompt_cache_key). Dropping them keeps re-recorded cassettes diffable.
 _VOLATILE_PARAMETERS = frozenset({"prompt_cache_key"})
 
-# Fallback call ids for tool calls recorded without one (cassettes from before ids were
-# kept). Unique per process so that replayed turns never reuse an id.
-_fallback_call_ids = itertools.count()
-
-
-def fallback_call_id() -> str:
-    return f"call_replayed_{next(_fallback_call_ids)}"
 
 
 def _text_of(content: Any) -> Any:

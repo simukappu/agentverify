@@ -15,6 +15,7 @@ from unittest.mock import patch
 from agentverify.cassette.adapters.base import (
     _guards_off,
     call_sync,
+    fallback_call_id,
     patch_scope,
     check_unrecorded,
     unsupported_call_error,
@@ -155,12 +156,10 @@ class BedrockAdapter(LLMProviderAdapter):
                 if tool_calls is None:
                     tool_calls = []
                 tu = block["toolUse"]
-                tool_calls.append(
-                    {
-                        "name": tu.get("name", ""),
-                        "arguments": json.dumps(tu.get("input", {})),
-                    }
-                )
+                call = {"name": tu.get("name", ""), "arguments": json.dumps(tu.get("input", {}))}
+                if isinstance(tu.get("toolUseId"), str):
+                    call["id"] = tu["toolUseId"]  # replayed turns keep the recorded ids
+                tool_calls.append(call)
 
         # Token usage
         token_usage: TokenUsage | None = None
@@ -195,7 +194,7 @@ class BedrockAdapter(LLMProviderAdapter):
                 content_blocks.append(
                     {
                         "toolUse": {
-                            "toolUseId": f"tooluse_{id(tc)}",
+                            "toolUseId": tc.get("id") or fallback_call_id("tooluse"),
                             "name": tc["name"],
                             "input": arguments,
                         }
@@ -220,8 +219,7 @@ class BedrockAdapter(LLMProviderAdapter):
                 "outputTokens": normalized.token_usage.output_tokens,
                 "totalTokens": normalized.token_usage.total_tokens,
             }
-        else:
-            result["usage"] = None
+        # Without recorded usage the key is left out, as in a real response without usage.
 
         return result
 
