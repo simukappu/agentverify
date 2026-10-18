@@ -705,6 +705,14 @@ For other frameworks, build an `ExecutionResult` from your agent's output using 
 | LiteLLM | `pip install "agentverify[litellm]"` |
 | All providers | `pip install "agentverify[all]"` |
 
+OpenAI models on Amazon Bedrock can be reached three ways; record each with the provider that owns the client:
+
+| Route | Cassette provider |
+|---|---|
+| boto3 `bedrock-runtime` `converse` | `"bedrock"` |
+| OpenAI SDK with `base_url="https://bedrock-runtime.<region>.amazonaws.com/openai/v1"` (`chat.completions.create`, `responses.create`) | `"openai"` |
+| boto3 `invoke_model` | not recorded; raises in replay mode |
+
 ## LLM Mocking with MockLLM
 
 `MockLLM` replays a list of predefined LLM responses that you define in code. Test your agent's routing logic without a cassette or a real LLM call. Useful when you haven't recorded yet, or when you want to drive the agent through hypothetical responses (errors, edge cases) that would be awkward to elicit from a real model.
