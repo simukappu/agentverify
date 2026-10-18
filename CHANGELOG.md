@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Async agents**: cassettes record and replay, and `MockLLM` answers, the async clients of Anthropic, Gemini, and LiteLLM, as they already did for OpenAI. See README "Async Agents".
+
+### Breaking Changes
+
+- **Overlapping LLM calls while recording raise `CassetteUnsupportedCallError`**, including OpenAI async calls that 0.5.0 recorded. Their recorded order changed from run to run. Await them one at a time.
+
 ## 0.5.0 (2026-10-18)
 
 ### Improvements

@@ -14,10 +14,11 @@ from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
-    allow_live_call,
+    call_async,
+    call_sync,
     guard_unintercepted,
     patch_scope,
-    reject_stream_kwarg,
+    redispatch,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
@@ -33,7 +34,7 @@ except ImportError:  # pragma: no cover
     _litellm_module = None  # type: ignore[assignment]
 
 _PATCH_TARGET = "litellm.completion"
-_UNINTERCEPTED = ("acompletion", "text_completion", "atext_completion", "responses", "aresponses")
+_UNINTERCEPTED = ("text_completion", "atext_completion", "responses", "aresponses")
 
 # Shared OpenAI adapter instance for normalize/denormalize delegation.
 _openai_adapter = OpenAIAdapter()
@@ -98,35 +99,26 @@ class LiteLLMAdapter(LLMProviderAdapter):
 
         def _patched_completion(*args: Any, **kwargs: Any) -> Any:
             """Intercept litellm.completion() calls."""
-            from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
+            if not scope.active:  # a reference captured inside the cassette
+                return redispatch(lambda: litellm.completion, _patched_completion, original_fn, args, kwargs)
+            scope.litellm_sync_depth += 1
+            try:
+                return call_sync(scope, recorder, adapter, "completion", kwargs, lambda: original_fn(*args, **kwargs))
+            finally:
+                scope.litellm_sync_depth -= 1
 
-            if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
-                return original_fn(*args, **kwargs)  # passthrough: nothing is saved
-            reject_stream_kwarg("litellm", "completion", kwargs)
-            norm_req = adapter.normalize_request(kwargs)
+        async_original = litellm.acompletion
 
-            if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                with allow_live_call():
-                    response = original_fn(*args, **kwargs)
-                norm_resp = adapter.normalize_response(response)
-                recorder.record(norm_req, norm_resp)
-                return response
-
-            # REPLAY mode
-            norm_resp = recorder.lookup(norm_req)
-            if norm_resp is None:
-                if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    with allow_live_call():
-                        response = original_fn(*args, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-                from agentverify.errors import CassetteMissingRequestError
-
-                raise CassetteMissingRequestError(
-                    f"No matching cassette entry for request: model={norm_req.model}"
-                )
-            return adapter.denormalize_response(norm_resp)
+        async def _patched_acompletion(*args: Any, **kwargs: Any) -> Any:
+            """Intercept litellm.acompletion() calls."""
+            if not scope.active:  # a reference captured inside the cassette
+                return await redispatch(lambda: litellm.acompletion, _patched_acompletion, async_original, args, kwargs)
+            if scope.litellm_sync_depth:
+                # completion() runs its fallbacks through acompletion() on a worker
+                # thread, where the live-call marker does not reach; it is part of
+                # the outer completion() call.
+                return await async_original(*args, **kwargs)
+            return await call_async(scope, recorder, adapter, "acompletion", kwargs, lambda: async_original(*args, **kwargs))
 
         # litellm has no shared HTTP layer to guard, so its other LLM entry points
         # are wrapped one by one. Names imported before the cassette started
@@ -134,6 +126,7 @@ class LiteLLMAdapter(LLMProviderAdapter):
         with ExitStack() as stack:
             scope = stack.enter_context(patch_scope())
             stack.enter_context(patch(_PATCH_TARGET, new=_patched_completion))
+            stack.enter_context(patch("litellm.acompletion", new=_patched_acompletion))
             for name in _UNINTERCEPTED:
                 if hasattr(litellm, name):  # pragma: no branch — older litellm lacks some
                     stack.enter_context(

@@ -14,8 +14,9 @@ from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
-    allow_live_call,
     block_transport_in_replay,
+    call_async,
+    call_sync,
     guard_unintercepted,
     patch_scope,
     redispatch,
@@ -286,86 +287,42 @@ class OpenAIAdapter(LLMProviderAdapter):
             extra = kwargs.get("extra_headers") or {}
             return bool(extra.get("X-Stainless-Raw-Response"))
 
-        def _handle_replay(
-            norm_req: NormalizedRequest, original_fn, args, kwargs, raw_mode: bool
-        ):
-            """Common replay path for sync and async wrappers."""
-            from agentverify.cassette.recorder import OnMissingRequest
+        def _replayed(raw_mode: bool):  # type: ignore[no-untyped-def]
+            def build(norm_resp: NormalizedResponse) -> Any:
+                denormalized = adapter.denormalize_response(norm_resp)
+                return _RawResponseWrapper(denormalized) if raw_mode else denormalized
 
-            norm_resp = recorder.lookup(norm_req)
-            if norm_resp is None:
-                if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    # Caller handles the fallback call itself; signal miss.
-                    return _REPLAY_MISS
-                from agentverify.errors import CassetteMissingRequestError
-
-                raise CassetteMissingRequestError(
-                    f"No matching cassette entry for request: model={norm_req.model}"
-                )
-            denormalized = adapter.denormalize_response(norm_resp)
-            if raw_mode:
-                return _RawResponseWrapper(denormalized)
-            return denormalized
+            return build
 
         def _patched_sync_create(original_fn, scope, cls):  # type: ignore[no-untyped-def]
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                from agentverify.cassette.recorder import CassetteMode
-
                 if not scope.active:  # a cached bound method outliving the cassette
                     return redispatch(lambda: cls.create, wrapper, original_fn, args, kwargs)
-                if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
-                    return original_fn(*args, **kwargs)  # passthrough: nothing is saved
-                reject_stream_kwarg("openai", "chat.completions.create", kwargs)
-                norm_req = adapter.normalize_request(kwargs)
-                raw_mode = _is_raw_response_call(kwargs)
-
-                if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                    with allow_live_call():
-                        response = original_fn(*args, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-
-                # REPLAY
-                result = _handle_replay(norm_req, original_fn, args, kwargs, raw_mode)
-                if result is _REPLAY_MISS:  # FALLBACK
-                    with allow_live_call():
-                        response = original_fn(*args, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-                return result
+                return call_sync(
+                    scope,
+                    recorder,
+                    adapter,
+                    "chat.completions.create",
+                    kwargs,
+                    lambda: original_fn(*args, **kwargs),
+                    _replayed(_is_raw_response_call(kwargs)),
+                )
 
             return wrapper
 
         def _patched_async_create(original_fn, scope, cls):  # type: ignore[no-untyped-def]
             async def wrapper(*args: Any, **kwargs: Any) -> Any:
-                from agentverify.cassette.recorder import CassetteMode
-
                 if not scope.active:  # a cached bound method outliving the cassette
                     return await redispatch(lambda: cls.create, wrapper, original_fn, args, kwargs)
-                if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
-                    return await original_fn(*args, **kwargs)  # passthrough: nothing is saved
-                reject_stream_kwarg("openai", "chat.completions.create", kwargs)
-                norm_req = adapter.normalize_request(kwargs)
-                raw_mode = _is_raw_response_call(kwargs)
-
-                if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                    with allow_live_call():
-                        response = await original_fn(*args, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-
-                # REPLAY
-                result = _handle_replay(norm_req, original_fn, args, kwargs, raw_mode)
-                if result is _REPLAY_MISS:  # FALLBACK
-                    with allow_live_call():
-                        response = await original_fn(*args, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-                return result
+                return await call_async(
+                    scope,
+                    recorder,
+                    adapter,
+                    "chat.completions.create",
+                    kwargs,
+                    lambda: original_fn(*args, **kwargs),
+                    _replayed(_is_raw_response_call(kwargs)),
+                )
 
             return wrapper
 
@@ -411,9 +368,3 @@ class OpenAIAdapter(LLMProviderAdapter):
                     patch.object(cls, "request", new=block_transport_in_replay(recorder, "openai", cls.request, is_async))
                 )
             yield
-
-
-# Sentinel used by the shared replay helper to signal a cassette miss
-# when ``on_missing=FALLBACK`` so the (sync or async) caller can drive
-# the real API call itself.
-_REPLAY_MISS: Any = object()

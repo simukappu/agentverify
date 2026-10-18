@@ -14,7 +14,8 @@ from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
     _guards_off,
-    allow_live_call,
+    call_sync,
+    patch_scope,
     check_unrecorded,
     unsupported_call_error,
     LLMProviderAdapter,
@@ -256,32 +257,9 @@ class BedrockAdapter(LLMProviderAdapter):
                     check_unrecorded(recorder, "bedrock", operation_name, api_params, stacklevel=3)
                 return original_fn(self_client, operation_name, api_params)
 
-            from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
+            return call_sync(
+                scope, recorder, adapter, "Converse", api_params, lambda: original_fn(self_client, operation_name, api_params)
+            )
 
-            norm_req = adapter.normalize_request(api_params)
-
-            if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                with allow_live_call():
-                    response = original_fn(self_client, operation_name, api_params)
-                norm_resp = adapter.normalize_response(response)
-                recorder.record(norm_req, norm_resp)
-                return response
-
-            # REPLAY mode
-            norm_resp = recorder.lookup(norm_req)
-            if norm_resp is None:
-                if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    with allow_live_call():
-                        response = original_fn(self_client, operation_name, api_params)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-                from agentverify.errors import CassetteMissingRequestError
-
-                raise CassetteMissingRequestError(
-                    f"No matching cassette entry for request: model={norm_req.model}"
-                )
-            return adapter.denormalize_response(norm_resp)
-
-        with patch(_PATCH_TARGET, new=_patched_make_api_call):
+        with patch_scope() as scope, patch(_PATCH_TARGET, new=_patched_make_api_call):
             yield

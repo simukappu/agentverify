@@ -260,11 +260,10 @@ class TestAnthropicGuards:
     @pytest.mark.parametrize(
         "call",
         [
-            lambda c, a: asyncio.run(a.messages.create(model="m", messages=[], max_tokens=1)),
             lambda c, a: c.beta.messages.create(model="m", messages=[], max_tokens=1),
             lambda c, a: c.messages.count_tokens(model="m", messages=[]),
         ],
-        ids=["async-create", "beta-create", "count-tokens"],
+        ids=["beta-create", "count-tokens"],
     )
     def test_unrecorded_calls_raise_in_replay(self, call):
         import anthropic
@@ -292,8 +291,6 @@ class TestGeminiGuards:
                 client.models.generate_content_stream(model="m", contents="hi")
             with pytest.raises(CassetteUnsupportedCallError, match="aio.models.generate_content_stream"):
                 asyncio.run(client.aio.models.generate_content_stream(model="m", contents="hi"))
-            with pytest.raises(CassetteUnsupportedCallError, match="aio.models.generate_content"):
-                asyncio.run(client.aio.models.generate_content(model="m", contents="hi"))
             with pytest.raises(CassetteUnsupportedCallError, match="does not reach the network"):
                 client.models.embed_content(model="m", contents="hi")
 
@@ -313,7 +310,7 @@ class TestLiteLLMGuards:
                 litellm.completion(model="m", messages=[], stream=True)
             with pytest.raises(CassetteUnsupportedCallError, match="text_completion"):
                 litellm.text_completion(model="m")
-            for name in ("acompletion", "aresponses"):
+            for name in ("aresponses",):
                 with pytest.raises(CassetteUnsupportedCallError, match=name):
                     asyncio.run(getattr(litellm, name)(model="m"))
 

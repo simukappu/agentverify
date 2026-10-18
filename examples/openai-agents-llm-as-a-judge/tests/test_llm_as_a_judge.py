@@ -5,6 +5,7 @@ Tests use cassette replay mode — no LLM API key is required. The cassette file
 This is the example where agentverify's value shines the brightest: the underlying agent is *probabilistic* (the evaluator's "pass" decision depends on the LLM, and the refinement loop may take 2 or 3 rounds), but the cassette freezes a single concrete run so every assertion below runs deterministically in CI.
 """
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from agentverify import (
 # Allow importing agent.py from the parent directory
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agent import run_judge_loop_sync  # noqa: E402
+from agent import run_judge_loop, run_judge_loop_sync  # noqa: E402
 
 
 CASSETTE = "detective_in_space.yaml"
@@ -171,3 +172,18 @@ def test_no_tool_calls_anywhere(cassette):
         assert step.tool_calls == [], (
             f"step {step.index} has unexpected tool calls: {step.tool_calls}"
         )
+
+
+@pytest.mark.agentverify
+def test_cassette_opened_inside_async_code(cassette):
+    """The cassette is a plain context manager, so async code can open it around ``await`` calls. No async test plugin is needed."""
+
+    async def main():
+        with cassette(CASSETTE, provider="openai") as rec:
+            loop_result = await run_judge_loop(QUERY, max_rounds=3)
+        return loop_result, rec.to_execution_result()
+
+    loop_result, result = asyncio.run(main())
+    assert loop_result.pass_reached
+    # One generator step and one evaluator step per round.
+    assert len(result.steps) == 2 * loop_result.rounds

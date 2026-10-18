@@ -14,10 +14,11 @@ from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
-    allow_live_call,
     block_transport_in_replay,
-    guard_unintercepted,
+    call_async,
+    call_sync,
     patch_scope,
+    redispatch,
     reject_streaming,
     LLMProviderAdapter,
     NormalizedRequest,
@@ -333,38 +334,40 @@ class GeminiAdapter(LLMProviderAdapter):
 
         def _patched_generate_content(self_client: Any, **kwargs: Any) -> Any:
             """Intercept generate_content calls."""
-            from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
-
-            norm_req = adapter.normalize_request(kwargs)
-
-            if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                with allow_live_call():
-                    response = original_fn(self_client, **kwargs)
-                norm_resp = adapter.normalize_response(response)
-                recorder.record(norm_req, norm_resp)
-                return response
-
-            # REPLAY mode
-            norm_resp = recorder.lookup(norm_req)
-            if norm_resp is None:
-                if recorder.on_missing == OnMissingRequest.FALLBACK:
-                    with allow_live_call():
-                        response = original_fn(self_client, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
-                from agentverify.errors import CassetteMissingRequestError
-
-                raise CassetteMissingRequestError(
-                    f"No matching cassette entry for request: model={norm_req.model}"
+            if not scope.active:  # a cached bound method outliving the cassette
+                return redispatch(
+                    lambda: google.genai.models.Models.generate_content,
+                    _patched_generate_content,
+                    original_fn,
+                    (self_client,),
+                    kwargs,
                 )
-            return adapter.denormalize_response(norm_resp)
+            return call_sync(
+                scope, recorder, adapter, "models.generate_content", kwargs, lambda: original_fn(self_client, **kwargs)
+            )
+
+        async_original = google.genai.models.AsyncModels.generate_content
+
+        async def _patched_async_generate_content(self_client: Any, **kwargs: Any) -> Any:
+            """Intercept aio.models.generate_content calls."""
+            if not scope.active:  # a cached bound method outliving the cassette
+                return await redispatch(
+                    lambda: google.genai.models.AsyncModels.generate_content,
+                    _patched_async_generate_content,
+                    async_original,
+                    (self_client,),
+                    kwargs,
+                )
+            return await call_async(
+                scope, recorder, adapter, "aio.models.generate_content", kwargs, lambda: async_original(self_client, **kwargs)
+            )
 
         models = google.genai.models
         api_client = importlib.import_module("google.genai._api_client").BaseApiClient
         with ExitStack() as stack:
             scope = stack.enter_context(patch_scope())
             stack.enter_context(patch(_PATCH_TARGET, new=_patched_generate_content))
+            stack.enter_context(patch.object(models.AsyncModels, "generate_content", new=_patched_async_generate_content))
             def _guard(cls, method, call, guard):  # type: ignore[no-untyped-def]
                 original = getattr(cls, method)
                 current = lambda: getattr(cls, method)  # noqa: E731
@@ -372,7 +375,6 @@ class GeminiAdapter(LLMProviderAdapter):
 
             _guard(models.Models, "generate_content_stream", "models.generate_content_stream", reject_streaming)
             _guard(models.AsyncModels, "generate_content_stream", "aio.models.generate_content_stream", reject_streaming)
-            _guard(models.AsyncModels, "generate_content", "aio.models.generate_content", guard_unintercepted)
             # Anything else that reaches the HTTP layer in replay mode raises.
             for method, is_async in (
                 ("request", False),

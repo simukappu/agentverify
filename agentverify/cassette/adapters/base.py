@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import functools
 import inspect
+import threading
 import warnings
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -102,6 +103,12 @@ class PatchScope:
 
     def __init__(self) -> None:
         self.active = True
+        # Real LLM calls running under this patch while recording, guarded by
+        # ``lock`` because threads can record too.
+        self.in_flight = 0
+        self.lock = threading.Lock()
+        # litellm only: completion() calls running, so its internal acompletion() is not recorded twice.
+        self.litellm_sync_depth = 0
 
 
 @contextmanager
@@ -262,3 +269,119 @@ def block_transport_in_replay(
         return original(*args, **kwargs)
 
     return wrapper
+
+
+# ---------------------------------------------------------------------------
+# Shared record / replay flow for the intercepted call
+# ---------------------------------------------------------------------------
+
+_REPLAY_MISS: Any = object()
+
+
+@contextmanager
+def _live_call(scope: PatchScope, recorder: LLMCassetteRecorder, provider: str) -> Generator[None, None, None]:
+    """Run one real call, rejecting a second one that overlaps it while recording.
+
+    A cassette replays responses in the order they were recorded. Overlapping calls (``asyncio.gather``, threads) finish in an order that changes from run to run, so recording them would make a cassette that replays the wrong response. Nothing is saved in AUTO passthrough or in replay, so the check applies to record mode only.
+    """
+    from agentverify.cassette.recorder import CassetteMode
+
+    counted = recorder.mode == CassetteMode.RECORD
+    if counted:
+        with scope.lock:
+            if scope.in_flight > 0:
+                raise unsupported_call_error(
+                    provider,
+                    "a concurrent LLM call",
+                    "calls that overlap are recorded in a nondeterministic order; await them one at a time",
+                )
+            scope.in_flight += 1
+    try:
+        with allow_live_call():
+            yield
+    finally:
+        if counted:
+            with scope.lock:
+                scope.in_flight -= 1
+
+
+def _replay_or_miss(
+    recorder: LLMCassetteRecorder,
+    adapter: LLMProviderAdapter,
+    norm_req: NormalizedRequest,
+    replayed: Callable[[NormalizedResponse], Any] | None,
+) -> Any:
+    """Return the replayed response, or ``_REPLAY_MISS`` when the real API should be called."""
+    from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
+    from agentverify.errors import CassetteMissingRequestError
+
+    if recorder.mode != CassetteMode.REPLAY:
+        return _REPLAY_MISS
+    norm_resp = recorder.lookup(norm_req)
+    if norm_resp is not None:
+        return (replayed or adapter.denormalize_response)(norm_resp)
+    if recorder.on_missing == OnMissingRequest.FALLBACK:
+        return _REPLAY_MISS
+    raise CassetteMissingRequestError(f"No matching cassette entry for request: model={norm_req.model}")
+
+
+def _stream_passthrough(recorder: LLMCassetteRecorder, provider: str, call: str, kwargs: dict[str, Any]) -> bool:
+    """True when a streaming request should go straight to the real API (AUTO passthrough); raise if it cannot."""
+    from agentverify.cassette.recorder import CassetteMode
+
+    if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
+        return True
+    reject_stream_kwarg(provider, call, kwargs)
+    return False
+
+
+def call_sync(
+    scope: PatchScope,
+    recorder: LLMCassetteRecorder,
+    adapter: LLMProviderAdapter,
+    call: str,
+    kwargs: dict[str, Any],
+    call_real: Callable[[], Any],
+    replayed: Callable[[NormalizedResponse], Any] | None = None,
+) -> Any:
+    """Record or replay one intercepted call.
+
+    Streaming requests raise (or pass straight through in AUTO passthrough). Replay mode returns the recorded response, built by *replayed* (default: ``adapter.denormalize_response``); a miss calls the real API with ``on_missing=FALLBACK`` and raises otherwise. Record mode and AUTO passthrough call the real API and record the normalized response.
+    A call made while another intercepted call is reaching the real API in the same task or thread (litellm fallbacks, a tool that calls the model during Gemini automatic function calling) is part of that outer call: it runs unrecorded, because replaying the outer call never makes it.
+    """
+    if _live_call_allowed.get():
+        return call_real()
+    if _stream_passthrough(recorder, adapter.name, call, kwargs):
+        return call_real()
+    norm_req = adapter.normalize_request(kwargs)
+    result = _replay_or_miss(recorder, adapter, norm_req, replayed)
+    if result is not _REPLAY_MISS:
+        return result
+    with _live_call(scope, recorder, adapter.name):
+        response = call_real()
+    recorder.record(norm_req, adapter.normalize_response(response))
+    return response
+
+
+async def call_async(
+    scope: PatchScope,
+    recorder: LLMCassetteRecorder,
+    adapter: LLMProviderAdapter,
+    call: str,
+    kwargs: dict[str, Any],
+    call_real: Callable[[], Any],
+    replayed: Callable[[NormalizedResponse], Any] | None = None,
+) -> Any:
+    """Async counterpart of :func:`call_sync`; *call_real* returns an awaitable."""
+    if _live_call_allowed.get():
+        return await call_real()
+    if _stream_passthrough(recorder, adapter.name, call, kwargs):
+        return await call_real()
+    norm_req = adapter.normalize_request(kwargs)
+    result = _replay_or_miss(recorder, adapter, norm_req, replayed)
+    if result is not _REPLAY_MISS:
+        return result
+    with _live_call(scope, recorder, adapter.name):
+        response = await call_real()
+    recorder.record(norm_req, adapter.normalize_response(response))
+    return response

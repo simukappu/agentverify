@@ -302,13 +302,31 @@ Cassettes drift when your prompts, tool schemas, or model versions change. agent
 
 ### Calls Cassettes Cannot Record
 
-Cassettes record non-streaming chat calls: OpenAI `chat.completions.create`, Anthropic `messages.create`, Gemini `models.generate_content`, Bedrock `Converse`, and LiteLLM `completion`. Inside a cassette or `MockLLM`, agentverify raises `CassetteUnsupportedCallError` instead of letting other LLM calls reach the real API:
+Cassettes record non-streaming chat calls, sync or async: OpenAI `chat.completions.create`, Anthropic `messages.create`, Gemini `models.generate_content`, Bedrock `Converse`, and LiteLLM `completion` / `acompletion`. Inside a cassette or `MockLLM`, agentverify raises `CassetteUnsupportedCallError` instead of letting other LLM calls reach the real API:
 - Streaming entry points (`stream=True`, `messages.stream()`, `generate_content_stream()`, Bedrock `ConverseStream`, OpenAI Responses `stream()`), in record and replay mode.
-- In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client, including the Responses API, `parse()`, embeddings, and the async Anthropic and Gemini clients. Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...) and LiteLLM `acompletion`, `text_completion`, and `responses` raise too.
+- In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client, including the Responses API, `parse()`, and embeddings. Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...) and LiteLLM `text_completion` and `responses` raise too.
+- LLM calls that overlap in time while recording (`asyncio.gather`, threads). They finish in a different order on each run, so the cassette would replay the wrong response. Await them one at a time.
 - In record mode, the entry points named above run with a warning. Other requests (beta resources, WebSocket APIs) run without one, and replay then fails at that call.
 - With no cassette file (`AUTO` passthrough), nothing is saved and no guard applies.
 
 Frameworks that stream by default need streaming turned off, e.g. `BedrockModel(streaming=False)` in Strands.
+
+### Async Agents
+
+The cassette is a plain context manager, so it works around `await` calls too, either in a sync test that runs the agent with `asyncio.run()` or inside your own async test (agentverify does not depend on `pytest-asyncio` or `anyio`; use whichever you already have):
+
+```python
+def test_async_agent(cassette):
+    async def main():
+        with cassette("judge.yaml", provider="openai") as rec:
+            await run_agent("A detective story in space.")
+        return rec.to_execution_result()
+
+    result = asyncio.run(main())
+    assert_final_output(result, contains="detective")
+```
+
+Async clients of OpenAI, Anthropic, Gemini, and LiteLLM are recorded and replayed. Async Bedrock (`aiobotocore`) is neither recorded nor guarded yet, so its calls reach AWS even in replay mode.
 
 ### Cassette Sanitization
 
@@ -780,7 +798,7 @@ A rough guide:
 
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
-- Async support: first-class `asyncio` testing for async agents and tools
+- Concurrent LLM calls: record and replay calls that overlap (`asyncio.gather`), and async Bedrock (`aiobotocore`)
 - Responses API cassette adapter: record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Framework adapters for Google ADK and CrewAI: pending async support and stable tool-call APIs from these frameworks
 

@@ -14,8 +14,10 @@ from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
-    allow_live_call,
     block_transport_in_replay,
+    call_async,
+    call_sync,
+    check_unrecorded,
     guard_unintercepted,
     patch_scope,
     redispatch,
@@ -294,42 +296,39 @@ class AnthropicAdapter(LLMProviderAdapter):
 
         adapter = self
 
-        def _patched_create(original_fn, scope):  # type: ignore[no-untyped-def]
-            """Return a wrapper that intercepts ``create()`` calls."""
+        def _is_raw_response_call(kwargs: dict[str, Any]) -> bool:
+            extra = kwargs.get("extra_headers") or {}
+            return bool(extra.get("X-Stainless-Raw-Response"))
+
+        def _patched_create(original_fn, scope, current):  # type: ignore[no-untyped-def]
+            """Return a wrapper that intercepts ``Messages.create()`` calls."""
 
             def wrapper(*args: Any, **kwargs: Any) -> Any:
-                from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
-
                 if not scope.active:  # a cached bound method outliving the cassette
-                    return redispatch(lambda: messages_mod.Messages.create, wrapper, original_fn, args, kwargs)
-                if kwargs.get("stream") is True and recorder.mode == CassetteMode.AUTO:
-                    return original_fn(*args, **kwargs)  # passthrough: nothing is saved
-                reject_stream_kwarg("anthropic", "messages.create", kwargs)
-                norm_req = adapter.normalize_request(kwargs)
+                    return redispatch(current, wrapper, original_fn, args, kwargs)
+                if _is_raw_response_call(kwargs):
+                    # with_raw_response: the adapter cannot rebuild the raw wrapper on replay.
+                    check_unrecorded(recorder, "anthropic", "messages.with_raw_response.create", kwargs, stacklevel=2)
+                    return original_fn(*args, **kwargs)
+                return call_sync(
+                    scope, recorder, adapter, "messages.create", kwargs, lambda: original_fn(*args, **kwargs)
+                )
 
-                if recorder.mode in (CassetteMode.RECORD, CassetteMode.AUTO):
-                    # Call the real API and record the interaction
-                    with allow_live_call():
-                        response = original_fn(*args, **kwargs)
-                    norm_resp = adapter.normalize_response(response)
-                    recorder.record(norm_req, norm_resp)
-                    return response
+            return wrapper
 
-                # REPLAY mode
-                norm_resp = recorder.lookup(norm_req)
-                if norm_resp is None:
-                    if recorder.on_missing == OnMissingRequest.FALLBACK:
-                        with allow_live_call():
-                            response = original_fn(*args, **kwargs)
-                        norm_resp = adapter.normalize_response(response)
-                        recorder.record(norm_req, norm_resp)
-                        return response
-                    from agentverify.errors import CassetteMissingRequestError
+        def _patched_async_create(original_fn, scope, current):  # type: ignore[no-untyped-def]
+            """Return a wrapper that intercepts ``AsyncMessages.create()`` calls."""
 
-                    raise CassetteMissingRequestError(
-                        f"No matching cassette entry for request: model={norm_req.model}"
-                    )
-                return adapter.denormalize_response(norm_resp)
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
+                if not scope.active:  # a cached bound method outliving the cassette
+                    return await redispatch(current, wrapper, original_fn, args, kwargs)
+                if _is_raw_response_call(kwargs):
+                    # with_raw_response: the adapter cannot rebuild the raw wrapper on replay.
+                    check_unrecorded(recorder, "anthropic", "AsyncMessages.with_raw_response.create", kwargs, stacklevel=2)
+                    return await original_fn(*args, **kwargs)
+                return await call_async(
+                    scope, recorder, adapter, "AsyncMessages.create", kwargs, lambda: original_fn(*args, **kwargs)
+                )
 
             return wrapper
 
@@ -346,10 +345,18 @@ class AnthropicAdapter(LLMProviderAdapter):
         # Use unittest.mock.patch to ensure clean teardown
         with ExitStack() as stack:
             scope = stack.enter_context(patch_scope())
-            stack.enter_context(patch(_PATCH_TARGET, new=_patched_create(Messages.create, scope)))
+            stack.enter_context(
+                patch(_PATCH_TARGET, new=_patched_create(Messages.create, scope, lambda: Messages.create))
+            )
+            stack.enter_context(
+                patch.object(
+                    AsyncMessages,
+                    "create",
+                    new=_patched_async_create(AsyncMessages.create, scope, lambda: AsyncMessages.create),
+                )
+            )
             # messages.stream() posts directly, bypassing create().
             _guard(stack, scope, Messages, "stream", "messages.stream", reject_streaming)
-            _guard(stack, scope, AsyncMessages, "create", "AsyncMessages.create", guard_unintercepted)
             _guard(stack, scope, AsyncMessages, "stream", "AsyncMessages.stream", reject_streaming)
             for cls in (Messages, AsyncMessages):
                 if hasattr(cls, "parse"):  # pragma: no branch — older SDKs lack parse
