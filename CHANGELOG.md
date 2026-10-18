@@ -4,17 +4,17 @@
 
 ### Improvements
 
-- **`contains=` accepts a list** in `assert_final_output`, `assert_step_output`, and `assert_tool_result_matches`. Every substring must appear; for `assert_tool_result_matches`, in the same tool result. `case_sensitive=False` ignores case in `contains`. Thanks to @Neohu-ceo ([#4](https://github.com/simukappu/agentverify/pull/4)). See README "Final Output Assertions".
+- **`contains=` accepts a list** of substrings, and `case_sensitive=False` ignores case, in `assert_final_output`, `assert_step_output`, and `assert_tool_result_matches`. Thanks to @Neohu-ceo ([#4](https://github.com/simukappu/agentverify/pull/4)). See README "Final Output Assertions".
 
 ### Bug Fixes
 
-- **LLM calls a cassette cannot replay fail instead of reaching the real API.** In replay mode (cassette or `MockLLM`), requests through the OpenAI, Anthropic, or Gemini SDK client other than the recorded chat call, such as the Responses API, `parse()`, embeddings, or the async Anthropic and Gemini clients, used to reach the provider silently. They now raise `CassetteUnsupportedCallError`, as do streaming calls and the Bedrock and LiteLLM calls listed in README "Calls Cassettes Cannot Record". Make live non-chat calls such as embeddings outside the cassette.
-- **Credentials passed as call arguments are redacted from cassettes.** Arguments and headers under keys such as `api_key`, `authorization`, or `x-api-key` (for example in `extra_headers`) were saved as-is unless they matched a known key format. Default patterns now also cover Google, Bedrock (long- and short-term), AWS temporary, and GitHub keys. `sanitize=[]` still applies the key-based redaction; only `sanitize=False` turns sanitization off. The `cassette` fixture now accepts `sanitize=`, as the README already showed. See README "Cassette Sanitization".
-- **OpenAI Agents SDK tool failures are detected.** The SDK's default failure and timeout messages now count as tool errors, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` fail on them instead of passing. Applies to `from_openai_agents` and to replayed Chat Completions cassettes.
+- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See README "Calls Cassettes Cannot Record".
+- **Credentials passed as call arguments are redacted from cassettes**, such as `api_key=` or an `x-api-key` header. Default patterns also cover Google, Bedrock, AWS temporary, and GitHub keys. See README "Cassette Sanitization".
+- **OpenAI Agents SDK tool failures are detected**, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` no longer pass on them.
 
 ### Dependency
 
-- **Python 3.15 and openai 3.x** are tested in CI. The `litellm` extra is not tested on Python 3.15, where pip falls back to an older litellm release.
+- **Python 3.15 and openai 3.x** are tested in CI.
 
 ## 0.4.0 (2026-06-19)
 
