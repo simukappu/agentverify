@@ -2,7 +2,7 @@
 # Deploys the execution model C stack for the weather subject via AWS CDK.
 #
 # Required:
-#   AWS credentials in the environment (the work AWS account).
+#   AWS credentials in the environment, scoped as in ../../README.md step 4 (no CDK bootstrap is used).
 #   ~/.venvs/agentverify-bench with aws-cdk-lib + aws-cdk.aws-bedrock-agentcore-alpha.
 #
 # Cost note: a single deploy creates one Lambda + one AgentCore Evaluations Evaluator resource. AgentCore Evaluations Evaluator carries no idle charge; Lambda pricing applies only on invocation. Tag-based cleanup: ``project=agentverify-execution-model-bench``.

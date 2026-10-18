@@ -172,15 +172,12 @@ The full procedure is below. Steps 1-3 are one-time host setup; steps 4-5 are on
 
 ### One-time AWS setup (steps 4-5)
 
-4. **Bootstrap CDK in the target account x region** (one time per account x region; can be skipped if you have already bootstrapped CDK there before, e.g. for any other CDK project):
+4. **Create the deploy prerequisites** (one time per account x region). The stacks do not use CDK bootstrap: they deploy with your own credentials through `CliCredentialsStackSynthesizer`, because the default bootstrap's CloudFormation execution role has `AdministratorAccess`. With an admin session, create:
 
-   ```bash
-   ( cd benchmarks/execution-model-trajectory/strands-weather-forecaster/agentcore_evaluator_cdk \
-     && PATH="$HOME/.venvs/agentverify-bench/bin:$PATH" \
-        npx --yes aws-cdk@2 bootstrap --app "python app.py" )
-   ```
+   - an S3 bucket named `agentverify-bench-assets-<account>-<region>` for the Lambda code (block public access; a short expiration rule is enough)
+   - a managed policy named `agentverify-bench-lambda-boundary` that allows only `logs:CreateLogStream` and `logs:PutLogEvents` on `/aws/lambda/agentverify-execution-model-bench-*`. Every role the stacks create carries it as a permissions boundary.
 
-   Either CDK directory's `app.py` works for bootstrap; the result is shared across both stacks. The bootstrap creates a `CDKToolkit` CloudFormation stack with a staging S3 bucket and a few IAM roles. Persistent footprint is on the order of a few cents per month (S3 storage for CDK assets).
+   Then deploy with credentials limited to these resources: the `AgentverifyExecutionModelBench*` stacks and roles (role creation only with the boundary above), the `agentverify-execution-model-bench-*` Lambda functions and log groups, the asset bucket, and the AgentCore Evaluations evaluator actions plus `Evaluate`.
 
 5. **Deploy both AgentCore Evaluations stacks** (independent stacks, tagged for cleanup). Run from the repo root:
 
