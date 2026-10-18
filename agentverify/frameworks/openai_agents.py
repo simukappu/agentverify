@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, attribute_agents
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents
 
 
 def _parse_arguments(raw: Any) -> dict[str, Any]:
@@ -181,8 +181,10 @@ def from_openai_agents(result: Any) -> ExecutionResult:
     if final_output is not None and not isinstance(final_output, str):
         final_output = str(final_output)
 
+    # Agent names come from the framework only; no tool-name inference here.
     return ExecutionResult(
-        steps=attribute_agents(steps),
+        steps=steps,
+        handoffs=handoffs_from_agents(steps),
         token_usage=token_usage,
         final_output=final_output,
     )

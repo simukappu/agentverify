@@ -5,7 +5,7 @@
 ### Features
 
 - **Async agents**: cassettes record and replay, and `MockLLM` answers, the async clients of Anthropic, Gemini, and LiteLLM, as they already did for OpenAI. See README "Async Agents" and the new `openai-agents-litellm-provider` example.
-- **Multi-agent handoff assertions**: `assert_handoffs`, `assert_no_handoff`, and `assert_step(agent=...)` check routing between agents, via `ExecutionResult.handoffs` and the new `Step.agent`. `from_openai_agents` now includes handoff items, which it used to drop. See README "Multi-Agent Handoffs".
+- **Multi-agent handoff assertions**: `assert_handoffs`, `assert_no_handoff`, and `assert_step(agent=...)` check routing between agents, via `ExecutionResult.handoffs` and the new `Step.agent`. Framework adapters read handoffs from the framework; cassettes read them from handoff tool names. `from_openai_agents` now includes handoff items, which it used to drop. See README "Multi-Agent Handoffs".
 - **OpenAI Responses API**: `responses.create` is recorded and replayed, sync and async, so the OpenAI Agents SDK works on its default model. See README "OpenAI Responses API".
 
 ### Bug Fixes

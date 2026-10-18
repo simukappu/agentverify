@@ -267,6 +267,7 @@ class ExecutionResult:
         final_output: Optional[str] = None,
         *,
         tool_calls: list[ToolCall] | None = None,
+        handoffs: list[Handoff] | None = None,
     ) -> None:
         if tool_calls is not None:
             if steps is not None:
@@ -282,6 +283,9 @@ class ExecutionResult:
         self.total_cost_usd = total_cost_usd
         self.duration_ms = duration_ms
         self.final_output = final_output
+        # Handoffs a framework adapter read from the framework. None means unknown,
+        # and ``handoffs`` falls back to reading handoff tool names.
+        self._handoffs = list(handoffs) if handoffs is not None else None
 
     @property
     def tool_calls(self) -> list[ToolCall]:
@@ -290,10 +294,12 @@ class ExecutionResult:
 
     @property
     def handoffs(self) -> list[Handoff]:
-        """Handoffs between agents, in order (read-only derived view).
+        """Handoffs between agents, in order (read-only).
 
-        A handoff is a tool call named ``transfer_to_<agent>`` or ``transfer_back_to_<agent>``. Its ``from_agent`` is the step's ``agent``, or the target of the previous handoff when the step has none. When the acting agent changes between steps without such a call (a framework that writes the handoff itself, such as langgraph-supervisor returning control to the supervisor, seen from a cassette), the change is reported as a handoff with ``step=None``.
+        Framework adapters (``from_openai_agents``, ``from_langgraph``) pass the handoffs they read from the framework: each change of acting agent between steps. Otherwise, as for a cassette, they are read from tool names: a handoff is a tool call named ``transfer_to_<agent>`` or ``transfer_back_to_<agent>``. Its ``from_agent`` is the step's ``agent``, or the target of the previous handoff when the step has none. When the acting agent changes between steps without such a call (a framework that writes the handoff itself, such as langgraph-supervisor returning control to the supervisor, seen from a cassette), the change is reported as a handoff with ``step=None``.
         """
+        if self._handoffs is not None:
+            return list(self._handoffs)
         handoffs: list[Handoff] = []
         current: Optional[str] = None
         for i, s in enumerate(self.steps):
@@ -372,6 +378,11 @@ class ExecutionResult:
             total_cost_usd=data.get("total_cost_usd"),
             final_output=data.get("final_output"),
             duration_ms=data.get("duration_ms"),
+            handoffs=(
+                [Handoff(h.get("from_agent"), h.get("to_agent"), h.get("step")) for h in data["handoffs"]]
+                if data.get("handoffs") is not None
+                else None
+            ),
         )
 
     @classmethod
@@ -399,6 +410,10 @@ class ExecutionResult:
         result["total_cost_usd"] = self.total_cost_usd
         result["duration_ms"] = self.duration_ms
         result["final_output"] = self.final_output
+        if self._handoffs is not None:
+            result["handoffs"] = [
+                {"from_agent": h.from_agent, "to_agent": h.to_agent, "step": h.step} for h in self._handoffs
+            ]
 
         return result
 
@@ -427,3 +442,19 @@ def attribute_agents(steps: list[Step]) -> list[Step]:
             current = target
         out.append(s)
     return out
+
+
+def handoffs_from_agents(steps: list[Step]) -> list[Handoff]:
+    """Handoffs as changes of the acting agent between model steps, for steps whose agent the framework named.
+
+    The handoff is credited to the last step of the agent that handed off. No tool names are read, so a function tool named ``transfer_to_*`` is not a handoff and a renamed handoff tool still is.
+    """
+    handoffs: list[Handoff] = []
+    previous: Optional[Step] = None
+    for s in steps:
+        if s.source != "llm" or s.agent is None:
+            continue
+        if previous is not None and previous.agent != s.agent:
+            handoffs.append(Handoff(from_agent=previous.agent, to_agent=s.agent, step=previous.index))
+        previous = s
+    return handoffs

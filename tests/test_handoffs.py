@@ -285,3 +285,72 @@ class TestReviewEdgeCases:
 
         obj = Message(role="assistant", tool_calls=[{"function": {"name": "transfer_back_to_supervisor"}}])
         assert _tool_names_in(obj) == ["transfer_back_to_supervisor"]
+
+
+class TestHandoffsFromTheFramework:
+    """Framework adapters report handoffs from agent changes, not from tool names."""
+
+    def test_handoffs_from_agents(self):
+        from agentverify.models import handoffs_from_agents
+
+        steps = [
+            Step(index=0, agent="Bank", tool_calls=[ToolCall("transfer_to_savings")]),  # an ordinary tool
+            Step(index=1, agent="Bank", tool_calls=[ToolCall("route_billing")]),  # a renamed handoff tool
+            Step(index=2, source="probe"),
+            Step(index=3),
+            Step(index=4, agent="Billing"),
+        ]
+        assert handoffs_from_agents(steps) == [Handoff("Bank", "Billing", 1)]
+        result = ExecutionResult(steps=steps, handoffs=handoffs_from_agents(steps))
+        assert result.handoffs == [Handoff("Bank", "Billing", 1)]
+
+    def test_explicit_handoffs_round_trip(self):
+        result = ExecutionResult(steps=[Step(index=0, agent="a")], handoffs=[Handoff("a", "b", 0)])
+        again = ExecutionResult.from_dict(result.to_dict())
+        assert again.handoffs == [Handoff("a", "b", 0)]
+        assert "handoffs" not in ExecutionResult(steps=[]).to_dict()
+        assert ExecutionResult.from_dict({"steps": [], "handoffs": []}).handoffs == []
+
+    def test_agents_sdk_ordinary_tool_and_renamed_handoff(self, monkeypatch):
+        pytest.importorskip("agents")
+        import asyncio
+        from unittest.mock import patch
+
+        import openai.resources.responses as responses_mod
+        from agents import Agent, Runner, function_tool, handoff, set_tracing_disabled
+
+        from agentverify.cassette.adapters.base import NormalizedResponse
+        from agentverify.cassette.adapters.openai_responses import denormalize_response
+        from agentverify.frameworks.openai_agents import from_openai_agents
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        set_tracing_disabled(True)
+
+        @function_tool
+        def transfer_to_savings(amount: int) -> str:
+            return f"moved {amount}"
+
+        billing = Agent(name="Billing", instructions="Bill.")
+        bank = Agent(
+            name="Bank",
+            instructions="Bank.",
+            tools=[transfer_to_savings],
+            handoffs=[handoff(billing, tool_name_override="route_billing")],
+        )
+        turns = iter(
+            [
+                [{"name": "transfer_to_savings", "arguments": '{"amount": 5}', "id": "c1"}],
+                [{"name": "route_billing", "arguments": "{}", "id": "c2"}],
+                None,
+            ]
+        )
+
+        async def live(*args, **kwargs):
+            calls = next(turns)
+            return denormalize_response(NormalizedResponse(tool_calls=calls, content=None if calls else "Billed."))
+
+        with patch.object(responses_mod.AsyncResponses, "create", new=live):
+            run = asyncio.run(Runner.run(bank, "Save 5, then bill me."))
+        result = from_openai_agents(run)
+        assert result.handoffs == [Handoff("Bank", "Billing", 1)]
+        assert_no_handoff(result, to_agent="savings")
