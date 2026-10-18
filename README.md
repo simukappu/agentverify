@@ -783,7 +783,6 @@ We want agentverify to become the way people regression-test agents in CI: tests
 - Async support: first-class `asyncio` testing for async agents and tools
 - Responses API cassette adapter: record/replay for OpenAI Agents SDK (Responses API) with end-to-end example
 - Framework adapters for Google ADK and CrewAI: pending async support and stable tool-call APIs from these frameworks
-- Cost estimation from tokens: auto-calculate `total_cost_usd` from token usage and model pricing
 
 ## Changelog
 
