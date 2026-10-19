@@ -125,6 +125,8 @@ Scenario 1 (and the B / C cells under Scenario 2) drive a real LLM. The credenti
 | LangGraph B | `OPENAI_API_KEY` (used by both the agent and DeepEval) | same as Scenario 1 |
 | LangGraph C | `OPENAI_API_KEY`, AWS credentials with AgentCore Evaluations `Evaluate` + Lambda invoke permission | same as Scenario 1 |
 
+The C cells call `Evaluate` with the default AWS credentials, or with the profile named in `AGENTCORE_AWS_PROFILE` when set, so the agent can keep Bedrock-only credentials while evaluation runs under a role scoped to the benchmark.
+
 Total LLM-token cost across all 12 cells × 5 runs is approximately $1.30 at current public pricing. The dominant term is 5 Strands cells × 5 runs at about $0.047/run (about $1.17 total); the LangGraph side adds about $0.14 (5 cells × 5 runs at about $0.0054/run). Lambda and AgentCore Evaluations `Evaluate` per-call charges are below a tenth of a cent each and round to zero at the table's 4-decimal display.
 
 ### Drive both subjects across both scenarios

@@ -100,6 +100,15 @@ def _build_session_spans(tool_calls: list[dict]) -> list[dict]:
     return [span]
 
 
+def _agentcore_session():
+    """Session for the ``Evaluate`` call.
+
+    ``AGENTCORE_AWS_PROFILE`` lets the evaluation run under a role scoped to the benchmark while the agent keeps the default credentials for Bedrock. Unset, both use the default credentials.
+    """
+    profile = os.environ.get("AGENTCORE_AWS_PROFILE")
+    return boto3.Session(profile_name=profile) if profile else boto3.Session()
+
+
 def _run_and_assert():
     """Drive the supervisor, capture tool calls, send to AgentCore Evaluations via the ``Evaluate`` API, assert."""
     evaluator_id = _load_evaluator_id()
@@ -111,7 +120,7 @@ def _run_and_assert():
     session_spans = _build_session_spans(tool_calls)
 
     # --- benchmark assertion (LOC counted: this block + lambda_function.py) ---
-    client = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
+    client = _agentcore_session().client("bedrock-agentcore", region_name=AWS_REGION)
     response = client.evaluate(
         evaluatorId=evaluator_id,
         evaluationInput={"sessionSpans": session_spans},

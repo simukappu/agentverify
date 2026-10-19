@@ -9,6 +9,7 @@ import aws_cdk as cdk
 from aws_cdk import (
     Duration,
     RemovalPolicy,
+    aws_iam as iam,
     aws_lambda as _lambda,
     aws_logs as logs,
 )
@@ -36,9 +37,20 @@ class ExecutionModelBenchStack(cdk.Stack):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
+        # Named explicitly: a generated name truncates the stack name, which would
+        # fall outside the deploy role's AgentverifyExecutionModelBench* scope.
+        lambda_role = iam.Role(
+            self,
+            "EvaluatorFunctionRole",
+            role_name=f"{construct_id}-EvaluatorRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")],
+        )
+
         evaluator_lambda = _lambda.Function(
             self,
             "EvaluatorFunction",
+            role=lambda_role,
             function_name=FUNCTION_NAME,
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="lambda_function.lambda_handler",
