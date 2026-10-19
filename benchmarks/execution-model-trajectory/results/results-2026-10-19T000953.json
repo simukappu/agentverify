@@ -1,0 +1,385 @@
+{
+  "timestamp": "2026-10-19T00:09:53Z",
+  "preliminary": false,
+  "scenarios_run": [
+    "dev",
+    "ci"
+  ],
+  "environment": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python_version": "3.14.4",
+    "cpu_count": 12,
+    "package_versions": {
+      "agentverify": "0.5.0",
+      "deepeval": "4.3.1",
+      "boto3": "1.43.114",
+      "aws-cdk-lib": "2.273.0",
+      "aws-cdk.aws-bedrock-agentcore-alpha": "2.273.0a0",
+      "strands-agents": "1.61.1",
+      "langgraph": "1.2.16",
+      "langchain-openai": "1.7.2"
+    },
+    "aws_cdk_cli": "2.1145.0 (build 13877dc)",
+    "aws_cli": "aws-cli/2.34.48 Python/3.14.4 Darwin/27.0.0 exe/arm64"
+  },
+  "cells": [
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "strands-weather-forecaster/agentverify_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        9.65172458300367,
+        10.37037458299892,
+        9.444976083002985,
+        9.800838250026572,
+        10.015224207949359
+      ],
+      "wall_time_trimmed_mean_seconds": 9.822595680326534,
+      "wall_time_median_seconds": 9.800838250026572,
+      "wall_time_min_seconds": 9.444976083002985,
+      "wall_time_max_seconds": 10.37037458299892,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 17,
+      "static": {
+        "api_calls_per_run": 3,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "strands-weather-forecaster/agentverify_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": false,
+      "wall_time_runs_seconds": [
+        1.2318876250064932,
+        1.2251055000233464,
+        1.219120458001271,
+        1.223462791997008,
+        1.222471583983861
+      ],
+      "wall_time_trimmed_mean_seconds": 1.2236799586680718,
+      "wall_time_median_seconds": 1.223462791997008,
+      "wall_time_min_seconds": 1.219120458001271,
+      "wall_time_max_seconds": 1.2318876250064932,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 17,
+      "static": {
+        "api_calls_per_run": 0,
+        "dollar_cost_per_run_usd": 0.0,
+        "ci_secrets_required": 0
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "strands-weather-forecaster/deepeval_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        10.14101020799717,
+        10.334141583007295,
+        10.311974542040844,
+        10.749276541988365,
+        10.240387625002768
+      ],
+      "wall_time_trimmed_mean_seconds": 10.295501250016969,
+      "wall_time_median_seconds": 10.311974542040844,
+      "wall_time_min_seconds": 10.14101020799717,
+      "wall_time_max_seconds": 10.749276541988365,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 26,
+      "static": {
+        "api_calls_per_run": 3,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 2
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "strands-weather-forecaster/deepeval_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        10.910476666991599,
+        9.941232916957233,
+        10.174191750003956,
+        10.852344750019256,
+        9.910056749999058
+      ],
+      "wall_time_trimmed_mean_seconds": 10.322589805660149,
+      "wall_time_median_seconds": 10.174191750003956,
+      "wall_time_min_seconds": 9.910056749999058,
+      "wall_time_max_seconds": 10.910476666991599,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 26,
+      "static": {
+        "api_calls_per_run": 3,
+        "dollar_cost_per_run_usd": 0.0468,
+        "ci_secrets_required": 2
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "strands-weather-forecaster/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        11.892007415997796,
+        11.72440862498479,
+        11.039091957965866,
+        11.30751950002741,
+        11.444182458042633
+      ],
+      "wall_time_trimmed_mean_seconds": 11.492036861018278,
+      "wall_time_median_seconds": 11.444182458042633,
+      "wall_time_min_seconds": 11.039091957965866,
+      "wall_time_max_seconds": 11.892007415997796,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 44,
+      "static": {
+        "api_calls_per_run": 4,
+        "dollar_cost_per_run_usd": 0.0483,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "strands-weather-forecaster",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "strands-weather-forecaster/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        11.221794417011552,
+        11.47980945801828,
+        11.33270608400926,
+        11.763017249992117,
+        11.572877166967373
+      ],
+      "wall_time_trimmed_mean_seconds": 11.461797569664972,
+      "wall_time_median_seconds": 11.47980945801828,
+      "wall_time_min_seconds": 11.221794417011552,
+      "wall_time_max_seconds": 11.763017249992117,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 44,
+      "static": {
+        "api_calls_per_run": 4,
+        "dollar_cost_per_run_usd": 0.0483,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "langgraph-multi-agent-supervisor/agentverify_test.py",
+      "needs_aws": false,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        12.66483037499711,
+        9.537969125027303,
+        10.217440791951958,
+        9.881428249995224,
+        9.732983833004255
+      ],
+      "wall_time_trimmed_mean_seconds": 9.943950958317146,
+      "wall_time_median_seconds": 9.881428249995224,
+      "wall_time_min_seconds": 9.537969125027303,
+      "wall_time_max_seconds": 12.66483037499711,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 31,
+      "static": {
+        "api_calls_per_run": 10,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "A",
+      "label": "agentverify (inline / pytest / SDK patching)",
+      "test_file": "langgraph-multi-agent-supervisor/agentverify_test.py",
+      "needs_aws": false,
+      "scenario": "ci",
+      "needs_llm": false,
+      "wall_time_runs_seconds": [
+        1.022677167027723,
+        1.0020063340198249,
+        1.003545582992956,
+        1.007728542026598,
+        1.013595999975223
+      ],
+      "wall_time_trimmed_mean_seconds": 1.0082900416649256,
+      "wall_time_median_seconds": 1.007728542026598,
+      "wall_time_min_seconds": 1.0020063340198249,
+      "wall_time_max_seconds": 1.022677167027723,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 31,
+      "static": {
+        "api_calls_per_run": 0,
+        "dollar_cost_per_run_usd": 0.0,
+        "ci_secrets_required": 0
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "langgraph-multi-agent-supervisor/deepeval_test.py",
+      "needs_aws": false,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        10.49899254203774,
+        10.30381633300567,
+        10.371432375046425,
+        10.831425459007733,
+        11.148318124993239
+      ],
+      "wall_time_trimmed_mean_seconds": 10.567283458697299,
+      "wall_time_median_seconds": 10.49899254203774,
+      "wall_time_min_seconds": 10.30381633300567,
+      "wall_time_max_seconds": 11.148318124993239,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 36,
+      "static": {
+        "api_calls_per_run": 10,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "B",
+      "label": "DeepEval (`@observe` + ToolCorrectnessMetric)",
+      "test_file": "langgraph-multi-agent-supervisor/deepeval_test.py",
+      "needs_aws": false,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        11.101594207982998,
+        10.2876240000478,
+        10.843288958014455,
+        10.004983457969502
+      ],
+      "wall_time_trimmed_mean_seconds": 10.565456479031127,
+      "wall_time_median_seconds": 10.565456479031127,
+      "wall_time_min_seconds": 10.004983457969502,
+      "wall_time_max_seconds": 11.101594207982998,
+      "passed_count": 4,
+      "failed_count": 1,
+      "failure_excerpts": [
+        "Users/shota/.venvs/agentverify-bench/lib/python3.14/site-packages/deepeval/tracing/tracing.py:1555: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead\n    if asyncio.iscoroutinefunction(func):\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_ci\n  /<redacted>/workspace/public-repo/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_ci\n  /<redacted>/workspace/public-repo/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_ci\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/deepeval_test.py::test_b_langgraph_supervisor_ci\n================= 1 failed, 1 deselected, 4 warnings in 7.38s ==================\n"
+      ],
+      "loc": 36,
+      "static": {
+        "api_calls_per_run": 10,
+        "dollar_cost_per_run_usd": 0.0054,
+        "ci_secrets_required": 1
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "langgraph-multi-agent-supervisor/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "dev",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        11.841169750026893,
+        11.30288529099198,
+        11.310863916995004,
+        12.572974957991391,
+        11.377723917015828
+      ],
+      "wall_time_trimmed_mean_seconds": 11.509919194679242,
+      "wall_time_median_seconds": 11.377723917015828,
+      "wall_time_min_seconds": 11.30288529099198,
+      "wall_time_max_seconds": 12.572974957991391,
+      "passed_count": 5,
+      "failed_count": 0,
+      "failure_excerpts": [],
+      "loc": 58,
+      "static": {
+        "api_calls_per_run": 11,
+        "dollar_cost_per_run_usd": 0.0069,
+        "ci_secrets_required": 2
+      }
+    },
+    {
+      "subject": "langgraph-multi-agent-supervisor",
+      "execution_model": "C",
+      "label": "AgentCore Evaluations Custom code-based evaluator (Lambda)",
+      "test_file": "langgraph-multi-agent-supervisor/agentcore_test.py",
+      "needs_aws": true,
+      "scenario": "ci",
+      "needs_llm": true,
+      "wall_time_runs_seconds": [
+        11.249765707994811,
+        11.312627666979097,
+        12.129182459029835,
+        11.449492749990895
+      ],
+      "wall_time_trimmed_mean_seconds": 11.381060208484996,
+      "wall_time_median_seconds": 11.381060208484996,
+      "wall_time_min_seconds": 11.249765707994811,
+      "wall_time_max_seconds": 12.129182459029835,
+      "passed_count": 4,
+      "failed_count": 1,
+      "failure_excerpts": [
+        "4000 = 231317)\"\nE       assert 'Fail' == 'Pass'\nE         \nE         - Pass\nE         + Fail\n\nbenchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py:131: AssertionError\n=============================== warnings summary ===============================\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/workspace/public-repo/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:78: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    math_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/workspace/public-repo/agentverify/examples/langgraph-multi-agent-supervisor/agent.py:89: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    research_agent = create_react_agent(\n\nlanggraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n  /<redacted>/.venvs/agentverify-bench/lib/python3.14/site-packages/langgraph_supervisor/supervisor.py:431: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.\n    supervisor_agent = create_react_agent(  # type: ignore[deprecated]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED benchmarks/execution-model-trajectory/langgraph-multi-agent-supervisor/agentcore_test.py::test_c_langgraph_supervisor_ci\n================= 1 failed, 1 deselected, 3 warnings in 8.72s ==================\n"
+      ],
+      "loc": 58,
+      "static": {
+        "api_calls_per_run": 11,
+        "dollar_cost_per_run_usd": 0.0069,
+        "ci_secrets_required": 2
+      }
+    }
+  ],
+  "cold_start_observations": {
+    "_doc": "Cold-start wall times are the wall time of the first invocation against a freshly-initialised Lambda execution environment. See README.md step 7 for how to force a cold init and capture the value.",
+    "measurements": {
+      "strands-weather-forecaster:C": 16.21,
+      "langgraph-multi-agent-supervisor:C": 13.29
+    }
+  }
+}

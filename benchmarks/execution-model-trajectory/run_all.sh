@@ -37,8 +37,8 @@ VENV="${AGENTVERIFY_BENCH_VENV:-$HOME/.venvs/agentverify-bench}"
 export PATH="$VENV/bin:$PATH"
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 
-# Source ~/.env_apikeys when present so OPENAI_API_KEY (and any other LLM-provider keys) propagate to the collector subprocess. The file is expected to use ``export VAR="value"`` lines.
-if [[ -f "$HOME/.env_apikeys" ]]; then
+# Source ~/.env_apikeys when OPENAI_API_KEY is not already set, so keys propagate to the collector subprocess without overriding ones passed in. The file is expected to use ``export VAR="value"`` lines.
+if [[ -z "${OPENAI_API_KEY:-}" && -f "$HOME/.env_apikeys" ]]; then
   set -a
   # shellcheck disable=SC1090
   source "$HOME/.env_apikeys"
