@@ -221,7 +221,7 @@ def test_answer_uses_the_weather_tool(cassette):
     assert_step_uses_result_from(result, step=1, depends_on=0, via="tool_result")
 ```
 
-See [`examples/openai-agents-litellm-provider/`](examples/openai-agents-litellm-provider/) for the agent, the cassette recorded against Claude Haiku 5.5 on Amazon Bedrock, and the remaining assertions.
+See [`examples/openai-agents-litellm-provider/`](examples/openai-agents-litellm-provider/) for the agent, the cassette, and the remaining assertions.
 
 ### LangGraph + LangChain — Multi-Agent Handoff and MCP Tool Loops
 
