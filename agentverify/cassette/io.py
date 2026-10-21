@@ -103,6 +103,7 @@ def _build_document(
     interactions: list[tuple[NormalizedRequest, NormalizedResponse]],
     provider: str,
     model: str,
+    tool_executions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Build the cassette document dict ready for serialization."""
     if not model and interactions:
@@ -121,7 +122,10 @@ def _build_document(
         }
         for req, resp in interactions
     ]
-    return {"metadata": metadata, "interactions": serialized}
+    document: dict[str, Any] = {"metadata": metadata, "interactions": serialized}
+    if tool_executions is not None:
+        document["tool_executions"] = tool_executions
+    return document
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +148,11 @@ def load_cassette(
         FileNotFoundError: If the file does not exist.
         ValueError: If the file extension is not supported.
     """
+    return _parse_interactions(load_document(path))
+
+
+def load_document(path: Path | str) -> dict[str, Any]:
+    """Read a cassette file into its raw document: ``metadata``, ``interactions``, and ``tool_executions`` when recorded."""
     path = Path(path)
     suffix = path.suffix.lower()
 
@@ -160,7 +169,7 @@ def load_cassette(
                 f"Use .yaml, .yml, or .json."
             )
 
-    return _parse_interactions(raw)
+    return raw
 
 
 def save_cassette(
@@ -168,6 +177,7 @@ def save_cassette(
     interactions: list[tuple[NormalizedRequest, NormalizedResponse]],
     provider: str = "",
     model: str = "",
+    tool_executions: list[dict[str, Any]] | None = None,
 ) -> None:
     """Save interactions to a cassette file (YAML or JSON, auto-detected by extension).
 
@@ -176,6 +186,7 @@ def save_cassette(
         interactions: List of ``(NormalizedRequest, NormalizedResponse)`` pairs.
         provider: Provider name for metadata (e.g. ``"openai"``).
         model: Model name for metadata (e.g. ``"gpt-4.1"``).
+        tool_executions: Recorded tool calls, saved under ``tool_executions``. ``None`` leaves the key out (tools were not recorded).
 
     Raises:
         ValueError: If the file extension is not supported.
@@ -184,7 +195,7 @@ def save_cassette(
     path.parent.mkdir(parents=True, exist_ok=True)
     suffix = path.suffix.lower()
 
-    document = _build_document(interactions, provider, model)
+    document = _build_document(interactions, provider, model, tool_executions)
 
     with path.open("w", encoding="utf-8") as fh:
         if suffix in _YAML_EXTENSIONS:

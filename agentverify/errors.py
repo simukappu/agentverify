@@ -417,3 +417,26 @@ class StepAgentError(AgentVerifyError):
         super().__init__(
             f"step {step} agent does not match\n\n  Expected: {expected!r}\n  Actual:   {actual!r}"
         )
+
+
+class CassetteToolMismatchError(AgentVerifyError):
+    """Raised on replay when the agent calls a tool with arguments the cassette has no recorded result for."""
+
+    def __init__(self, name: str, arguments: Any, recorded: list[tuple[str, Any]]) -> None:
+        self.name = name
+        self.arguments = arguments
+        self.recorded = recorded
+        lines = [
+            f"No recorded result for tool call {name}({_format_arguments(arguments)})",
+            "",
+            "Recorded calls not yet replayed:",
+        ]
+        lines += [f"  {n}({_format_arguments(a)})" for n, a in recorded] or ["  (none)"]
+        lines += ["", "The agent's tool calls changed since recording. Re-record the cassette, or pass replay_tools=False to run the real tools."]
+        super().__init__("\n".join(lines))
+
+
+def _format_arguments(arguments: Any) -> str:
+    if isinstance(arguments, dict):
+        return ", ".join(f"{k}={v!r}" for k, v in arguments.items())
+    return repr(arguments)

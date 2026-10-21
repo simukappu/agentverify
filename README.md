@@ -39,7 +39,7 @@ This is probably for you if:
 
 agentverify does one job in agent evaluation: deterministic regression tests on what the agent did. It runs next to a quality-evaluation tool, not instead of one:
 
-- **On every PR: agentverify.** Assert tool calls, arguments, step-to-step data flow, handoffs, cost, and latency in pytest. Replay needs no LLM call, no secret, and no cloud account, and runs in seconds.
+- **On every PR: agentverify.** Assert tool calls, arguments, step-to-step data flow, handoffs, cost, and latency in pytest. Replay calls no LLM and no tool, needs no secret or cloud account, and runs in seconds.
 - **On staging, on a schedule: a judge-based evaluator** such as Amazon Bedrock AgentCore Evaluations, DeepEval, or LangSmith. Score answer quality, run datasets, and reuse production traces, where the judge model's cost is worth paying.
 
 ## Install
@@ -302,6 +302,27 @@ agentverify supports three cassette modes:
 | `AUTO` (default) | If cassette file exists → REPLAY. Otherwise → call real LLM API but don't save (no cassette file is created). |
 | `RECORD` | Always call real LLM API and save to cassette file. |
 | `REPLAY` | Always replay from cassette file. Raises error if file is missing. |
+
+### Tool Calls
+
+The cassette records the agent's tool calls too. Replay returns each tool's recorded result instead of running the tool, so a replayed test makes no tool requests, needs no tool credentials, and leaves no side effects:
+
+```yaml
+tool_executions:
+- name: http_request
+  arguments: {method: GET, url: https://api.weather.gov/points/47.6062,-122.3321}
+  step: 0
+  result: {status: success, content: [{text: ...}]}
+```
+
+- Tools are recorded through LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP's `ClientSession.call_tool`, including agents created before the cassette.
+- For a hand-written agent, decorate the tool function with `@cassette_tool`.
+- Calls match on the tool name and arguments, in any order. A call with no recorded match raises `CassetteToolMismatchError`, and fails the test when the cassette closes, even if the framework passed the error to the model. Re-record the cassette when the agent's tool calls change.
+- A tool error replays as it was recorded: the error result the framework made of it, or the same exception type and message (a `ReplayedToolError` when the type cannot be rebuilt from its message).
+- A few calls run for real on replay too, marked `run_on_replay` in the cassette: results that do not survive YAML (a LangGraph `Command`, binary content), and CrewAI tools with `result_as_answer`.
+- A replayed tool that called the LLM while recording (an agent used as a tool) skips those LLM calls on replay, so the outer agent's calls stay in step.
+- Tool arguments and results go through [sanitization](#cassette-sanitization) like the rest of the cassette.
+- Cassettes recorded before 0.7.0 have no `tool_executions`, and their tools run for real. Pass `replay_tools=False` to run the real tools always, for example to test a tool's side effects.
 
 ### Stale Cassette Detection
 

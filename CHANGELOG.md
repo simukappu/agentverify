@@ -4,12 +4,17 @@
 
 ### Features
 
+- **Tool calls are recorded and replayed**: replay returns each tool's recorded result instead of running the tool. Built in for LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP; `@cassette_tool` covers hand-written tools. A call with no recorded match raises `CassetteToolMismatchError`. See README "Tool Calls".
 - **Streamed responses are recorded and replayed** for every provider, so frameworks that stream by default work without turning streaming off. A cassette recorded either way replays either way. See README "Streaming".
 
 ### Bug Fixes
 
 - **Data-flow assertions work on Anthropic, Bedrock, and Gemini cassettes**: replayed steps carry the tool results from those providers' tool result messages, with their error status, as they did for OpenAI.
 - **Replayed Anthropic tool calls keep their recorded ids**, and calls recorded without one get unique ids instead of reusing `toolu_0`.
+
+### Breaking Changes
+
+- **Replay no longer runs the tools of cassettes recorded with this version.** Tests that check a tool's side effects need `replay_tools=False`. Cassettes recorded before keep running their tools.
 
 ## 0.6.0 (2026-10-21)
 

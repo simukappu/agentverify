@@ -47,6 +47,7 @@ def cassette(request):
         on_missing: Union[str, OnMissingRequest] = OnMissingRequest.ERROR,
         match_requests: Union[bool, None] = None,
         sanitize: Union[bool, list[SanitizePattern]] = True,
+        replay_tools: bool = True,
     ) -> LLMCassetteRecorder:
         # Resolve mode: explicit arg > CLI option > default AUTO
         if mode is _MODE_NOT_SET:
@@ -85,6 +86,7 @@ def cassette(request):
             on_missing=on_missing,
             match_requests=match_requests,
             sanitize=sanitize,
+            replay_tools=replay_tools,
         )
 
     return _cassette

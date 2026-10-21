@@ -17,8 +17,15 @@ from agentverify.cassette.adapters.base import (
     NormalizedRequest,
     NormalizedResponse,
 )
-from agentverify.cassette.io import load_cassette, save_cassette
-from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern, sanitize_interactions
+from agentverify.cassette.io import _parse_interactions, load_document, save_cassette
+from agentverify.cassette.sanitize import (
+    DEFAULT_PATTERNS,
+    SanitizePattern,
+    sanitize_interactions,
+    sanitize_tool_arguments,
+    sanitize_tool_executions,
+)
+from agentverify.cassette.tools import ToolExecution, ToolSession
 from agentverify.errors import CassetteRequestMismatchError
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall, attribute_agents, handoff_target
 
@@ -125,8 +132,10 @@ class LLMCassetteRecorder:
         provider: str | LLMProviderAdapter = "openai",
         match_requests: bool = True,
         sanitize: bool | list[SanitizePattern] = True,
+        replay_tools: bool = True,
     ) -> None:
         self.cassette_path = Path(cassette_path)
+        self.replay_tools = replay_tools
         self._requested_mode = mode
         self.on_missing = on_missing
         self.match_requests = match_requests
@@ -176,11 +185,18 @@ class LLMCassetteRecorder:
         # Fill-ins for recorded streams the caller has not finished reading.
         self._pending_streams: list[Any] = []
 
-        # Load existing cassette when replaying.
+        # Load existing cassette when replaying. A cassette recorded without
+        # tool results has no tool_executions key, and its tools run for real.
+        self._recorded_tools: list[ToolExecution] | None = None
         if self.mode == CassetteMode.REPLAY:
-            self._metadata, self._interactions = load_cassette(self.cassette_path)
+            document = load_document(self.cassette_path)
+            self._metadata, self._interactions = _parse_interactions(document)
+            if isinstance(document.get("tool_executions"), list):
+                self._recorded_tools = [ToolExecution.from_dict(e) for e in document["tool_executions"]]
         else:
             self._metadata: dict[str, Any] = {}
+        self._tool_session: ToolSession | None = None
+        self._tool_ctx: Any = None
 
         # Track whether the patch context manager is active.
         self._patch_ctx: Any = None
@@ -199,6 +215,18 @@ class LLMCassetteRecorder:
         self._patch_ctx.__enter__()
         self._probe_ctx = _activate_session(self)
         self._probe_ctx.__enter__()
+        from agentverify.cassette.tool_hooks import tool_hooks
+
+        if self.replay_tools:
+            patterns = self._sanitize_patterns
+            self._tool_session = ToolSession(
+                self,
+                replayable=self._recorded_tools,
+                normalize=(lambda a: a) if patterns is None else (lambda a: sanitize_tool_arguments(a, patterns)),
+            )
+        # With replay_tools=False this still shields the block from an outer cassette's tool session.
+        self._tool_ctx = tool_hooks(self._tool_session)
+        self._tool_ctx.__enter__()
         self._start_time = time.monotonic()
         return self
 
@@ -210,6 +238,9 @@ class LLMCassetteRecorder:
         if getattr(self, "_probe_ctx", None) is not None:
             self._probe_ctx.__exit__(*args)
             self._probe_ctx = None
+        if self._tool_ctx is not None:
+            self._tool_ctx.__exit__(*args)
+            self._tool_ctx = None
         if self._patch_ctx is not None:
             self._patch_ctx.__exit__(*args)
             self._patch_ctx = None
@@ -219,13 +250,20 @@ class LLMCassetteRecorder:
 
         if self.mode == CassetteMode.RECORD:
             interactions = self._interactions
+            tools = None if self._tool_session is None else [e.to_dict() for e in self._tool_session.recorded]
             if self._sanitize_patterns is not None:
                 interactions = sanitize_interactions(interactions, self._sanitize_patterns)
+                tools = None if tools is None else sanitize_tool_executions(tools, self._sanitize_patterns)
             save_cassette(
                 self.cassette_path,
                 interactions,
                 provider=self._adapter.name,
+                tool_executions=tools,
             )
+        # A tool call the cassette could not replay may have been turned into a
+        # message for the model by the framework; fail the test here instead.
+        if self._tool_session is not None and self._tool_session.errors and args[0] is None:
+            raise self._tool_session.errors[0]
         # AUTO with no cassette file (passthrough): interactions are
         # collected in memory but never persisted to disk.
 
@@ -330,6 +368,13 @@ class LLMCassetteRecorder:
         # Record the probe stack active at record time for step
         # reconstruction in to_execution_result.
         self._interaction_probe_stack.append(list(self._current_probe_stack))
+
+    def skip_interactions(self, count: int) -> None:
+        """Pass over the LLM calls a replayed tool made while recording (an agent used as a tool)."""
+        for _ in range(count):
+            if self._replay_index < len(self._interactions):
+                self._interaction_probe_stack.append(list(self._current_probe_stack))
+                self._replay_index += 1
 
     def discard(self, response: NormalizedResponse) -> None:
         """Remove a recorded interaction (a stream that raised partway) by its response object."""

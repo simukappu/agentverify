@@ -221,3 +221,31 @@ def sanitize_interactions(
         (_sanitize_request(req, compiled), _sanitize_response(resp, compiled))
         for req, resp in interactions
     ]
+
+
+def sanitize_tool_arguments(arguments: Any, patterns: list[SanitizePattern] | None = None) -> Any:
+    """Redact a tool call's arguments: patterns, and any value under a credential key whatever its format."""
+    compiled = [(re.compile(p.pattern), p.replacement) for p in (DEFAULT_PATTERNS if patterns is None else patterns)]
+    return _redact_value(arguments, compiled, redact_keys=True)
+
+
+def sanitize_tool_executions(
+    executions: list[dict[str, Any]],
+    patterns: list[SanitizePattern] | None = None,
+) -> list[dict[str, Any]]:
+    """Redact recorded tool calls: patterns everywhere, and arguments under a credential key whatever their format.
+
+    Replay applies :func:`sanitize_tool_arguments` to the live arguments before matching them, so a redacted call still matches.
+    """
+    if patterns is None:
+        patterns = DEFAULT_PATTERNS
+    compiled = [(re.compile(p.pattern), p.replacement) for p in patterns]
+    sanitized = []
+    for execution in executions:
+        execution = dict(execution)
+        execution["arguments"] = _redact_value(execution.get("arguments"), compiled, redact_keys=True)
+        for key in ("result", "error"):
+            if key in execution:
+                execution[key] = _redact_value(execution[key], compiled)
+        sanitized.append(execution)
+    return sanitized
