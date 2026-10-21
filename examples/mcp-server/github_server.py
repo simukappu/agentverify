@@ -7,7 +7,10 @@ The target repository can be configured via the MOCK_REPO environment variable (
 
 import os
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError:  # mcp 2.x renamed FastMCP to MCPServer
+    from mcp.server.mcpserver import MCPServer as FastMCP
 
 mcp = FastMCP("mock-github")
 
