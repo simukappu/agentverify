@@ -37,7 +37,7 @@ This is probably for you if:
 - You're building on MCP servers and need to pin down which tools get called with which arguments
 - You want token, cost, and latency budgets enforced in CI, not caught only on the billing dashboard
 
-This is the **regression-test layer** for agents: deterministic assertions on what the agent did. It's distinct from quality evaluation (LLM-as-judge scoring on open-ended output) and production trace observability, both of which are often used alongside agentverify rather than instead of it. See [How agentverify compares](#how-agentverify-compares) for when to reach for each.
+This is the **regression-test layer** for agents: deterministic assertions on what the agent did. It's distinct from quality evaluation (LLM-as-judge scoring on open-ended output) and production trace observability, both of which are often used alongside agentverify rather than instead of it. See [Where agentverify fits](#where-agentverify-fits).
 
 ## Install
 
@@ -840,29 +840,12 @@ See each example's README for setup and recording mode details.
 
 The [`benchmarks/execution-model-trajectory/`](benchmarks/execution-model-trajectory/) directory contains a comparison study that writes the same execution-trajectory assertion in three different assertion-execution-model styles (inline pytest via agentverify, separate-runner via [DeepEval](https://www.deepeval.com/docs/evaluation-llm-tracing) [`ToolCorrectnessMetric`](https://www.deepeval.com/docs/metrics-tool-correctness) + `@observe`, managed remote via [Amazon Bedrock AgentCore Evaluations Custom code-based evaluator](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-based-evaluators.html) on Lambda) over two agents (Strands single-agent ReAct and LangGraph multi-agent supervisor). Per-cell numbers (LOC, wall time, API calls, dollar cost, CI secrets, cold-start) are recorded under [`results/`](benchmarks/execution-model-trajectory/results/). See the bench's [`README.md`](benchmarks/execution-model-trajectory/README.md) for the operating manual and [`DESIGN.md`](benchmarks/execution-model-trajectory/DESIGN.md) for the methodology and explicit non-goals. The benchmark is a one-time exercise that refreshes when tooling versions change materially, not a continuous CI gate.
 
-## How agentverify compares
+## Where agentverify fits
 
-Agent evaluation covers a few different jobs, and agentverify does one of them: deterministic regression tests on what the agent did. It is meant to run next to a quality-evaluation tool, not instead of one. A setup that keeps costs where they belong:
+agentverify does one job in agent evaluation: deterministic regression tests on what the agent did. It runs next to a quality-evaluation tool, not instead of one:
 
 - **On every PR: agentverify.** Assert tool calls, arguments, step-to-step data flow, handoffs, cost, and latency in pytest. Replay needs no LLM call, no secret, and no cloud account, and runs in seconds.
-- **On staging, on a schedule: a judge-based evaluator** such as [Amazon Bedrock AgentCore Evaluations](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluations), [DeepEval](https://github.com/confident-ai/deepeval), or [LangSmith](https://www.langchain.com/langsmith). Score answer quality, run datasets, and reuse production traces, where the judge model's cost is worth paying.
-
-What each can check, as of October 2026, with AgentCore Evaluations as the managed example:
-
-| Check | agentverify | AgentCore built-in | AgentCore third-party (DeepEval) | AgentCore code-based (Lambda) | DeepEval, self-run |
-|---|---|---|---|---|---|
-| Tool names and their order | ✅ | ✅ `Builtin.Trajectory*Match` | judge | ✅ | ✅ `ToolCorrectnessMetric` |
-| Tool arguments | ✅ `ANY`, `MATCHES`, `partial_args` | ❌ | judge (`ToolUse`) | ✅ | judge (`ArgumentCorrectnessMetric`) |
-| Data flow between steps | ✅ `assert_step_uses_result_from` | ❌ | ❌ | ✅ | ❌ |
-| Tool success and retries | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Token, cost, and latency budgets | ✅ | partly | ❌ | ✅ | partly |
-| Answer quality | ❌ by design | judge | judge | — | judge |
-| Multi-turn user simulation | ❌ by design | ✅ | ✅ | — | ✅ |
-| No LLM call, secret, or cloud account in CI | ✅ cassette replay | ❌ | ❌ | ❌ | ❌ |
-
-"judge" means an LLM grades it. A code-based evaluator can check anything, but it runs as a deployed Lambda behind the `Evaluate` API. The [benchmark](benchmarks/execution-model-trajectory/) puts numbers on that difference: lines of code, wall time, API calls, cost, and CI secrets for the same assertion written three ways.
-
-Other tools in the same space: [Google Vertex AI Gen AI evaluation](https://cloud.google.com/vertex-ai/generative-ai/docs/models/evaluation-overview) and [Azure AI Foundry evaluators](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-evaluators/agent-evaluators) are managed services like AgentCore; LangSmith combines tracing with dataset evaluation for the LangChain stack; [Scenario](https://github.com/langwatch/scenario) simulates a user in multi-turn conversations.
+- **On staging, on a schedule: a judge-based evaluator** such as Amazon Bedrock AgentCore Evaluations, DeepEval, or LangSmith. Score answer quality, run datasets, and reuse production traces, where the judge model's cost is worth paying.
 
 ## Roadmap
 
