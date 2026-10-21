@@ -48,6 +48,7 @@ def cassette(request):
         match_requests: Union[bool, None] = None,
         sanitize: Union[bool, list[SanitizePattern]] = True,
         replay_tools: bool = True,
+        match_ignore: Union[list[str], None] = None,
     ) -> LLMCassetteRecorder:
         # Resolve mode: explicit arg > CLI option > default AUTO
         if mode is _MODE_NOT_SET:
@@ -79,7 +80,7 @@ def cassette(request):
         cassette_dir.mkdir(parents=True, exist_ok=True)
         cassette_path = cassette_dir / name
 
-        return LLMCassetteRecorder(
+        recorder = LLMCassetteRecorder(
             cassette_path=cassette_path,
             mode=mode,
             provider=provider,
@@ -87,6 +88,9 @@ def cassette(request):
             match_requests=match_requests,
             sanitize=sanitize,
             replay_tools=replay_tools,
+            match_ignore=match_ignore,
         )
+        recorder.test_id = request.node.nodeid
+        return recorder
 
     return _cassette

@@ -28,3 +28,25 @@ def pytest_configure(config):  # type: ignore[no-untyped-def]
         "markers",
         "agentverify: mark test as an agentverify agent test",
     )
+
+
+def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
+    """List the cassettes that no longer match the requests the agent makes, with the command to re-record them."""
+    from agentverify.cassette.recorder import _stale_cassettes
+
+    if not _stale_cassettes:
+        return
+    seen: dict[str, tuple[str | None, str]] = {}
+    for path, test_id, field in _stale_cassettes:
+        seen.setdefault(path, (test_id, field))
+    terminalreporter.section("agentverify: stale cassettes")
+    for path, (test_id, field) in seen.items():
+        terminalreporter.write_line(f"{path}  ({field} changed)")
+    tests = sorted({test_id for test_id, _ in seen.values() if test_id})
+    if tests:
+        import shlex
+
+        terminalreporter.write_line("")
+        terminalreporter.write_line(f"Re-record them with (from {terminalreporter.config.rootpath}):")
+        terminalreporter.write_line("  pytest --cassette-mode=record " + " ".join(shlex.quote(t) for t in tests))
+    _stale_cassettes.clear()

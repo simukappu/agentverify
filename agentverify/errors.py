@@ -218,14 +218,25 @@ class CassetteRequestMismatchError(AgentVerifyError):
         super().__init__(self._build_message())
 
     def _build_message(self) -> str:
+        hint = "Re-record it with --cassette-mode=record"
+        if self.field in ("system prompt", "user messages"):
+            hint += ", or leave text that changes on every run out with match_ignore"
+        if isinstance(self.recorded, str) and isinstance(self.actual, str) and ("\n" in self.recorded + self.actual or len(self.recorded + self.actual) > 80):
+            import difflib
+
+            diff = difflib.unified_diff(
+                self.recorded.splitlines(), self.actual.splitlines(), "recorded", "actual", lineterm=""
+            )
+            detail = "\n" + "\n".join(f"  {line}" for line in diff)
+        else:
+            detail = f"  Recorded: {self.recorded!r}\n  Actual:   {self.actual!r}"
         return (
             f"Cassette request mismatch at interaction {self.index}\n"
             f"\n"
-            f"  Field:    {self.field}\n"
-            f"  Recorded: {self.recorded!r}\n"
-            f"  Actual:   {self.actual!r}\n"
+            f"  Field: {self.field}\n"
+            f"{detail}\n"
             f"\n"
-            f"  The cassette may be stale. Re-record with --cassette-mode=record."
+            f"  The cassette is stale. {hint}."
         )
 
 

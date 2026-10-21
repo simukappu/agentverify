@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import json
+import re
+
 import time
 from enum import Enum
 from pathlib import Path
@@ -133,9 +136,14 @@ class LLMCassetteRecorder:
         match_requests: bool = True,
         sanitize: bool | list[SanitizePattern] = True,
         replay_tools: bool = True,
+        match_ignore: list[str] | None = None,
     ) -> None:
         self.cassette_path = Path(cassette_path)
         self.replay_tools = replay_tools
+        self._match_ignore = [re.compile(p) for p in match_ignore or []]
+        # Set by the cassette fixture, for the stale-cassette summary at the end of the run.
+        self.test_id: str | None = None
+        self._request_errors: list[CassetteRequestMismatchError] = []
         self._requested_mode = mode
         self.on_missing = on_missing
         self.match_requests = match_requests
@@ -260,8 +268,10 @@ class LLMCassetteRecorder:
                 provider=self._adapter.name,
                 tool_executions=tools,
             )
-        # A tool call the cassette could not replay may have been turned into a
-        # message for the model by the framework; fail the test here instead.
+        # A mismatch raised inside the agent may have been caught by the framework
+        # (and a tool error turned into a message for the model); fail the test here instead.
+        if args[0] is None and self._request_errors:
+            raise self._request_errors[0]
         if self._tool_session is not None and self._tool_session.errors and args[0] is None:
             raise self._tool_session.errors[0]
         # AUTO with no cassette file (passthrough): interactions are
@@ -293,9 +303,9 @@ class LLMCassetteRecorder:
     def lookup(self, request: NormalizedRequest) -> NormalizedResponse | None:
         """Return the next unplayed interaction response.
 
-        When ``match_requests`` is enabled, the recorded request's model and tool names are compared against the incoming request.  A :class:`CassetteRequestMismatchError` is raised on mismatch, signalling that the cassette is stale.
+        When ``match_requests`` is enabled, the incoming request is compared with the recorded one: model, tool names and schemas, the system prompt, and the text of user messages (not tool results, which carry the tools' output). A :class:`CassetteRequestMismatchError` is raised on a difference, signalling that the cassette is stale.
 
-        When ``match_requests`` is disabled (default), interactions are consumed in recorded order without verifying request content (v1 sequential matching).
+        When ``match_requests`` is disabled, interactions are consumed in recorded order without verifying request content.
 
         Returns:
             The next :class:`NormalizedResponse`, or ``None`` if all
@@ -340,6 +350,17 @@ class LLMCassetteRecorder:
         actual: NormalizedRequest,
     ) -> None:
         """Compare recorded and actual requests, raising on mismatch."""
+        if self._sanitize_patterns is not None:
+            # The recording was sanitized when saved; compare like with like.
+            actual = sanitize_interactions([(actual, NormalizedResponse())], self._sanitize_patterns)[0][0]
+        try:
+            self._compare(index, recorded, actual)
+        except CassetteRequestMismatchError as error:
+            self._request_errors.append(error)
+            _stale_cassettes.append((str(self.cassette_path), self.test_id, error.field))
+            raise
+
+    def _compare(self, index: int, recorded: NormalizedRequest, actual: NormalizedRequest) -> None:
         # Check model name
         if recorded.model and actual.model and recorded.model != actual.model:
             raise CassetteRequestMismatchError(
@@ -359,6 +380,38 @@ class LLMCassetteRecorder:
                 recorded=recorded_tools,
                 actual=actual_tools,
             )
+
+        # Check each tool's parameter schema
+        recorded_schemas, actual_schemas = _tool_schemas(recorded), _tool_schemas(actual)
+        for name in sorted(set(recorded_schemas) & set(actual_schemas)):
+            # An empty schema on either side (a cassette that did not record it) skips the check.
+            if recorded_schemas[name] != actual_schemas[name] and _EMPTY_SCHEMA not in (recorded_schemas[name], actual_schemas[name]):
+                raise CassetteRequestMismatchError(
+                    index=index,
+                    field=f"tool schema {name!r}",
+                    recorded=recorded_schemas[name],
+                    actual=actual_schemas[name],
+                )
+
+        # Check the prompt the developer wrote: system prompt and user message text
+        for field, view in (("system prompt", _system_texts), ("user messages", _user_texts)):
+            recorded_texts = [self._ignore(s) for s in view(recorded)]
+            actual_texts = [self._ignore(s) for s in view(actual)]
+            # A cassette that recorded no system prompt (or SDK object reprs, from older versions) skips the check.
+            if not recorded_texts or any(_SDK_REPR.match(s) for s in recorded_texts):
+                continue
+            if recorded_texts != actual_texts:
+                raise CassetteRequestMismatchError(
+                    index=index,
+                    field=field,
+                    recorded="\n".join(recorded_texts),
+                    actual="\n".join(actual_texts),
+                )
+
+    def _ignore(self, text: str) -> str:
+        for pattern in self._match_ignore:
+            text = pattern.sub("<ignored>", text)
+        return text
 
     def record(
         self, request: NormalizedRequest, response: NormalizedResponse
@@ -659,6 +712,79 @@ def _tool_names_in(message: Any) -> list[str]:
         if isinstance(call, dict) and isinstance(call.get("name"), str):
             names.append(call["name"])
     return names
+
+
+# (cassette path, test id, field) for each stale cassette found in this run, for the pytest summary.
+_stale_cassettes: list[tuple[str, str | None, str]] = []
+
+
+# How agentverify before 0.7.0 recorded google-genai Content objects: their repr.
+_SDK_REPR = re.compile(r"^\s*(parts|role)=")
+_EMPTY_SCHEMA = "{}"
+
+
+def _tool_schemas(request: NormalizedRequest) -> dict[str, str]:
+    schemas: dict[str, str] = {}
+    for tool in request.tools or []:
+        if isinstance(tool, dict) and tool.get("name"):
+            # Indented, so a mismatch shows the changed lines of the schema.
+            schemas[tool["name"]] = json.dumps(_plain_json(tool.get("parameters")), sort_keys=True, indent=2, default=str)
+    return schemas
+
+
+def _plain_json(value: Any) -> Any:
+    from agentverify.cassette.sanitize import _as_plain
+
+    value = _as_plain(value)
+    if isinstance(value, dict):
+        # Unset fields of SDK schema objects (google-genai Schema) dump as None; a new SDK field must not count as a change.
+        return {str(k): _plain_json(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [_plain_json(v) for v in value]
+    return value
+
+
+def _texts(content: Any) -> list[str]:
+    """The text of a message's content: a string, or the text blocks of a list (no tool results, no images)."""
+    from agentverify.cassette.sanitize import _as_plain
+
+    content = _as_plain(content)
+    if isinstance(content, str):
+        return [content]
+    texts: list[str] = []
+    for block in content if isinstance(content, list) else []:
+        block = _as_plain(block)
+        if isinstance(block, str):
+            texts.append(block)
+        elif isinstance(block, dict) and isinstance(block.get("text"), str) and block.get("type") in (None, "text", "input_text"):
+            texts.append(block["text"])
+    return texts
+
+
+def _message_texts(request: NormalizedRequest, roles: tuple[str, ...]) -> list[str]:
+    from agentverify.cassette.sanitize import _as_plain
+
+    texts: list[str] = []
+    for message in request.messages or []:
+        message = _as_plain(message)
+        if isinstance(message, dict) and message.get("role") in roles:
+            texts += _texts(message.get("content")) + _texts(message.get("parts"))
+    return texts
+
+
+def _system_texts(request: NormalizedRequest) -> list[str]:
+    """The system prompt: system / developer messages, and the providers' system parameters."""
+    from agentverify.cassette.sanitize import _as_plain
+
+    texts = _message_texts(request, ("system", "developer"))
+    for key in ("system", "system_instruction", "instructions"):
+        value = _as_plain(request.parameters.get(key))
+        texts += _texts(value.get("parts")) if isinstance(value, dict) else _texts(value)
+    return texts
+
+
+def _user_texts(request: NormalizedRequest) -> list[str]:
+    return _message_texts(request, ("user",))
 
 
 def _block_text(content: Any) -> Any:

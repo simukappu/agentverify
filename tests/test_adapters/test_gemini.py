@@ -155,14 +155,18 @@ class TestNormalizeRequest:
 
     def test_sdk_content_objects_in_list(self, adapter: GeminiAdapter) -> None:
         """SDK Content objects in the contents list are handled gracefully."""
-        content_obj = MagicMock()
-        content_obj.role = "user"
-        content_obj.__str__ = lambda self: "Hello from SDK"
+        from google.genai import types
 
-        raw = {"model": "gemini-2.5-pro", "contents": [content_obj]}
+        class Opaque:
+            role = "user"
+
+            def __str__(self) -> str:
+                return "Hello from SDK"
+
+        content = types.Content(role="user", parts=[types.Part(text="Hi")])
+        raw = {"model": "gemini-2.5-pro", "contents": [content, Opaque()]}
         result = adapter.normalize_request(raw)
-        assert len(result.messages) == 1
-        assert result.messages[0]["role"] == "user"
+        assert result.messages == [{"role": "user", "parts": [{"text": "Hi"}]}, {"role": "user", "content": "Hello from SDK"}]
 
     def test_tools_with_dict_function_declarations(self, adapter: GeminiAdapter) -> None:
         """SDK Tool objects containing dict-based function declarations."""
@@ -197,6 +201,7 @@ class TestNormalizeRequest:
         config.stop_sequences = None
         config.candidate_count = None
         config.response_mime_type = None
+        config.system_instruction = None
 
         raw = {
             "model": "gemini-2.5-pro",

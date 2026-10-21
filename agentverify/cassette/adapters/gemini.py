@@ -179,8 +179,12 @@ class GeminiAdapter(LLMProviderAdapter, StreamingWire):
                 elif isinstance(item, dict):
                     messages.append(item)
                 else:
-                    # SDK Content objects — convert to dict representation
-                    messages.append({"role": getattr(item, "role", "user"), "content": str(item)})
+                    # SDK Content objects: their fields, so the parts stay readable and comparable
+                    dump = getattr(item, "model_dump", None)
+                    if callable(dump):
+                        messages.append(dump(mode="json", exclude_none=True))
+                    else:
+                        messages.append({"role": getattr(item, "role", "user"), "content": str(item)})
         else:
             messages = []
 
@@ -199,7 +203,7 @@ class GeminiAdapter(LLMProviderAdapter, StreamingWire):
                 # SDK object — extract attributes
                 config_dict = {}
                 for attr in ("temperature", "top_p", "top_k", "max_output_tokens",
-                             "stop_sequences", "candidate_count", "response_mime_type"):
+                             "stop_sequences", "candidate_count", "response_mime_type", "system_instruction"):
                     val = getattr(config, attr, None)
                     if val is not None:
                         config_dict[attr] = val

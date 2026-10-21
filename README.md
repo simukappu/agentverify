@@ -326,30 +326,38 @@ tool_executions:
 
 ### Stale Cassette Detection
 
-Cassette replay verifies request content by default so a stale cassette fails loudly instead of returning the old response. Each replay request is compared against the recorded request:
-- **Model name**: must match exactly (an empty model on either side skips the check)
-- **Tool names**: the sorted list of tool names must match (empty tools on either side skip the check)
+Replay checks that the agent still sends what was recorded, so a prompt or tool change fails the test instead of replaying old responses. Each request is compared with the recorded one:
+- **Model name** (an empty model on either side skips the check)
+- **Tool names**, and each tool's **parameter schema**
+- **System prompt**: system and developer messages, and the providers' `system` / `instructions` parameters
+- **User message text**. Tool results in their own messages or blocks are not compared, since a tool running for real may return something new.
 
-A `CassetteRequestMismatchError` is raised on mismatch with a clear message indicating which field differs and suggesting re-recording.
+A field the cassette did not record (no system prompt, or a cassette from an older version) is not compared. The request is sanitized like the cassette before comparing.
 
-To disable matching (e.g., during migration):
+A difference raises `CassetteRequestMismatchError` with a diff, and fails the test when the cassette closes even if the agent's framework caught it. At the end of the run, pytest lists the stale cassettes and the command that re-records them:
 
-```bash
-# CLI: disable for all tests
-pytest --no-cassette-match-requests
+```
+=================== agentverify: stale cassettes ===================
+tests/cassettes/weather_agent.yaml  (system prompt changed)
+
+Re-record them with (from /path/to/project):
+  pytest --cassette-mode=record tests/test_agent.py::test_weather_agent
 ```
 
+Text that changes on every run, such as today's date in a prompt, can be left out of the comparison with `match_ignore`, a list of regular expressions:
+
 ```python
-# Per-test: disable in the cassette factory call
-with cassette("my_test.yaml", provider="openai", match_requests=False) as rec:
+with cassette("my_test.yaml", provider="openai", match_ignore=[r"\d{4}-\d{2}-\d{2}"]) as rec:
     run_my_agent("What's the weather?")
 ```
 
+To turn matching off (e.g., during migration), pass `match_requests=False`, or `--no-cassette-match-requests` for all tests.
+
 ### Keeping Cassettes Current
 
-Cassettes drift when your prompts, tool schemas, or model versions change. agentverify's stale detection catches model-name and tool-name mismatches automatically (see [Stale Cassette Detection](#stale-cassette-detection)). A prompt-only change does not fail replay: the recorded responses come back as they were, so re-record after changing a prompt. In practice:
+Cassettes drift when your prompts, tool schemas, or model versions change, and [stale detection](#stale-cassette-detection) tells you which ones. In practice:
 
-- Re-record on major prompt rewrites or tool schema changes
+- Re-record a cassette in the same PR as the prompt or tool change that made it stale
 - Pin model versions (a dated snapshot, not a moving alias) in your agent code so cassettes don't silently shift underneath you
 - Treat cassette diffs as part of the PR review. A YAML diff next to the prompt diff is a feature, not noise
 - Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments, so small wording changes in LLM outputs don't cascade into test failures
