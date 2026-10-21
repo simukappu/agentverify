@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **Data-flow assertions work on Anthropic, Bedrock, and Gemini cassettes**: replayed steps carry the tool results from those providers' tool result messages, with their error status, as they did for OpenAI.
+
 ## 0.6.0 (2026-10-21)
 
 ### Features

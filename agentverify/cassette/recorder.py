@@ -522,20 +522,22 @@ def _build_execution_result(
         if not isinstance(messages, list):  # pragma: no cover — defensive
             continue
         # The request resends the whole conversation, so take only the tool
-        # messages that answer the latest assistant tool call: the ones after
-        # the last assistant message that made tool calls. Without such a
-        # message (a provider shape without one), fall back to all of them.
+        # results that answer the latest tool call: the ones after the last
+        # model message that made tool calls. Without such a message (a
+        # provider shape without one), fall back to all of them.
         start = 0
         for pos, msg in enumerate(messages):
-            if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("tool_calls"):
+            if _tool_names_in(msg):
                 start = pos + 1
         extracted: list[Any] = []
+        flags: list[bool | None] = []
         for msg in messages[start:]:
-            if isinstance(msg, dict) and msg.get("role") == "tool":
-                extracted.append(msg.get("content"))
+            for content, is_error in _tool_results_in(msg):
+                extracted.append(content)
+                flags.append(is_error)
         if extracted:
             steps[i] = replace(
-                producer, tool_results=extracted, tool_results_meta=build_tool_results_meta(extracted)
+                producer, tool_results=extracted, tool_results_meta=build_tool_results_meta(extracted, flags)
             )
 
     # Re-index steps to be contiguous 0..N-1 in case of out-of-order probe inserts.
@@ -583,6 +585,7 @@ def _tool_names_in(message: Any) -> list[str]:
                 names.append(name)
     content = message.get("content")
     for block in content if isinstance(content, list) else []:
+        block = _as_plain(block)  # SDK content blocks while recording
         if not isinstance(block, dict):
             continue
         if block.get("type") == "tool_use" and isinstance(block.get("name"), str):  # Anthropic
@@ -597,6 +600,51 @@ def _tool_names_in(message: Any) -> list[str]:
         if isinstance(call, dict) and isinstance(call.get("name"), str):
             names.append(call["name"])
     return names
+
+
+def _block_text(content: Any) -> Any:
+    """The text of a list of text blocks (Anthropic, Bedrock); a lone JSON block's value; anything else as it is."""
+    from agentverify.cassette.sanitize import _as_plain
+
+    if not isinstance(content, list):
+        return content
+    blocks = [_as_plain(b) for b in content]
+    if blocks and all(isinstance(b, dict) and isinstance(b.get("text"), str) for b in blocks):
+        return "".join(b["text"] for b in blocks)
+    if len(blocks) == 1 and isinstance(blocks[0], dict) and "json" in blocks[0]:
+        return blocks[0]["json"]
+    return blocks
+
+
+def _tool_results_in(message: Any) -> list[tuple[Any, bool | None]]:
+    """The tool results a request message carries, with their error flags: OpenAI, Anthropic, Bedrock, and Gemini shapes."""
+    from agentverify.cassette.sanitize import _as_plain
+
+    message = _as_plain(message)
+    if not isinstance(message, dict):
+        return []
+    if message.get("role") == "tool":  # OpenAI / LiteLLM
+        return [(message.get("content"), None)]
+    results: list[tuple[Any, bool | None]] = []
+    content = message.get("content")
+    for block in content if isinstance(content, list) else []:
+        block = _as_plain(block)
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_result":  # Anthropic
+            is_error = block.get("is_error")
+            results.append((_block_text(block.get("content")), is_error if isinstance(is_error, bool) else None))
+        tool_result = _as_plain(block.get("toolResult"))  # Bedrock Converse
+        if isinstance(tool_result, dict):
+            status = tool_result.get("status")
+            results.append((_block_text(tool_result.get("content")), None if status is None else status == "error"))
+    for part in message.get("parts") or []:  # Gemini
+        part = _as_plain(part)
+        response = (part.get("function_response") or part.get("functionResponse")) if isinstance(part, dict) else None
+        response = _as_plain(response)
+        if isinstance(response, dict):
+            results.append((response.get("response"), None))
+    return results
 
 
 def _agent_from_history(step: Step) -> Step:
