@@ -137,7 +137,7 @@ def _strands(stack: ExitStack) -> None:
     except ImportError:
         return
     invoke = HookRegistry.invoke_callbacks_async
-    # Tool calls running for real, by toolUseId: the LLM call count when they started.
+    # Tool calls running for real, by toolUseId.
     started: dict[Any, int] = {}
 
     def replayed_tool(selected: Any, tool_use: dict[str, Any], result: Any) -> Any:
@@ -162,14 +162,14 @@ def _strands(stack: ExitStack) -> None:
                 if not execution.run_on_replay:
                     event.selected_tool = replayed_tool(event.selected_tool, tool_use, execution.result)
                     return outcome
-            started[tool_use.get("toolUseId")] = session.llm_count()
+            started[tool_use.get("toolUseId")] = session.begin()
             session.running += 1
         elif isinstance(event, AfterToolCallEvent) and tool_use.get("toolUseId") in started:
-            before = started.pop(tool_use.get("toolUseId"))
+            frame, step = session.end(started.pop(tool_use.get("toolUseId")))
             session.running -= 1
             if session.recording and raw is not None:
                 result = {k: v for k, v in dict(raw).items() if k != "toolUseId"}
-                session.add(tool_use["name"], tool_use.get("input"), result, llm_calls=session.llm_count() - before)
+                session.add(tool_use["name"], tool_use.get("input"), result, llm_calls=frame, step=step)
         return outcome
 
     stack.enter_context(patch.object(HookRegistry, "invoke_callbacks_async", new=patched_invoke))
@@ -319,7 +319,7 @@ def _crewai(stack: ExitStack) -> None:
             if not execution.run_on_replay:
                 replayed[id(context.tool_input)] = (context.tool_name, execution.result)
                 return False  # block the real tool; the after hook supplies the result
-        started[id(context.tool_input)] = session.llm_count()
+        started[id(context.tool_input)] = session.begin()
         session.running += 1
         return None
 
@@ -331,10 +331,10 @@ def _crewai(stack: ExitStack) -> None:
             return replayed.pop(key)[1]
         session = active_session()
         if key in started and session is not None:
-            before_count = started.pop(key)
+            frame, step = session.end(started.pop(key))
             session.running -= 1
             if session.recording:
-                session.add(context.tool_name, dict(context.tool_input), context.tool_result, llm_calls=session.llm_count() - before_count)
+                session.add(context.tool_name, dict(context.tool_input), context.tool_result, llm_calls=frame, step=step)
         return None
 
     hooks.register_before_tool_call_hook(before)

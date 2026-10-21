@@ -602,10 +602,10 @@ class TestReviewFixes:
         with LLMCassetteRecorder(path, mode=CassetteMode.RECORD) as rec:
             recorded = outer_agent(rec)
         executions = yaml.safe_load(path.read_text())["tool_executions"]
-        assert executions == [{"name": "sub_agent", "arguments": {"task": "t"}, "step": 0, "result": "inner", "llm_calls": 1}]
+        assert executions == [{"name": "sub_agent", "arguments": {"task": "t"}, "step": 0, "result": "inner", "llm_calls": [1]}]
         with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY) as rec:
             assert outer_agent(rec) == recorded == ("outer1", "inner", "outer2")
-            rec.skip_interactions(5)  # past the end is ignored
+            rec.skip_interactions([1, 9])  # used or out of range: ignored
         assert len(rec.to_execution_result().steps) == 3
 
     def test_results_that_do_not_survive_yaml_run_on_replay(self, tmp_path):

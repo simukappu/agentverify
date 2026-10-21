@@ -23,6 +23,7 @@ Usage::
 from __future__ import annotations
 
 import time
+from contextvars import ContextVar
 from typing import Any
 
 from agentverify.cassette.adapters.base import (
@@ -126,7 +127,7 @@ class MockLLM:
         self._probe_tool_results_meta: dict[int, list[bool]] = {}
         self._interaction_probe_stack: list[list[int]] = []
         self._next_probe_handle_id: int = 0
-        self._current_probe_stack: list[int] = []
+        self._probe_stack: ContextVar[tuple[int, ...]] = ContextVar(f"agentverify_mock_probe_stack_{id(self)}", default=())
         self._replay_index: int = 0
         self._patch_ctx: Any = None
         self._start_time: float | None = None
@@ -161,15 +162,12 @@ class MockLLM:
         handle_id = self._next_probe_handle_id
         self._next_probe_handle_id += 1
         self._probe_events.append(("enter", handle_id, name, None))
-        self._current_probe_stack.append(handle_id)
+        self._probe_stack.set(self._probe_stack.get() + (handle_id,))
         return handle_id
 
     def probe_exit(self, handle_id: int, output: Any) -> None:
         self._probe_events.append(("exit", handle_id, None, output))
-        try:
-            self._current_probe_stack.remove(handle_id)
-        except ValueError:
-            pass
+        self._probe_stack.set(tuple(h for h in self._probe_stack.get() if h != handle_id))
 
     def probe_attach_tool_result(self, handle_id: int, result: Any, is_error: bool = False) -> None:
         self._probe_tool_results.setdefault(handle_id, []).append(result)
@@ -191,7 +189,7 @@ class MockLLM:
 
         response = self._responses[self._replay_index]
         self._interactions.append((request, response))
-        self._interaction_probe_stack.append(list(self._current_probe_stack))
+        self._interaction_probe_stack.append(list(self._probe_stack.get()))
         self._replay_index += 1
         return response
 

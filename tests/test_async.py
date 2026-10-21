@@ -118,7 +118,9 @@ class TestAsyncRecordReplay:
                 asyncio.run(run_twice())
         assert [s.output for s in rec.to_execution_result().steps] == ["first", "second"]
 
-    def test_overlapping_calls_are_rejected_while_recording(self, tmp_path, provider, owner, attr, call):
+    def test_overlapping_calls_are_recorded_and_replayed(self, tmp_path, provider, owner, attr, call):
+        path = tmp_path / "c.yaml"
+
         async def slow(*args, **kwargs):
             await asyncio.sleep(0.01)
             return _fake_response(provider, "x")
@@ -128,9 +130,17 @@ class TestAsyncRecordReplay:
             await asyncio.gather(call(fn), call(fn))
 
         with unittest_mock_patch.object(owner, attr, new=slow):
-            with LLMCassetteRecorder(tmp_path / "c.yaml", mode=CassetteMode.RECORD, provider=provider):
-                with pytest.raises(CassetteUnsupportedCallError, match="concurrent LLM call"):
-                    asyncio.run(gather())
+            with LLMCassetteRecorder(path, mode=CassetteMode.RECORD, provider=provider) as rec:
+                asyncio.run(gather())
+        assert len(rec._interactions) == 2
+
+        async def must_not_run(*args, **kwargs):
+            raise AssertionError("replay reached the real API")
+
+        with unittest_mock_patch.object(owner, attr, new=must_not_run):
+            with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, provider=provider) as rec:
+                asyncio.run(gather())
+        assert [s.output for s in rec.to_execution_result().steps] == ["x", "x"]
 
 
 def test_replay_miss_falls_back_for_async_calls(tmp_path):
@@ -195,7 +205,7 @@ def test_mock_llm_answers_async_clients():
 
 
 class TestOverlapGuardScope:
-    """The overlap guard applies only to genuinely concurrent calls while recording."""
+    """Calls that overlap, nest, or run on threads."""
 
     def _openai(self):
         pytest.importorskip("openai")
@@ -241,37 +251,37 @@ class TestOverlapGuardScope:
             with LLMCassetteRecorder(path, mode=CassetteMode.AUTO, provider="openai", on_missing=OnMissingRequest.FALLBACK):
                 asyncio.run(gather())
 
-    def test_threads_are_detected_and_the_counter_recovers(self, tmp_path):
+    def test_calls_finishing_in_another_order_replay_by_content(self, tmp_path):
+        """The first call finishes last while recording; replay matches each request to its own response."""
         import threading
 
         oc = self._openai()
         started, release = threading.Event(), threading.Event()
-        errors = []
 
         def live(*args, **kwargs):
-            if kwargs["model"] == "first":
+            question = kwargs["messages"][0]["content"]
+            if question == "slow":
                 started.set()
                 release.wait(5)
-            return _fake_response("openai", kwargs["model"])
+            return _fake_response("openai", f"answer to {question}")
 
-        def first():
-            oc.Completions.create(MagicMock(), model="first", messages=[])
+        def ask(question):
+            reply = oc.Completions.create(MagicMock(), model="m", messages=[{"role": "user", "content": question}])
+            return reply.choices[0].message.content
 
+        path = tmp_path / "t.yaml"
         with unittest_mock_patch.object(oc.Completions, "create", new=live):
-            with LLMCassetteRecorder(tmp_path / "t.yaml", mode=CassetteMode.RECORD, provider="openai") as rec:
-                t = threading.Thread(target=first)
-                t.start()
+            with LLMCassetteRecorder(path, mode=CassetteMode.RECORD, provider="openai") as rec:
+                thread = threading.Thread(target=ask, args=("slow",))
+                thread.start()
                 started.wait(5)
-                try:
-                    oc.Completions.create(MagicMock(), model="second", messages=[])
-                except CassetteUnsupportedCallError as e:
-                    errors.append(e)
+                ask("fast")
                 release.set()
-                t.join(5)
-                # Sequential calls work again once the first one finished.
-                oc.Completions.create(MagicMock(), model="third", messages=[])
-        assert len(errors) == 1
-        assert [s.output for s in rec.to_execution_result().steps] == ["first", "third"]
+                thread.join(5)
+        assert [r.content for _, r in rec._interactions] == ["answer to fast", "answer to slow"]
+        with unittest_mock_patch.object(oc.Completions, "create", side_effect=AssertionError("live")):
+            with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, provider="openai"):
+                assert (ask("slow"), ask("fast")) == ("answer to slow", "answer to fast")
 
 
 def test_litellm_fallbacks_through_acompletion_on_a_worker_thread(tmp_path):
@@ -375,3 +385,153 @@ def test_async_raw_response_record_and_sync_nested_call(tmp_path):
         with LLMCassetteRecorder(tmp_path / "s.yaml", mode=CassetteMode.RECORD, provider="openai") as rec:
             oc.Completions.create(MagicMock(), model="outer", messages=[])
     assert [s.output for s in rec.to_execution_result().steps] == ["outer"]
+
+
+def _two_agents(tmp_path, probes, same_question=False):
+    pytest.importorskip("openai")
+    import openai.resources.chat.completions as oc
+
+    from agentverify import step_probe
+    from agentverify.cassette.adapters.openai import OpenAIAdapter
+
+    async def live(self_, *args, **kwargs):
+        messages = kwargs["messages"]
+        # Delays that make the two conversations finish interleaved: a1, b1, b2, a2.
+        who = messages[-1]["tool_call_id"][-1] if len(messages) == 3 else ("a" if not order else "b")
+        if len(messages) == 1:
+            order.append(who)
+        delay = {("a", 1): 0, ("a", 3): 0.06, ("b", 1): 0.02, ("b", 3): 0.02}[(who, len(messages))]
+        await asyncio.sleep(delay)
+        if len(messages) == 1:
+            call = {"name": "lookup", "arguments": "{}", "id": f"call_{who}"}
+            return OpenAIAdapter().denormalize_response(NormalizedResponse(tool_calls=[call]))
+        return _fake_response("openai", f"done {who}")
+
+    order: list = []
+
+    async def agent(name):
+        first = [{"role": "user", "content": "weather?" if same_question else name}]
+        follow = first + [
+            {"role": "assistant", "tool_calls": [{"id": f"call_{name}", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": f"call_{name}", "content": f"result for {name}"},
+        ]
+        for messages in (first, follow):
+            if probes:
+                with step_probe(f"{name}{len(messages)}"):
+                    await oc.AsyncCompletions.create(MagicMock(), model="m", messages=messages)
+            else:
+                await oc.AsyncCompletions.create(MagicMock(), model="m", messages=messages)
+
+    async def both():
+        await asyncio.gather(agent("a"), agent("b"))
+
+    with unittest_mock_patch.object(oc.AsyncCompletions, "create", new=live):
+        with LLMCassetteRecorder(tmp_path / "two.yaml", mode=CassetteMode.RECORD, provider="openai") as rec:
+            asyncio.run(both())
+    return rec.to_execution_result().steps
+
+
+def test_interleaved_conversations_get_their_own_tool_results(tmp_path):
+    steps = _two_agents(tmp_path, probes=False)
+    assert [s.output for s in steps] == [None, None, "done b", "done a"]  # a1, b1, b2, a2
+    assert steps[0].tool_results == ["result for a"] and steps[1].tool_results == ["result for b"]
+
+
+def test_concurrent_step_probes_keep_their_own_stack(tmp_path):
+    steps = _two_agents(tmp_path, probes=True)
+    assert [s.name for s in steps] == ["a1", "b1", "b3", "a3"]
+
+
+class TestConcurrencyReview:
+    def _cassette(self, tmp_path, requests):
+        from agentverify.cassette.io import save_cassette
+
+        path = tmp_path / "c.yaml"
+        save_cassette(path, [(r, NormalizedResponse(content=f"answer {i}")) for i, r in enumerate(requests)])
+        return path
+
+    def test_threads_replay_without_serving_a_response_twice(self, tmp_path):
+        import concurrent.futures
+
+        from agentverify.cassette.adapters.base import NormalizedRequest
+
+        request = NormalizedRequest(messages=[{"role": "user", "content": "same"}], model="m")
+        path = self._cassette(tmp_path, [request] * 16)
+        rec = LLMCassetteRecorder(path, mode=CassetteMode.REPLAY)
+        with concurrent.futures.ThreadPoolExecutor(16) as pool:
+            answers = list(pool.map(lambda _: rec.lookup(request).content, range(16)))
+        assert sorted(answers) == sorted(f"answer {i}" for i in range(16))
+
+    def test_requests_differing_only_in_a_system_parameter_match_their_own(self, tmp_path):
+        from agentverify.cassette.adapters.base import NormalizedRequest
+
+        def ask(system):
+            return NormalizedRequest(messages=[{"role": "user", "content": "hi"}], model="m", parameters={"system": system})
+
+        path = self._cassette(tmp_path, [ask("German"), ask("French")])
+        rec = LLMCassetteRecorder(path, mode=CassetteMode.REPLAY)
+        assert rec.lookup(ask("French")).content == "answer 1" and rec.lookup(ask("German")).content == "answer 0"
+
+    def test_probes_reach_executor_threads(self, tmp_path):
+        import concurrent.futures
+
+        from agentverify import step_probe
+        from agentverify.cassette.adapters.base import NormalizedRequest
+
+        rec = LLMCassetteRecorder(tmp_path / "p.yaml", mode=CassetteMode.RECORD)
+        with rec:
+            with step_probe("planner"):
+                with concurrent.futures.ThreadPoolExecutor(1) as pool:
+                    pool.submit(rec.record, NormalizedRequest(messages=[], model="m"), NormalizedResponse(content="x")).result()
+            rec.probe_exit(999, None)  # an unknown handle is ignored
+        assert [(s.name, s.source) for s in rec.to_execution_result().steps] == [("planner", "probe")]
+
+    def test_discard_keeps_used_positions_in_replay(self, tmp_path):
+        from agentverify.cassette.adapters.base import NormalizedRequest
+
+        requests = [NormalizedRequest(messages=[{"role": "user", "content": str(i)}], model="m") for i in range(3)]
+        path = self._cassette(tmp_path, requests)
+        rec = LLMCassetteRecorder(path, mode=CassetteMode.REPLAY)
+        rec.lookup(requests[2])
+        failed = NormalizedResponse()
+        rec.record(NormalizedRequest(messages=[], model="m"), failed)  # a live stream on a replay miss
+        rec.discard(rec._interactions[0][1])
+        assert rec._used == {1, 2} and rec.lookup(requests[1]).content == "answer 1"
+        rec.discard(NormalizedResponse())  # not recorded: nothing happens
+
+
+def test_shared_prefixes_get_their_own_tool_results(tmp_path):
+    """Two agents start with the same question; tool call ids tell their conversations apart."""
+    steps = _two_agents(tmp_path, probes=False, same_question=True)
+    assert [s.tool_results for s in steps[:2]] == [["result for a"], ["result for b"]]
+
+
+def test_an_agent_used_as_a_tool_skips_only_its_own_llm_calls(tmp_path):
+    pytest.importorskip("openai")
+    import openai.resources.chat.completions as oc
+
+    from agentverify import cassette_tool
+
+    async def live(self_, *args, **kwargs):
+        await asyncio.sleep(0.02 if kwargs["messages"][0]["content"] == "sub" else 0)
+        return _fake_response("openai", kwargs["messages"][0]["content"])
+
+    async def ask(text):
+        reply = await oc.AsyncCompletions.create(MagicMock(), model="m", messages=[{"role": "user", "content": text}])
+        return reply.choices[0].message.content
+
+    @cassette_tool
+    async def sub_agent(task: str) -> str:
+        return await ask("sub")
+
+    async def run():
+        # B's three calls happen while the sub-agent tool is running.
+        return await asyncio.gather(sub_agent("t"), ask("b1"), ask("b2"), ask("b3"))
+
+    path = tmp_path / "nested.yaml"
+    with unittest_mock_patch.object(oc.AsyncCompletions, "create", new=live):
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD):
+            recorded = asyncio.run(run())
+    with unittest_mock_patch.object(oc.AsyncCompletions, "create", side_effect=AssertionError("live")):
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY):
+            assert asyncio.run(run()) == recorded == ["sub", "b1", "b2", "b3"]

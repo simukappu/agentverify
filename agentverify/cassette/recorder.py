@@ -5,6 +5,8 @@ Provides :class:`LLMCassetteRecorder` which intercepts LLM SDK chat completion c
 
 from __future__ import annotations
 
+import threading
+from contextvars import ContextVar
 from dataclasses import replace
 
 import json
@@ -185,10 +187,17 @@ class LLMCassetteRecorder:
         # For each interaction, the probe-handle stack at lookup() time.
         self._interaction_probe_stack: list[list[int]] = []
         self._next_probe_handle_id: int = 0
-        self._current_probe_stack: list[int] = []
+        # Per asyncio task, so concurrent agents inside step_probe blocks keep their own stacks. A thread
+        # that does not inherit the context (a plain thread, an executor) sees the shared stack instead.
+        self._probe_stack: ContextVar[tuple[int, ...] | None] = ContextVar(f"agentverify_probe_stack_{id(self)}", default=None)
+        self._shared_probe_stack: list[int] = []
+        # Threads may record and replay at the same time.
+        self._lock = threading.RLock()
 
-        # Replay cursor — index of the next interaction to return.
+        # Replay: how many interactions have been returned, and which ones.
         self._replay_index: int = 0
+        self._used: set[int] = set()
+        self._keys: dict[int, str] = {}
 
         # Fill-ins for recorded streams the caller has not finished reading.
         self._pending_streams: list[Any] = []
@@ -201,6 +210,7 @@ class LLMCassetteRecorder:
             self._metadata, self._interactions = _parse_interactions(document)
             if isinstance(document.get("tool_executions"), list):
                 self._recorded_tools = [ToolExecution.from_dict(e) for e in document["tool_executions"]]
+            self._interaction_probe_stack = [[] for _ in self._interactions]
         else:
             self._metadata: dict[str, Any] = {}
         self._tool_session: ToolSession | None = None
@@ -282,17 +292,26 @@ class LLMCassetteRecorder:
     def probe_enter(self, name: str) -> int:
         handle_id = self._next_probe_handle_id
         self._next_probe_handle_id += 1
-        self._probe_events.append(("enter", handle_id, name, None))
-        self._current_probe_stack.append(handle_id)
+        with self._lock:
+            self._probe_events.append(("enter", handle_id, name, None))
+            stack = self._probe_stack.get()
+            self._probe_stack.set((tuple(self._shared_probe_stack) if stack is None else stack) + (handle_id,))
+            self._shared_probe_stack.append(handle_id)
         return handle_id
 
     def probe_exit(self, handle_id: int, output: Any) -> None:
-        self._probe_events.append(("exit", handle_id, None, output))
-        # Pop from the stack (may not be top of stack if non-LIFO usage).
-        try:
-            self._current_probe_stack.remove(handle_id)
-        except ValueError:
-            pass
+        with self._lock:
+            self._probe_events.append(("exit", handle_id, None, output))
+            # Pop from the stack (may not be top of stack if non-LIFO usage).
+            stack = self._probe_stack.get()
+            if stack is not None:
+                self._probe_stack.set(tuple(h for h in stack if h != handle_id))
+            if handle_id in self._shared_probe_stack:
+                self._shared_probe_stack.remove(handle_id)
+
+    def _current_probe_stack(self) -> list[int]:
+        stack = self._probe_stack.get()
+        return list(self._shared_probe_stack if stack is None else stack)
 
     def probe_attach_tool_result(self, handle_id: int, result: Any, is_error: bool = False) -> None:
         self._probe_tool_results.setdefault(handle_id, []).append(result)
@@ -301,7 +320,9 @@ class LLMCassetteRecorder:
     # -- Core operations -----------------------------------------------------
 
     def lookup(self, request: NormalizedRequest) -> NormalizedResponse | None:
-        """Return the next unplayed interaction response.
+        """Return the response recorded for *request*.
+
+        Interactions are returned in recorded order, except that a request matching a later unplayed one gets that one: calls that overlapped while recording (``asyncio.gather``, threads) finish in an order that changes from run to run. Requests match on what the developer controls (model, tool names, system prompt, user text, and the length of the history), not on tool results.
 
         When ``match_requests`` is enabled, the incoming request is compared with the recorded one: model, tool names and schemas, the system prompt, and the text of user messages (not tool results, which carry the tools' output). A :class:`CassetteRequestMismatchError` is raised on a difference, signalling that the cassette is stale.
 
@@ -311,20 +332,36 @@ class LLMCassetteRecorder:
             The next :class:`NormalizedResponse`, or ``None`` if all
             interactions have been consumed.
         """
-        if self._replay_index < len(self._interactions):
-            recorded_req, response = self._interactions[self._replay_index]
-
+        key = self._key(request)
+        with self._lock:
+            unused = [i for i in range(len(self._interactions)) if i not in self._used]
+            if not unused:
+                return None  # no more recorded interactions
+            index = next((i for i in unused if self._recorded_key(i) == key), unused[0])
+            recorded_req, response = self._interactions[index]
             if self.match_requests:
-                self._verify_request(self._replay_index, recorded_req, request)
+                self._verify_request(index, recorded_req, request)
+            self._consume(index)
+        return response
 
-            # Record the probe stack active at this lookup for step
-            # reconstruction in to_execution_result.
-            self._interaction_probe_stack.append(list(self._current_probe_stack))
-            self._replay_index += 1
-            return response
+    def _consume(self, index: int) -> None:
+        self._used.add(index)
+        self._replay_index += 1
+        # The probe stack active at this lookup, for step reconstruction in to_execution_result.
+        self._interaction_probe_stack[index] = self._current_probe_stack()
 
-        # No more recorded interactions.
-        return None
+    def _recorded_key(self, index: int) -> str:
+        if index not in self._keys:
+            self._keys[index] = self._key(self._interactions[index][0], sanitize=False)  # saved sanitized
+        return self._keys[index]
+
+    def _key(self, request: NormalizedRequest, sanitize: bool = True) -> str:
+        """A request's identity for matching, from what the developer controls: model, tool names, system prompt, user text, and history length."""
+        if sanitize and self._sanitize_patterns is not None:
+            request = sanitize_interactions([(request, NormalizedResponse())], self._sanitize_patterns)[0][0]
+        system = [self._ignore(s) for s in _system_texts(request)]
+        user = [self._ignore(s) for s in _user_texts(request)]
+        return json.dumps([request.model, self._extract_tool_names(request), system, user, len(request.messages or [])])
 
     @staticmethod
     def _extract_tool_names(req: NormalizedRequest) -> list[str]:
@@ -417,25 +454,36 @@ class LLMCassetteRecorder:
         self, request: NormalizedRequest, response: NormalizedResponse
     ) -> None:
         """Append a request/response pair to the session interactions."""
-        self._interactions.append((request, response))
-        # Record the probe stack active at record time for step
-        # reconstruction in to_execution_result.
-        self._interaction_probe_stack.append(list(self._current_probe_stack))
+        from agentverify.cassette.tools import note_llm_call
 
-    def skip_interactions(self, count: int) -> None:
-        """Pass over the LLM calls a replayed tool made while recording (an agent used as a tool)."""
-        for _ in range(count):
-            if self._replay_index < len(self._interactions):
-                self._interaction_probe_stack.append(list(self._current_probe_stack))
-                self._replay_index += 1
+        with self._lock:
+            self._interactions.append((request, response))
+            index = len(self._interactions) - 1
+            # Record the probe stack active at record time for step
+            # reconstruction in to_execution_result.
+            self._interaction_probe_stack.append(self._current_probe_stack())
+            if self.mode == CassetteMode.REPLAY:
+                self._used.add(index)  # a replay miss answered live
+        note_llm_call(index)
+
+    def skip_interactions(self, indices: list[int]) -> None:
+        """Pass over the LLM calls a replayed tool made while recording (an agent used as a tool), by their position."""
+        with self._lock:
+            for index in indices:
+                if 0 <= index < len(self._interactions) and index not in self._used:
+                    self._consume(index)
 
     def discard(self, response: NormalizedResponse) -> None:
         """Remove a recorded interaction (a stream that raised partway) by its response object."""
-        for index, (_, recorded) in enumerate(self._interactions):
-            if recorded is response:
-                del self._interactions[index]
-                del self._interaction_probe_stack[index]
-                return
+        with self._lock:
+            for index, (_, recorded) in enumerate(self._interactions):
+                if recorded is response:
+                    del self._interactions[index]
+                    del self._interaction_probe_stack[index]
+                    # Later interactions move down by one.
+                    self._used = {i - 1 if i > index else i for i in self._used if i != index}
+                    self._keys = {}
+                    return
 
     # -- Result construction -------------------------------------------------
 
@@ -499,6 +547,8 @@ def _build_execution_result(
     # Preserve interaction order; a new step is emitted whenever the
     # innermost probe changes.
     steps: list[Step] = []
+    # The tool call ids each step's responses made, to find the step that answers them.
+    step_call_ids: list[list[str]] = []
     current_probe_id: int | None = None
     current_bucket: dict[str, Any] | None = None
 
@@ -524,6 +574,7 @@ def _build_execution_result(
             [None] * len(current_bucket["tool_results"]) + list(extra_meta_flags)
         )
         tool_results_meta = build_tool_results_meta(combined_results, explicit)
+        step_call_ids.append(current_bucket["call_ids"])
         steps.append(
             Step(
                 index=index,
@@ -553,12 +604,14 @@ def _build_execution_result(
                 "output": response.content,
                 "token_usage": response.token_usage,
                 "input_context": _request_to_context(request),
+                "call_ids": _call_ids(response),
             }
         elif innermost == current_probe_id and innermost is not None:
             # Same probe, merge interactions.
             current_bucket["tool_calls"].extend(
                 tool_calls_from_response(response.tool_calls)
             )
+            current_bucket["call_ids"] += _call_ids(response)
             if response.content is not None:
                 current_bucket["output"] = response.content
             if response.token_usage is not None:
@@ -580,6 +633,7 @@ def _build_execution_result(
                 "output": response.content,
                 "token_usage": response.token_usage,
                 "input_context": _request_to_context(request),
+                "call_ids": _call_ids(response),
             }
 
     flush_bucket()
@@ -598,6 +652,7 @@ def _build_execution_result(
         if handle_id in used_probe_handles:
             continue
         # Standalone probe step (no LLM call inside).
+        step_call_ids.append([])
         standalone_results = list(probe_tool_results.get(handle_id, []))
         standalone_flags = list(probe_tool_results_meta.get(handle_id, []))
         steps.append(
@@ -623,7 +678,7 @@ def _build_execution_result(
     # replay.
     for i in range(len(steps) - 1):
         producer = steps[i]
-        consumer_next = steps[i + 1]
+        consumer_next = _continuation(steps, i, step_call_ids[i] if i < len(step_call_ids) else [])
         if producer.tool_results:
             continue  # already populated (e.g. by framework adapter)
         if not producer.tool_calls:
@@ -785,6 +840,29 @@ def _system_texts(request: NormalizedRequest) -> list[str]:
 
 def _user_texts(request: NormalizedRequest) -> list[str]:
     return _message_texts(request, ("user",))
+
+
+def _call_ids(response: NormalizedResponse) -> list[str]:
+    return [tc["id"] for tc in response.tool_calls or [] if isinstance(tc, dict) and isinstance(tc.get("id"), str)]
+
+
+def _continuation(steps: list[Any], i: int, call_ids: list[str]) -> Any:
+    """The step that continues step *i*'s conversation: the next one whose history extends it, and carries its tool call ids.
+
+    Concurrent agents interleave their calls, so the next step may belong to another conversation, even one that started the same way. Without a match (a history the framework trims), the next step.
+    """
+    history = (steps[i].input_context or {}).get("messages")
+    if isinstance(history, list) and history:
+        prefix = json.dumps(_plain_json(history), sort_keys=True, default=str)
+        for later in steps[i + 1 :]:
+            messages = (later.input_context or {}).get("messages")
+            if isinstance(messages, list) and len(messages) > len(history):
+                text = json.dumps(_plain_json(messages), sort_keys=True, default=str)
+                if json.dumps(_plain_json(messages[: len(history)]), sort_keys=True, default=str) == prefix and all(
+                    json.dumps(call_id) in text for call_id in call_ids
+                ):
+                    return later
+    return steps[i + 1]
 
 
 def _block_text(content: Any) -> Any:

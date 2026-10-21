@@ -8,6 +8,7 @@
 - **Stale cassettes are caught when the prompt changes**: replay now also compares each tool's schema, the system prompt, and user message text, and shows a diff. pytest lists the stale cassettes and the command to re-record them. `match_ignore` leaves changing text out. See README "Stale Cassette Detection".
 - **`from_otel` builds `ExecutionResult`s from OpenTelemetry traces**, so the assertions run on production and staging runs. Reads the GenAI conventions and OpenInference. See README "Production Traces".
 - **Framework adapters for Pydantic AI, Google ADK, and CrewAI**: `from_pydantic_ai`, `from_google_adk`, `from_crewai`. See README "Built-in Adapters".
+- **Concurrent LLM calls are recorded and replayed** (`asyncio.gather`, threads): replay matches each request to its recording, so calls that finish in another order still get their own responses. Async Bedrock clients (`aiobotocore` / `aioboto3`) are recorded too. See README "Async Agents".
 - **Streamed responses are recorded and replayed** for every provider, so frameworks that stream by default work without turning streaming off. A cassette recorded either way replays either way. See README "Streaming".
 
 ### Bug Fixes

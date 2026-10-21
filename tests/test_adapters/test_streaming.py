@@ -900,3 +900,57 @@ class TestReviewFindings:
 
         [chunk] = GeminiAdapter().replay_stream(NormalizedResponse(tool_calls=[{"name": "f", "arguments": {"a": 1}}]), {}, False)
         assert chunk.candidates[0].content.parts[0].function_call.args == {"a": 1}
+
+
+class TestAsyncBedrock:
+    """aiobotocore / aioboto3 clients, through a stand-in AioBaseClient."""
+
+    @pytest.fixture
+    def aio(self, monkeypatch):
+        pytest.importorskip("botocore")
+        import sys
+        import types
+
+        calls: list = []
+
+        class AioBaseClient:
+            async def _make_api_call(self, operation_name, api_params):
+                from agentverify.cassette.adapters.bedrock import BedrockAdapter
+
+                calls.append(operation_name)
+                if operation_name == "ConverseStream":
+                    return BedrockAdapter().replay_stream(RESPONSE, api_params, True)
+                if operation_name == "Converse":
+                    return BedrockAdapter().denormalize_response(RESPONSE)
+                return {"ok": operation_name}
+
+        package = types.ModuleType("aiobotocore")
+        module = types.ModuleType("aiobotocore.client")
+        module.AioBaseClient = AioBaseClient
+        monkeypatch.setitem(sys.modules, "aiobotocore", package)
+        monkeypatch.setitem(sys.modules, "aiobotocore.client", module)
+        return AioBaseClient, calls
+
+    def test_record_then_replay(self, tmp_path, aio):
+        AioBaseClient, calls = aio
+        params = {"modelId": "m", "messages": [{"role": "user", "content": [{"text": "hi"}]}]}
+        client = MagicMock()
+        client.meta.service_model.service_name = "bedrock-runtime"
+
+        async def run():
+            plain = await AioBaseClient._make_api_call(client, "Converse", params)
+            stream = await AioBaseClient._make_api_call(client, "ConverseStream", params)
+            events = [e async for e in stream["stream"]]
+            other = await AioBaseClient._make_api_call(client, "ListFoundationModels", {})
+            return plain["output"]["message"]["content"][0]["text"], len(events), other
+
+        path = tmp_path / "aio.yaml"
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD, provider="bedrock"):
+            recorded = asyncio.run(run())
+        assert calls == ["Converse", "ConverseStream", "ListFoundationModels"]
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, provider="bedrock") as rec:
+            assert asyncio.run(run()) == recorded
+            with pytest.raises(CassetteUnsupportedCallError, match="InvokeModel"):
+                asyncio.run(AioBaseClient._make_api_call(client, "InvokeModel", {}))
+        assert calls == ["Converse", "ConverseStream", "ListFoundationModels", "ListFoundationModels"]
+        assert rec.to_execution_result().token_usage == TokenUsage(14, 6)

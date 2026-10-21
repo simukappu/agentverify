@@ -368,7 +368,6 @@ Cassettes record chat calls, streamed or not, sync or async: OpenAI `chat.comple
 
 These raise `CassetteUnsupportedCallError`:
 - Other streaming calls (OpenAI `responses.connect()` WebSocket sessions, Anthropic `messages.stream(output_format=...)`, Bedrock `InvokeModelWithResponseStream`, ...), in record and replay mode.
-- LLM calls that overlap in time while recording (`asyncio.gather`, threads). They finish in a different order on each run, so the cassette would replay the wrong response. Await them one at a time.
 - In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client (`parse()`, embeddings, beta resources, ...), Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...), and LiteLLM `text_completion` and `responses`.
 
 These reach the real API:
@@ -400,7 +399,7 @@ def test_async_agent(cassette):
     assert_final_output(result, contains="detective")
 ```
 
-Async clients of OpenAI, Anthropic, Gemini, and LiteLLM are recorded and replayed. Async Bedrock (`aiobotocore`) is neither recorded nor guarded yet, so its calls reach AWS even in replay mode.
+Async clients of OpenAI, Anthropic, Gemini, LiteLLM, and Bedrock (`aiobotocore` / `aioboto3`) are recorded and replayed. Calls may overlap (`asyncio.gather`, threads). Replay matches each request to its recording on the model, tool names, system prompt, user text, and history length, so calls that finish in another order than when recorded still get their own responses; requests identical in all of these replay in recorded order. Concurrent agents keep their own `step_probe` steps and tool results.
 
 ### Cassette Sanitization
 
@@ -897,7 +896,7 @@ See each example's README for setup and recording mode details.
 
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
-- Concurrent LLM calls: record and replay calls that overlap (`asyncio.gather`), and async Bedrock (`aiobotocore`)
+- Live runs judged by pass rate: run a test N times against the live model and require a minimum pass rate
 
 ## Changelog
 

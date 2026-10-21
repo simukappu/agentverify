@@ -8,7 +8,6 @@ from __future__ import annotations
 import functools
 import inspect
 import itertools
-import threading
 import warnings
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
@@ -114,10 +113,6 @@ class PatchScope:
 
     def __init__(self) -> None:
         self.active = True
-        # Real LLM calls running under this patch while recording, guarded by
-        # ``lock`` because threads can record too.
-        self.in_flight = 0
-        self.lock = threading.Lock()
         # litellm only: completion() calls running, so its internal acompletion() is not recorded twice.
         self.litellm_sync_depth = 0
 
@@ -523,29 +518,9 @@ _REPLAY_MISS: Any = object()
 
 @contextmanager
 def _live_call(scope: PatchScope, recorder: LLMCassetteRecorder, provider: str) -> Generator[None, None, None]:
-    """Run one real call, rejecting a second one that overlaps it while recording.
-
-    A cassette replays responses in the order they were recorded. Overlapping calls (``asyncio.gather``, threads) finish in an order that changes from run to run, so recording them would make a cassette that replays the wrong response. Nothing is saved in AUTO passthrough or in replay, so the check applies to record mode only.
-    """
-    from agentverify.cassette.recorder import CassetteMode
-
-    counted = recorder.mode == CassetteMode.RECORD
-    if counted:
-        with scope.lock:
-            if scope.in_flight > 0:
-                raise unsupported_call_error(
-                    provider,
-                    "a concurrent LLM call",
-                    "calls that overlap are recorded in a nondeterministic order; await them one at a time",
-                )
-            scope.in_flight += 1
-    try:
-        with allow_live_call():
-            yield
-    finally:
-        if counted:
-            with scope.lock:
-                scope.in_flight -= 1
+    """Run one real call; the guards stay out of the way of what it does internally."""
+    with allow_live_call():
+        yield
 
 
 def _replay_or_miss(

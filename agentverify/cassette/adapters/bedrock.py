@@ -8,12 +8,13 @@ boto3 is an **optional** dependency.  Import this module only when the boto3 ext
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import TYPE_CHECKING, Any, Generator
 from unittest.mock import patch
 
 from agentverify.cassette.adapters.base import (
     _guards_off,
+    call_async,
     call_sync,
     fallback_call_id,
     patch_scope,
@@ -301,13 +302,20 @@ class BedrockAdapter(LLMProviderAdapter, StreamingWire):
         events.append({"messageStop": {"stopReason": message["stopReason"]}})
         if "usage" in message:
             events.append({"metadata": {"usage": message["usage"], "metrics": {"latencyMs": 0}}})
+        if is_async:
+
+            async def stream() -> Any:
+                for event in events:
+                    yield event
+
+            return {"stream": stream(), "ResponseMetadata": {"HTTPStatusCode": 200}}
         return {"stream": iter(events), "ResponseMetadata": {"HTTPStatusCode": 200}}
 
     # -- monkey-patching -----------------------------------------------------
 
     @contextmanager
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
-        """Monkey-patch ``botocore.client.BaseClient._make_api_call``.
+        """Monkey-patch ``botocore.client.BaseClient._make_api_call``, and aiobotocore's ``AioBaseClient._make_api_call`` when it is installed.
 
         Records and replays the ``bedrock-runtime`` ``Converse`` and ``ConverseStream`` operations. Other operations that make a model generate (``InvokeModel``, ``InvokeAgent``, ``RetrieveAndGenerate``, ...) are guarded: streaming ones raise :class:`~agentverify.errors.CassetteUnsupportedCallError` in every mode, the rest raise in replay mode and pass through with a warning in record mode. Every other AWS call passes through untouched.
 
@@ -323,30 +331,58 @@ class BedrockAdapter(LLMProviderAdapter, StreamingWire):
 
         original_fn = botocore.client.BaseClient._make_api_call
 
+        def _guard_other(self_client: Any, operation_name: str, api_params: dict[str, Any], stacklevel: int) -> None:
+            """Guard bedrock-runtime and agent-runtime operations that make a model generate."""
+            service = getattr(getattr(getattr(self_client, "meta", None), "service_model", None), "service_name", None)
+            if operation_name in _GENERATING_OPERATIONS.get(service, ()) and not _guards_off(recorder):
+                if "Stream" in operation_name:
+                    raise unsupported_call_error("bedrock", operation_name, "streaming is not recorded")
+                check_unrecorded(recorder, "bedrock", operation_name, api_params, stacklevel=stacklevel)
+
+        def _recorded(operation_name: str, api_params: dict[str, Any]) -> dict[str, Any]:
+            # ConverseStream is marked as streamed so the shared flow records and replays it as a stream.
+            return {**api_params, "stream": True} if operation_name == "ConverseStream" else api_params
+
         def _patched_make_api_call(self_client: Any, operation_name: str, api_params: dict[str, Any]) -> Any:
             """Intercept Converse calls; guard other bedrock-runtime calls; pass through everything else."""
             # Converse and ConverseStream exist only on bedrock-runtime, so the operation name alone selects the recorded path.
-            if operation_name == "ConverseStream":
-                return call_sync(
-                    scope,
-                    recorder,
-                    adapter,
-                    "ConverseStream",
-                    {**api_params, "stream": True},
-                    lambda: original_fn(self_client, operation_name, api_params),
-                )
-            if operation_name != "Converse":
-                service = getattr(getattr(getattr(self_client, "meta", None), "service_model", None), "service_name", None)
-                if operation_name in _GENERATING_OPERATIONS.get(service, ()) and not _guards_off(recorder):
-                    if "Stream" in operation_name:
-                        raise unsupported_call_error("bedrock", operation_name, "streaming is not recorded")
-                    # this wrapper, botocore's generated client method, the caller
-                    check_unrecorded(recorder, "bedrock", operation_name, api_params, stacklevel=3)
+            if operation_name not in ("Converse", "ConverseStream"):
+                # this helper, this wrapper, botocore's generated client method, the caller
+                _guard_other(self_client, operation_name, api_params, stacklevel=4)
                 return original_fn(self_client, operation_name, api_params)
-
             return call_sync(
-                scope, recorder, adapter, "Converse", api_params, lambda: original_fn(self_client, operation_name, api_params)
+                scope,
+                recorder,
+                adapter,
+                operation_name,
+                _recorded(operation_name, api_params),
+                lambda: original_fn(self_client, operation_name, api_params),
             )
 
-        with patch_scope() as scope, patch(_PATCH_TARGET, new=_patched_make_api_call):
+        with ExitStack() as stack:
+            scope = stack.enter_context(patch_scope())
+            stack.enter_context(patch(_PATCH_TARGET, new=_patched_make_api_call))
+            try:
+                from aiobotocore.client import AioBaseClient
+            except ImportError:
+                AioBaseClient = None
+            if AioBaseClient is not None:
+                async_original = AioBaseClient._make_api_call
+
+                async def _patched_async(self_client: Any, operation_name: str, api_params: dict[str, Any]) -> Any:
+                    """The same for aiobotocore / aioboto3 clients."""
+                    if operation_name not in ("Converse", "ConverseStream"):
+                        # aiobotocore's client method returns this coroutine, awaited by the caller
+                        _guard_other(self_client, operation_name, api_params, stacklevel=3)
+                        return await async_original(self_client, operation_name, api_params)
+                    return await call_async(
+                        scope,
+                        recorder,
+                        adapter,
+                        operation_name,
+                        _recorded(operation_name, api_params),
+                        lambda: async_original(self_client, operation_name, api_params),
+                    )
+
+                stack.enter_context(patch.object(AioBaseClient, "_make_api_call", new=_patched_async))
             yield

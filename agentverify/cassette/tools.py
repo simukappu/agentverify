@@ -32,7 +32,8 @@ class ToolExecution:
     result: Any = None
     error: dict[str, str] | None = None
     step: int | None = None
-    llm_calls: int = 0
+    # Positions in the cassette of the LLM calls the tool made while recording (an agent used as a tool).
+    llm_calls: list[int] = field(default_factory=list)
     run_on_replay: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -57,7 +58,7 @@ class ToolExecution:
             result=data.get("result"),
             error=data.get("error"),
             step=data.get("step"),
-            llm_calls=int(data.get("llm_calls") or 0),
+            llm_calls=[int(i) for i in data.get("llm_calls") or []],
             run_on_replay=bool(data.get("run_on_replay")),
         )
 
@@ -144,16 +145,31 @@ class ToolSession:
         self.errors.append(error)
         raise error
 
+    def begin(self) -> Any:
+        """Start a tool call running for real: collect the LLM calls it makes, in this context only."""
+        frame: list[int] = []
+        return _llm_frame.set(frame), frame, self.llm_count() - 1
+
+    def end(self, started: Any) -> tuple[list[int], int]:
+        token, frame, step = started
+        try:
+            _llm_frame.reset(token)
+        except ValueError:  # pragma: no cover — ended in another context than it began
+            pass
+        return frame, step
+
     def add(
         self,
         name: str,
         arguments: Any,
         result: Any = None,
         error: BaseException | None = None,
-        llm_calls: int = 0,
+        llm_calls: list[int] | None = None,
         run_on_replay: bool = False,
+        step: int | None = None,
     ) -> None:
-        step = self.llm_count() - llm_calls - 1
+        if step is None:
+            step = self.llm_count() - 1
         if error is None and not faithful(result):
             run_on_replay, result = True, None
         self.recorded.append(
@@ -163,13 +179,22 @@ class ToolSession:
                 result=None if error is not None or run_on_replay else result,
                 error=None if error is None else error_of(error),
                 step=step if step >= 0 else None,
-                llm_calls=llm_calls,
+                llm_calls=list(llm_calls or []),
                 run_on_replay=run_on_replay,
             )
         )
 
 
 _active: ContextVar[Any] = ContextVar("agentverify_tool_session", default=None)
+# The LLM calls made inside the tool call running in this context, if any.
+_llm_frame: ContextVar[list[int] | None] = ContextVar("agentverify_llm_frame", default=None)
+
+
+def note_llm_call(index: int) -> None:
+    """Called by the recorder for each LLM call it records."""
+    frame = _llm_frame.get()
+    if frame is not None:
+        frame.append(index)
 # Set while a recorded tool runs, so a nested layer (an MCP call inside a LangChain tool) is not recorded twice.
 _inside: ContextVar[bool] = ContextVar("agentverify_inside_tool", default=False)
 # The sessions of the open cassettes, innermost last, for tools a framework runs on a thread that does
@@ -256,14 +281,16 @@ def call_tool(
         if execution.error is not None:
             raise rebuild_error(execution.error)
         return decode(execution.result)
-    before = session.llm_count()
+    started = session.begin()
     try:
         with running_inside():
             result = run()
     except Exception as error:
-        session.add(name, arguments, error=error, llm_calls=session.llm_count() - before)
+        frame, step = session.end(started)
+        session.add(name, arguments, error=error, llm_calls=frame, step=step)
         raise
-    session.add(name, arguments, encode(result), llm_calls=session.llm_count() - before)
+    frame, step = session.end(started)
+    session.add(name, arguments, encode(result), llm_calls=frame, step=step)
     return result
 
 
@@ -286,14 +313,16 @@ async def acall_tool(
         if execution.error is not None:
             raise rebuild_error(execution.error)
         return decode(execution.result)
-    before = session.llm_count()
+    started = session.begin()
     try:
         with running_inside():
             result = await run()
     except Exception as error:
-        session.add(name, arguments, error=error, llm_calls=session.llm_count() - before)
+        frame, step = session.end(started)
+        session.add(name, arguments, error=error, llm_calls=frame, step=step)
         raise
-    session.add(name, arguments, encode(result), llm_calls=session.llm_count() - before)
+    frame, step = session.end(started)
+    session.add(name, arguments, encode(result), llm_calls=frame, step=step)
     return result
 
 
