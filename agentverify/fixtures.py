@@ -5,6 +5,8 @@ Provides the ``cassette`` fixture for LLM cassette recording and replay.
 
 from __future__ import annotations
 
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Union
 
@@ -70,6 +72,18 @@ def cassette(request):
             )
             match_requests = not no_match
 
+        from agentverify.live import live_settings
+
+        if live_settings(request.node) is not None:
+            # A live run: call the real model and tools, and save nothing (a path that does not exist).
+            return LLMCassetteRecorder(
+                cassette_path=Path(tempfile.gettempdir()) / "agentverify-live" / f"{uuid.uuid4().hex}-{name}",
+                mode=CassetteMode.AUTO,
+                provider=provider,
+                on_missing=on_missing,
+                sanitize=sanitize,
+                replay_tools=replay_tools,
+            )
         if cassette_dir is None:
             # Resolve relative to the test file location
             test_file = Path(str(request.fspath))

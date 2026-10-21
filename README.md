@@ -814,6 +814,25 @@ Provide one `mock_response(...)` per LLM call your agent is expected to make. If
 | You're doing behavior-driven tests of routing | You're regression-testing full agent runs |
 | You want each LLM response visible in the test code | You've already got recordings to replay |
 
+## Live Runs and Pass Rates
+
+A live model does not take the same path every time: a supervisor may route to the wrong agent one run in ten. To measure that with the same assertions, mark the test with how many runs it takes and the share that must pass:
+
+```python
+@pytest.mark.agentverify(runs=10, min_pass_rate=0.9)
+def test_routes_billing_questions(cassette):
+    with cassette("billing.yaml", provider="openai") as rec:
+        run_supervisor("Why was I charged twice?")
+    assert_handoffs(rec.to_execution_result(), expected=[Handoff(ANY, "billing")], order=OrderMode.IN_ORDER)
+```
+
+```bash
+pytest                      # replays the cassette once, as usual
+pytest --agentverify-live   # runs it 10 times against the live model; fails below 90%
+```
+
+Under `--agentverify-live`, every `cassette` in a marked test calls the real model and tools and saves nothing. Each run is a full run of the test, with its function-scoped fixtures set up again, so async tests (pytest-asyncio, anyio) and parametrized tests work as usual. A run that skips is not counted. The end of the session lists each test's pass rate and failed runs (under pytest-xdist too). It costs one agent run per `runs`, so it fits a nightly job or a check before release, not every PR. `min_pass_rate` defaults to 1.0.
+
 ## CI Integration
 
 agentverify is designed for CI pipelines. Commit your cassette files to git and replay them in CI with zero LLM cost.
@@ -896,7 +915,7 @@ See each example's README for setup and recording mode details.
 
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
-- Live runs judged by pass rate: run a test N times against the live model and require a minimum pass rate
+- MCP testing helpers: pin an MCP server's tool schemas, so a server upgrade that changes them fails a test
 
 ## Changelog
 

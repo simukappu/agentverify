@@ -8,10 +8,8 @@ from agentverify.plugin import cassette, pytest_addoption, pytest_configure
 def test_pytest_configure_registers_marker():
     config = MagicMock()
     pytest_configure(config)
-    config.addinivalue_line.assert_called_once_with(
-        "markers",
-        "agentverify: mark test as an agentverify agent test",
-    )
+    [(kind, line)] = [c[0] for c in config.addinivalue_line.call_args_list]
+    assert kind == "markers" and line.startswith("agentverify(runs=None, min_pass_rate=1.0):")
 
 
 def test_cassette_fixture_is_imported():
@@ -24,7 +22,7 @@ def test_pytest_addoption_registers_cassette_mode():
     """pytest_addoption registers the --cassette-mode and --cassette-match-requests options."""
     parser = MagicMock()
     pytest_addoption(parser)
-    assert parser.addoption.call_count == 2
+    assert parser.addoption.call_count == 3
 
     # First call: --cassette-mode
     first_call = parser.addoption.call_args_list[0]
@@ -38,3 +36,6 @@ def test_pytest_addoption_registers_cassette_mode():
     assert second_call[0][0] == "--no-cassette-match-requests"
     assert second_call[1]["action"] == "store_true"
     assert second_call[1]["default"] is False
+
+    third_call = parser.addoption.call_args_list[2]
+    assert third_call[0][0] == "--agentverify-live" and third_call[1]["default"] is False
