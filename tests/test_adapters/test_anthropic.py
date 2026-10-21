@@ -255,7 +255,7 @@ class TestDenormalizeResponse:
         assert result.content[0].type == "tool_use"
         assert result.content[0].name == "get_weather"
         assert result.content[0].input == {"location": "Tokyo"}
-        assert result.content[0].id == "toolu_0"
+        assert result.content[0].id.startswith("toolu_replayed_")  # no recorded id
         assert result.stop_reason == "tool_use"
 
     def test_no_usage(self, adapter: AnthropicAdapter) -> None:

@@ -18,14 +18,16 @@ from agentverify.cassette.adapters.base import (
     call_async,
     call_sync,
     check_unrecorded,
+    fallback_call_id,
     guard_unintercepted,
     patch_scope,
     redispatch,
-    reject_stream_kwarg,
-    reject_streaming,
+    replayed_sdk_stream,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
+    StreamAccumulator,
+    StreamingWire,
 )
 from agentverify.models import TokenUsage
 
@@ -38,6 +40,16 @@ except ImportError:  # pragma: no cover
     _anthropic_module = None  # type: ignore[assignment]
 
 _PATCH_TARGET = "anthropic.resources.messages.Messages.create"
+
+
+def _is_given(value: Any) -> bool:
+    if value is None:
+        return False
+    return not type(value).__name__ in ("NotGiven", "Omit")
+
+
+def _not_given() -> Any:
+    return getattr(_anthropic_module, "NOT_GIVEN", None)
 
 
 def _ensure_anthropic_installed() -> None:
@@ -154,7 +166,105 @@ def _normalise_anthropic_message(message: Any) -> Any:
     return message
 
 
-class AnthropicAdapter(LLMProviderAdapter):
+class MessageEventAccumulator(StreamAccumulator):
+    """Collects Anthropic ``RawMessageStreamEvent`` objects into one response."""
+
+    def __init__(self) -> None:
+        self._blocks: dict[int, dict[str, Any]] = {}
+        self._input_tokens: int | None = None
+        self._output_tokens = 0
+        self._model = ""
+
+    def add(self, event: Any) -> None:
+        kind = getattr(event, "type", None)
+        if kind == "message_start":
+            message = event.message
+            self._model = getattr(message, "model", "") or ""
+            usage = getattr(message, "usage", None)
+            if usage is not None:
+                self._input_tokens = usage.input_tokens
+                self._output_tokens = getattr(usage, "output_tokens", 0) or 0
+        elif kind == "content_block_start":
+            block = event.content_block
+            entry: dict[str, Any] = {"type": block.type, "text": getattr(block, "text", "") or "", "json": ""}
+            if block.type == "tool_use":
+                entry.update(id=block.id, name=block.name)
+            self._blocks[event.index] = entry
+        elif kind == "content_block_delta":
+            entry = self._blocks.setdefault(event.index, {"type": "text", "text": "", "json": ""})
+            delta = event.delta
+            if delta.type == "text_delta":
+                entry["text"] += delta.text
+            elif delta.type == "input_json_delta":
+                entry["json"] += delta.partial_json
+        elif kind == "message_delta":
+            usage = getattr(event, "usage", None)
+            if usage is not None and getattr(usage, "output_tokens", None) is not None:
+                self._output_tokens = usage.output_tokens
+
+    def result(self) -> NormalizedResponse:
+        texts: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+        for index in sorted(self._blocks):
+            block = self._blocks[index]
+            if block["type"] == "text":
+                texts.append(block["text"])
+            elif block["type"] == "tool_use":
+                tool_calls.append({"name": block["name"], "arguments": block["json"] or "{}", "id": block["id"]})
+        usage = None
+        if self._input_tokens is not None:
+            usage = TokenUsage(input_tokens=self._input_tokens, output_tokens=self._output_tokens)
+        return NormalizedResponse(
+            content="".join(texts) if texts else None,
+            tool_calls=tool_calls or None,
+            token_usage=usage,
+            raw_metadata={"model": self._model} if self._model else {},
+        )
+
+
+def message_events(normalized: NormalizedResponse) -> list[dict[str, Any]]:
+    """The events of a replayed Messages stream, as JSON-shaped dicts: one delta per content block."""
+    tokens = normalized.token_usage
+    events: list[dict[str, Any]] = [
+        {
+            "type": "message_start",
+            "message": {
+                "id": normalized.raw_metadata.get("id", "") or "msg_replayed",
+                "type": "message",
+                "role": "assistant",
+                "content": [],
+                "model": normalized.raw_metadata.get("model", "") or "claude-replayed",
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": tokens.input_tokens if tokens else 0, "output_tokens": 0},
+            },
+        }
+    ]
+    blocks: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    if normalized.content is not None:
+        blocks.append(({"type": "text", "text": ""}, {"type": "text_delta", "text": normalized.content}))
+    for tc in normalized.tool_calls or []:
+        args = tc["arguments"]
+        if not isinstance(args, str):
+            args = json.dumps(args, ensure_ascii=False)
+        start = {"type": "tool_use", "id": tc.get("id") or fallback_call_id("toolu"), "name": tc["name"], "input": {}}
+        blocks.append((start, {"type": "input_json_delta", "partial_json": args}))
+    for index, (start, delta) in enumerate(blocks):
+        events.append({"type": "content_block_start", "index": index, "content_block": start})
+        events.append({"type": "content_block_delta", "index": index, "delta": delta})
+        events.append({"type": "content_block_stop", "index": index})
+    events.append(
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "tool_use" if normalized.tool_calls else "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": tokens.output_tokens if tokens else 0},
+        }
+    )
+    events.append({"type": "message_stop"})
+    return events
+
+
+class AnthropicAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the Anthropic Python SDK (``anthropic>=0.20``)."""
 
     @property
@@ -219,12 +329,10 @@ class AnthropicAdapter(LLMProviderAdapter):
             elif block_type == "tool_use":
                 if tool_calls is None:
                     tool_calls = []
-                tool_calls.append(
-                    {
-                        "name": block.name,
-                        "arguments": json.dumps(block.input),
-                    }
-                )
+                call = {"name": block.name, "arguments": json.dumps(block.input)}
+                if isinstance(getattr(block, "id", None), str):
+                    call["id"] = block.id  # replayed turns keep distinct ids
+                tool_calls.append(call)
 
         token_usage: TokenUsage | None = None
         if raw_response.usage is not None:
@@ -256,7 +364,7 @@ class AnthropicAdapter(LLMProviderAdapter):
                         arguments = {}
                 content_blocks.append(
                     _ToolUseBlock(
-                        id=f"toolu_{i}",
+                        id=tc.get("id") or fallback_call_id("toolu"),
                         name=tc["name"],
                         input=arguments,
                     )
@@ -281,6 +389,20 @@ class AnthropicAdapter(LLMProviderAdapter):
             model=model,
             id=message_id,
         )
+
+    # -- streaming -------------------------------------------------------------
+
+    def stream_accumulator(self) -> StreamAccumulator:
+        return MessageEventAccumulator()
+
+    def replay_stream(self, normalized: NormalizedResponse, kwargs: dict[str, Any], is_async: bool) -> Any:
+        """Build an ``anthropic.Stream[RawMessageStreamEvent]`` (or ``AsyncStream``) for a recorded response."""
+        from anthropic import AsyncStream, Stream
+        from anthropic._models import construct_type
+        from anthropic.types import RawMessageStreamEvent
+
+        items = [construct_type(type_=RawMessageStreamEvent, value=e) for e in message_events(normalized)]
+        return replayed_sdk_stream(Stream, AsyncStream, items, is_async)
 
     # -- monkey-patching -----------------------------------------------------
 
@@ -332,6 +454,23 @@ class AnthropicAdapter(LLMProviderAdapter):
 
             return wrapper
 
+        def _stream_via_create(original_fn, scope, is_async):  # type: ignore[no-untyped-def]
+            """Wrap ``messages.stream()`` to stream through the recorded ``create(stream=True)``."""
+            from anthropic.lib.streaming import AsyncMessageStreamManager, MessageStreamManager
+
+            def wrapper(self_: Any, **kwargs: Any) -> Any:
+                if not scope.active:  # a cached bound method outliving the cassette
+                    return original_fn(self_, **kwargs)
+                if _is_given(kwargs.get("output_format")):
+                    # Structured output: create() does not take output_format, so this stream is not recorded.
+                    check_unrecorded(recorder, "anthropic", "messages.stream(output_format=...)", {"stream": True}, stacklevel=2)
+                    return original_fn(self_, **kwargs)
+                if is_async:
+                    return AsyncMessageStreamManager(self_.create(**kwargs, stream=True))
+                return MessageStreamManager(lambda: self_.create(**kwargs, stream=True), output_format=_not_given())
+
+            return wrapper
+
         anthropic_mod = __import__("anthropic")
         messages_mod = anthropic_mod.resources.messages
         base_client = importlib.import_module("anthropic._base_client")
@@ -355,9 +494,9 @@ class AnthropicAdapter(LLMProviderAdapter):
                     new=_patched_async_create(AsyncMessages.create, scope, lambda: AsyncMessages.create),
                 )
             )
-            # messages.stream() posts directly, bypassing create().
-            _guard(stack, scope, Messages, "stream", "messages.stream", reject_streaming)
-            _guard(stack, scope, AsyncMessages, "stream", "AsyncMessages.stream", reject_streaming)
+            # messages.stream() posts directly, bypassing create(); send it through create(stream=True).
+            stack.enter_context(patch.object(Messages, "stream", new=_stream_via_create(Messages.stream, scope, False)))
+            stack.enter_context(patch.object(AsyncMessages, "stream", new=_stream_via_create(AsyncMessages.stream, scope, True)))
             for cls in (Messages, AsyncMessages):
                 if hasattr(cls, "parse"):  # pragma: no branch — older SDKs lack parse
                     _guard(stack, scope, cls, "parse", "messages.parse", guard_unintercepted)

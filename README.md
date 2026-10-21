@@ -21,7 +21,7 @@ Specifically:
 - **Budgets**: token counts, cost in USD, end-to-end latency
 - **Safety**: a list of tools that must never be called, no matter what the LLM decides
 
-Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and agents may be sync or async. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
+Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and agents may be sync or async, streamed or not. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
 
 ## Why I built this
 
@@ -326,7 +326,7 @@ with cassette("my_test.yaml", provider="openai", match_requests=False) as rec:
 
 ### Keeping Cassettes Current
 
-Cassettes drift when your prompts, tool schemas, or model versions change. agentverify's stale detection catches model-name and tool-name mismatches automatically (see [Stale Cassette Detection](#stale-cassette-detection)); a prompt-only change won't invalidate the cassette unless the model's tool-call output differs. In practice:
+Cassettes drift when your prompts, tool schemas, or model versions change. agentverify's stale detection catches model-name and tool-name mismatches automatically (see [Stale Cassette Detection](#stale-cassette-detection)). A prompt-only change does not fail replay: the recorded responses come back as they were, so re-record after changing a prompt. In practice:
 
 - Re-record on major prompt rewrites or tool schema changes
 - Pin model versions (a dated snapshot, not a moving alias) in your agent code so cassettes don't silently shift underneath you
@@ -335,10 +335,10 @@ Cassettes drift when your prompts, tool schemas, or model versions change. agent
 
 ### Calls Cassettes Cannot Record
 
-Cassettes record non-streaming chat calls, sync or async: OpenAI `chat.completions.create` and `responses.create`, Anthropic `messages.create`, Gemini `models.generate_content`, Bedrock `Converse`, and LiteLLM `completion` / `acompletion`. Inside a cassette or `MockLLM`, other LLM calls are handled as follows.
+Cassettes record chat calls, streamed or not, sync or async: OpenAI `chat.completions.create` and `responses.create` (and their `stream()` helpers), Anthropic `messages.create` and `messages.stream()`, Gemini `models.generate_content` and `generate_content_stream`, Bedrock `Converse` and `ConverseStream`, and LiteLLM `completion` / `acompletion`. Inside a cassette or `MockLLM`, other LLM calls are handled as follows.
 
 These raise `CassetteUnsupportedCallError`:
-- Streaming entry points (`stream=True`, `messages.stream()`, `generate_content_stream()`, Bedrock `ConverseStream`, OpenAI Responses `stream()`), in record and replay mode.
+- Other streaming calls (OpenAI `responses.connect()` WebSocket sessions, Anthropic `messages.stream(output_format=...)`, Bedrock `InvokeModelWithResponseStream`, ...), in record and replay mode.
 - LLM calls that overlap in time while recording (`asyncio.gather`, threads). They finish in a different order on each run, so the cassette would replay the wrong response. Await them one at a time.
 - In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client (`parse()`, embeddings, beta resources, ...), Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...), and LiteLLM `text_completion` and `responses`.
 
@@ -346,7 +346,9 @@ These reach the real API:
 - In record mode, those other requests. `parse()`, the Bedrock operations, and the LiteLLM calls warn that the cassette will not contain them; embeddings, beta resources, and WebSocket APIs do not. Replay then fails at that call.
 - With no cassette file (`AUTO` passthrough), every call. Nothing is saved.
 
-Frameworks that stream by default need streaming turned off, e.g. `BedrockModel(streaming=False)` in Strands.
+### Streaming
+
+A streamed call is stored as the same response as a non-streamed one, so a cassette recorded either way replays either way. Frameworks that stream by default (Strands' `BedrockModel`, `Runner.run_streamed` in the OpenAI Agents SDK, LangChain's `stream()`) need no change. Replay yields the text in one chunk and each tool call in one chunk, not in the recorded chunk sizes. A stream the agent stops reading early is recorded with what it read.
 
 ### OpenAI Responses API
 
@@ -846,7 +848,6 @@ See each example's README for setup and recording mode details.
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
 - Concurrent LLM calls: record and replay calls that overlap (`asyncio.gather`), and async Bedrock (`aiobotocore`)
-- Streaming: record and replay streamed responses, which raise `CassetteUnsupportedCallError` today
 - Framework adapters for Google ADK and CrewAI
 
 ## Changelog

@@ -19,10 +19,11 @@ from agentverify.cassette.adapters.base import (
     call_sync,
     patch_scope,
     redispatch,
-    reject_streaming,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
+    StreamAccumulator,
+    StreamingWire,
 )
 from agentverify.models import TokenUsage
 
@@ -129,7 +130,30 @@ class _GenerateContentResponse:
 # ---------------------------------------------------------------------------
 
 
-class GeminiAdapter(LLMProviderAdapter):
+class GeminiChunkAccumulator(StreamAccumulator):
+    """Collects the ``GenerateContentResponse`` chunks of a Gemini stream into one response."""
+
+    def __init__(self) -> None:
+        self._text: list[str] = []
+        self._calls: list[dict[str, Any]] = []
+        self._usage: TokenUsage | None = None
+
+    def add(self, chunk: Any) -> None:
+        part = GeminiAdapter().normalize_response(chunk)
+        if part.content is not None:
+            self._text.append(part.content)
+        self._calls.extend(part.tool_calls or [])
+        self._usage = part.token_usage or self._usage  # each chunk reports the running total
+
+    def result(self) -> NormalizedResponse:
+        return NormalizedResponse(
+            content="".join(self._text) if self._text else None,
+            tool_calls=self._calls or None,
+            token_usage=self._usage,
+        )
+
+
+class GeminiAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the Google Gemini SDK (``google-genai``)."""
 
     @property
@@ -257,10 +281,10 @@ class GeminiAdapter(LLMProviderAdapter):
                         args_str = json.dumps(args)
                     else:
                         args_str = json.dumps(dict(args))
-                    tool_calls.append({
-                        "name": getattr(fc, "name", ""),
-                        "arguments": args_str,
-                    })
+                    call = {"name": getattr(fc, "name", ""), "arguments": args_str}
+                    if isinstance(getattr(fc, "id", None), str):
+                        call["id"] = fc.id
+                    tool_calls.append(call)
 
         # Token usage
         token_usage: TokenUsage | None = None
@@ -314,6 +338,45 @@ class GeminiAdapter(LLMProviderAdapter):
             usage_metadata=usage,
         )
 
+    # -- streaming -------------------------------------------------------------
+
+    def stream_accumulator(self) -> StreamAccumulator:
+        return GeminiChunkAccumulator()
+
+    def replay_stream(self, normalized: NormalizedResponse, kwargs: dict[str, Any], is_async: bool) -> Any:
+        """Yield the recorded response as a single ``GenerateContentResponse`` chunk, from a generator (or async generator).
+
+        Streaming callers such as Strands' ``GeminiModel`` read SDK-only fields (``thought``, ``function_call.id``), so the chunk is a real SDK object.
+        """
+        from google.genai import types
+
+        parts = [] if normalized.content is None else [types.Part(text=normalized.content)]
+        for tc in normalized.tool_calls or []:
+            arguments = tc["arguments"]
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except ValueError:
+                    arguments = {}
+            parts.append(types.Part(function_call=types.FunctionCall(name=tc["name"], args=arguments, id=tc.get("id"))))
+        usage = None
+        if normalized.token_usage is not None:
+            tokens = normalized.token_usage
+            usage = types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=tokens.input_tokens,
+                candidates_token_count=tokens.output_tokens,
+                total_token_count=tokens.input_tokens + tokens.output_tokens,
+            )
+        candidate = types.Candidate(content=types.Content(role="model", parts=parts), finish_reason=types.FinishReason.STOP)
+        response = types.GenerateContentResponse(candidates=[candidate], usage_metadata=usage)
+        if is_async:
+
+            async def chunks() -> Any:
+                yield response
+
+            return chunks()
+        return iter([response])
+
     # -- monkey-patching -----------------------------------------------------
 
     @contextmanager
@@ -362,19 +425,56 @@ class GeminiAdapter(LLMProviderAdapter):
                 scope, recorder, adapter, "aio.models.generate_content", kwargs, lambda: async_original(self_client, **kwargs)
             )
 
+        stream_original = google.genai.models.Models.generate_content_stream
+
+        def _patched_stream(self_client: Any, **kwargs: Any) -> Any:
+            """Intercept generate_content_stream calls (``stream`` marks the request as streamed)."""
+            if not scope.active:  # a cached bound method outliving the cassette
+                return redispatch(
+                    lambda: google.genai.models.Models.generate_content_stream,
+                    _patched_stream,
+                    stream_original,
+                    (self_client,),
+                    kwargs,
+                )
+            return call_sync(
+                scope,
+                recorder,
+                adapter,
+                "models.generate_content_stream",
+                {**kwargs, "stream": True},
+                lambda: stream_original(self_client, **kwargs),
+            )
+
+        async_stream_original = google.genai.models.AsyncModels.generate_content_stream
+
+        async def _patched_async_stream(self_client: Any, **kwargs: Any) -> Any:
+            """Intercept aio.models.generate_content_stream calls."""
+            if not scope.active:  # a cached bound method outliving the cassette
+                return await redispatch(
+                    lambda: google.genai.models.AsyncModels.generate_content_stream,
+                    _patched_async_stream,
+                    async_stream_original,
+                    (self_client,),
+                    kwargs,
+                )
+            return await call_async(
+                scope,
+                recorder,
+                adapter,
+                "aio.models.generate_content_stream",
+                {**kwargs, "stream": True},
+                lambda: async_stream_original(self_client, **kwargs),
+            )
+
         models = google.genai.models
         api_client = importlib.import_module("google.genai._api_client").BaseApiClient
         with ExitStack() as stack:
             scope = stack.enter_context(patch_scope())
             stack.enter_context(patch(_PATCH_TARGET, new=_patched_generate_content))
             stack.enter_context(patch.object(models.AsyncModels, "generate_content", new=_patched_async_generate_content))
-            def _guard(cls, method, call, guard):  # type: ignore[no-untyped-def]
-                original = getattr(cls, method)
-                current = lambda: getattr(cls, method)  # noqa: E731
-                stack.enter_context(patch.object(cls, method, new=guard(scope, recorder, "gemini", call, original, current)))
-
-            _guard(models.Models, "generate_content_stream", "models.generate_content_stream", reject_streaming)
-            _guard(models.AsyncModels, "generate_content_stream", "aio.models.generate_content_stream", reject_streaming)
+            stack.enter_context(patch.object(models.Models, "generate_content_stream", new=_patched_stream))
+            stack.enter_context(patch.object(models.AsyncModels, "generate_content_stream", new=_patched_async_stream))
             # Anything else that reaches the HTTP layer in replay mode raises.
             for method, is_async in (
                 ("request", False),

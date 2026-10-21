@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+### Features
+
+- **Streamed responses are recorded and replayed** for every provider, so frameworks that stream by default work without turning streaming off. A cassette recorded either way replays either way. See README "Streaming".
+
 ### Bug Fixes
 
 - **Data-flow assertions work on Anthropic, Bedrock, and Gemini cassettes**: replayed steps carry the tool results from those providers' tool result messages, with their error status, as they did for OpenAI.
+- **Replayed Anthropic tool calls keep their recorded ids**, and calls recorded without one get unique ids instead of reusing `toolu_0`.
 
 ## 0.6.0 (2026-10-21)
 

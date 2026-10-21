@@ -199,13 +199,6 @@ class TestInterception:
             with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, provider="openai"):
                 assert asyncio.run(run()).output_text == "Async."
 
-    def test_stream_true_raises(self):
-        rec = MagicMock()
-        rec.mode = CassetteMode.RECORD
-        with OpenAIAdapter().patch(rec):
-            with pytest.raises(CassetteUnsupportedCallError, match=r"responses.create\(stream=True\)"):
-                self._client().responses.create(model="m", input="x", stream=True)
-
     def test_raw_response_records_and_replays(self, tmp_path):
         """langchain-openai's Responses path calls responses.with_raw_response.create."""
         path = tmp_path / "raw.yaml"

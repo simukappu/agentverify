@@ -11,7 +11,17 @@ import json
 import warnings
 from typing import Any
 
-from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse, fallback_call_id
+from types import SimpleNamespace
+
+from agentverify.cassette.adapters._openai_raw import tap_raw_or_stream, wrap_raw
+from agentverify.cassette.adapters.base import (
+    NormalizedRequest,
+    NormalizedResponse,
+    StreamAccumulator,
+    StreamingWire,
+    fallback_call_id,
+    replayed_sdk_stream,
+)
 from agentverify.models import TokenUsage
 
 def _plain(value: Any) -> Any:
@@ -131,8 +141,16 @@ def normalize_request(raw_request: dict[str, Any]) -> NormalizedRequest:
     parameters = {
         k: v
         for k, v in raw_request.items()
-        if k not in reserved and k not in _VOLATILE_PARAMETERS and not _is_sentinel(v)
+        if k not in reserved and k not in _VOLATILE_PARAMETERS and not _is_sentinel(v) and not (k.startswith("extra_") and v is None)
     }
+    headers = parameters.get("extra_headers")
+    if isinstance(headers, dict):
+        # The SDK's own markers (helper method, raw response) say nothing about the request.
+        headers = {h: v for h, v in headers.items() if not h.startswith("X-Stainless-")}
+        if headers:
+            parameters["extra_headers"] = headers
+        else:
+            del parameters["extra_headers"]
     if parameters.get("previous_response_id") or parameters.get("conversation"):
         warnings.warn(
             "openai: responses.create continues a stored conversation (previous_response_id / conversation), so the "
@@ -202,10 +220,7 @@ def _zeroed(model_cls: Any, **values: Any) -> Any:
     return model_cls.model_construct(**values)
 
 
-def denormalize_response(normalized: NormalizedResponse) -> Any:
-    """Build an ``openai.types.responses.Response`` from a normalized response."""
-    from openai.types.responses import Response, ResponseUsage
-
+def _output_items(normalized: NormalizedResponse) -> list[dict[str, Any]]:
     output: list[dict[str, Any]] = []
     if normalized.content is not None:
         output.append(
@@ -231,20 +246,32 @@ def denormalize_response(normalized: NormalizedResponse) -> Any:
                 "status": "completed",
             }
         )
+    return output
 
-    response = Response.model_validate(
-        {
-            "id": "resp_replayed",
-            "object": "response",
-            "created_at": 0,
-            "model": normalized.raw_metadata.get("model", "") or "gpt-4o-mini",
-            "status": "completed",
-            "output": output,
-            "parallel_tool_calls": True,
-            "tool_choice": "auto",
-            "tools": [],
-        }
-    )
+
+def _response_dict(normalized: NormalizedResponse, output: list[dict[str, Any]], status: str = "completed") -> dict[str, Any]:
+    return {
+        "id": "resp_replayed",
+        "object": "response",
+        "created_at": 0,
+        "model": normalized.raw_metadata.get("model", "") or "gpt-4o-mini",
+        "status": status,
+        "output": output,
+        "parallel_tool_calls": True,
+        "tool_choice": "auto",
+        "tools": [],
+    }
+
+
+def denormalize_response(normalized: NormalizedResponse) -> Any:
+    """Build an ``openai.types.responses.Response`` from a normalized response."""
+    return _build_response(normalized, _output_items(normalized))
+
+
+def _build_response(normalized: NormalizedResponse, output: list[dict[str, Any]]) -> Any:
+    from openai.types.responses import Response, ResponseUsage
+
+    response = Response.model_validate(_response_dict(normalized, output))
     if normalized.token_usage is not None:
         details = ResponseUsage.model_fields
         input_details_cls = details["input_tokens_details"].annotation
@@ -261,10 +288,93 @@ def denormalize_response(normalized: NormalizedResponse) -> Any:
     return response
 
 
-class ResponsesWire:
-    """The three conversions :func:`~agentverify.cassette.adapters.base.call_sync` needs, for the Responses API."""
+class ResponseEventAccumulator(StreamAccumulator):
+    """Collects Responses API stream events into one response.
+
+    The final ``response.completed`` (or ``response.incomplete`` / ``response.failed``) event carries the whole response. A stream read only part of the way is rebuilt from its output items: the finished ones, and the text and arguments of the ones still arriving.
+    """
+
+    def __init__(self) -> None:
+        self._final: Any = None
+        self._items: dict[int, Any] = {}
+
+    def add(self, event: Any) -> None:
+        kind = getattr(event, "type", None)
+        index = getattr(event, "output_index", None)
+        if kind in ("response.completed", "response.incomplete", "response.failed"):
+            self._final = event.response
+        elif kind == "response.output_item.done":
+            self._items[index] = event.item
+        elif kind == "response.output_item.added":
+            item = event.item
+            if item.type == "message":
+                self._items[index] = SimpleNamespace(type="message", content=[SimpleNamespace(type="output_text", text="")])
+            elif item.type == "function_call":
+                self._items[index] = SimpleNamespace(
+                    type="function_call", name=item.name, call_id=getattr(item, "call_id", None), arguments=""
+                )
+        elif kind == "response.output_text.delta" and isinstance(self._items.get(index), SimpleNamespace):
+            self._items[index].content[0].text += event.delta
+        elif kind == "response.function_call_arguments.delta" and isinstance(self._items.get(index), SimpleNamespace):
+            self._items[index].arguments += event.delta
+
+    def result(self) -> NormalizedResponse:
+        if self._final is not None:
+            return normalize_response(self._final)
+        output = [self._items[i] for i in sorted(self._items)]
+        return normalize_response(SimpleNamespace(output=output, usage=None, model=""))
+
+
+def response_events(normalized: NormalizedResponse) -> list[dict[str, Any]]:
+    """The events of a replayed Responses API stream, as JSON-shaped dicts.
+
+    Each output item is added, filled in one delta, and finished, between ``response.created`` and ``response.completed``, which carries the full response.
+    """
+    output = _output_items(normalized)
+    events: list[dict[str, Any]] = []
+
+    def emit(kind: str, **fields: Any) -> None:
+        events.append({"type": kind, "sequence_number": len(events), **fields})
+
+    emit("response.created", response=_response_dict(normalized, [], status="in_progress"))
+    for index, item in enumerate(output):
+        if item["type"] == "message":
+            part = item["content"][0]
+            emit("response.output_item.added", output_index=index, item={**item, "status": "in_progress", "content": []})
+            emit("response.content_part.added", item_id=item["id"], output_index=index, content_index=0, part={**part, "text": ""})
+            emit("response.output_text.delta", item_id=item["id"], output_index=index, content_index=0, delta=part["text"], logprobs=[])
+            emit("response.output_text.done", item_id=item["id"], output_index=index, content_index=0, text=part["text"], logprobs=[])
+            emit("response.content_part.done", item_id=item["id"], output_index=index, content_index=0, part=part)
+        else:
+            emit("response.output_item.added", output_index=index, item={**item, "status": "in_progress", "arguments": ""})
+            emit("response.function_call_arguments.delta", item_id=item["id"], output_index=index, delta=item["arguments"])
+            emit("response.function_call_arguments.done", item_id=item["id"], output_index=index, name=item["name"], arguments=item["arguments"])
+        emit("response.output_item.done", output_index=index, item=item)
+    completed = _build_response(normalized, output)
+    emit("response.completed", response=completed.model_dump(mode="json", exclude_none=True))
+    return events
+
+
+class ResponsesWire(StreamingWire):
+    """The conversions :func:`~agentverify.cassette.adapters.base.call_sync` needs, for the Responses API."""
 
     name = "openai"
     normalize_request = staticmethod(normalize_request)
     normalize_response = staticmethod(normalize_response)
     denormalize_response = staticmethod(denormalize_response)
+
+    def stream_accumulator(self) -> StreamAccumulator:
+        return ResponseEventAccumulator()
+
+    def replay_stream(self, normalized: NormalizedResponse, kwargs: dict[str, Any], is_async: bool) -> Any:
+        """Build an ``openai.Stream[ResponseStreamEvent]`` (or ``AsyncStream``) for a recorded response."""
+        from openai import AsyncStream, Stream
+        from openai._models import construct_type
+        from openai.types.responses import ResponseStreamEvent
+
+        items = [construct_type(type_=ResponseStreamEvent, value=e) for e in response_events(normalized)]
+        return wrap_raw(replayed_sdk_stream(Stream, AsyncStream, items, is_async), kwargs, is_async)
+
+    def tap_response(self, response: Any, tap: Any) -> Any:
+        """``with_raw_response`` / ``with_streaming_response`` return a raw response; the stream is what it parses to."""
+        return tap_raw_or_stream(response, tap)

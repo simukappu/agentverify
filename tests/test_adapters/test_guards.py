@@ -149,16 +149,6 @@ class TestOpenAIGuards:
 
         return openai.OpenAI(api_key="test-key", max_retries=0)
 
-    def test_chat_stream_true_raises_sync_and_async(self):
-        import openai
-
-        with self._adapter().patch(_recorder(CassetteMode.RECORD)):
-            with pytest.raises(CassetteUnsupportedCallError, match=r"create\(stream=True\)"):
-                self._client().chat.completions.create(model="m", messages=[], stream=True)
-            client = openai.AsyncOpenAI(api_key="test-key", max_retries=0)
-            with pytest.raises(CassetteUnsupportedCallError):
-                asyncio.run(client.chat.completions.create(model="m", messages=[], stream=True))
-
     @pytest.mark.parametrize(
         "call",
         [
@@ -182,12 +172,14 @@ class TestOpenAIGuards:
                 with pytest.warns(UserWarning, match="responses.parse is not recorded"):
                     assert self._client().responses.parse(model="m", input="hi") == "real"
 
-    def test_responses_streaming_entry_points_raise(self):
+    def test_responses_websocket_session_raises(self):
+        import openai.resources.responses as responses
+
+        if not hasattr(responses.Responses, "connect"):  # pragma: no cover — older SDKs lack connect
+            pytest.skip("openai without responses.connect")
         with self._adapter().patch(_recorder(CassetteMode.RECORD)):
-            with pytest.raises(CassetteUnsupportedCallError, match="responses.stream"):
-                self._client().responses.stream(model="m", input="hi")
-            with pytest.raises(CassetteUnsupportedCallError, match=r"responses.create\(stream=True\)"):
-                self._client().responses.create(model="m", input="hi", stream=True)
+            with pytest.raises(CassetteUnsupportedCallError, match="responses.connect"):
+                self._client().responses.connect(model="m")
 
     def test_raw_response_wrapper_cached_inside_cassette_works_after_exit(self):
         import openai.resources.chat.completions as completions
@@ -242,20 +234,18 @@ class TestAnthropicGuards:
 
         return AnthropicAdapter()
 
-    def test_streaming_raises(self):
+    def test_structured_output_stream_is_not_recorded(self):
+        """messages.stream(output_format=...) cannot go through create(), which has no output_format."""
         import anthropic
+        import pydantic
+
+        class Answer(pydantic.BaseModel):
+            text: str
 
         client = anthropic.Anthropic(api_key="k", max_retries=0)
-        aclient = anthropic.AsyncAnthropic(api_key="k", max_retries=0)
         with self._adapter().patch(_recorder(CassetteMode.RECORD)):
-            with pytest.raises(CassetteUnsupportedCallError, match=r"create\(stream=True\)"):
-                client.messages.create(model="m", messages=[], max_tokens=1, stream=True)
-            with pytest.raises(CassetteUnsupportedCallError, match="messages.stream"):
-                client.messages.stream(model="m", messages=[], max_tokens=1)
-            with pytest.raises(CassetteUnsupportedCallError, match="AsyncMessages.stream"):
-                aclient.messages.stream(model="m", messages=[], max_tokens=1)
-            with pytest.raises(CassetteUnsupportedCallError, match=r"AsyncMessages.create\(stream=True\)"):
-                asyncio.run(aclient.messages.create(model="m", messages=[], max_tokens=1, stream=True))
+            with pytest.raises(CassetteUnsupportedCallError, match=r"messages.stream\(output_format=...\)"):
+                client.messages.stream(model="m", messages=[], max_tokens=1, output_format=Answer)
 
     @pytest.mark.parametrize(
         "call",
@@ -280,17 +270,13 @@ class TestGeminiGuards:
     def _genai(self):
         pytest.importorskip("google.genai")
 
-    def test_stream_async_and_transport_guards(self):
+    def test_transport_guard(self):
         from google import genai
 
         from agentverify.cassette.adapters.gemini import GeminiAdapter
 
         client = genai.Client(api_key="k")
         with GeminiAdapter().patch(_recorder(CassetteMode.REPLAY)):
-            with pytest.raises(CassetteUnsupportedCallError, match="models.generate_content_stream"):
-                client.models.generate_content_stream(model="m", contents="hi")
-            with pytest.raises(CassetteUnsupportedCallError, match="aio.models.generate_content_stream"):
-                asyncio.run(client.aio.models.generate_content_stream(model="m", contents="hi"))
             with pytest.raises(CassetteUnsupportedCallError, match="does not reach the network"):
                 client.models.embed_content(model="m", contents="hi")
 
@@ -300,14 +286,12 @@ class TestLiteLLMGuards:
     def _litellm(self):
         pytest.importorskip("litellm")
 
-    def test_stream_true_and_unintercepted_entry_points(self):
+    def test_unintercepted_entry_points(self):
         import litellm
 
         from agentverify.cassette.adapters.litellm import LiteLLMAdapter
 
         with LiteLLMAdapter().patch(_recorder(CassetteMode.REPLAY)):
-            with pytest.raises(CassetteUnsupportedCallError, match=r"completion\(stream=True\)"):
-                litellm.completion(model="m", messages=[], stream=True)
             with pytest.raises(CassetteUnsupportedCallError, match="text_completion"):
                 litellm.text_completion(model="m")
             for name in ("aresponses",):
@@ -333,7 +317,7 @@ class TestBedrockGuards:
 
     @pytest.mark.parametrize(
         "service, operation",
-        [("bedrock-runtime", "ConverseStream"), ("bedrock-runtime", "InvokeModelWithResponseStream"), ("bedrock-agent-runtime", "RetrieveAndGenerateStream")],
+        [("bedrock-runtime", "InvokeModelWithResponseStream"), ("bedrock-agent-runtime", "RetrieveAndGenerateStream")],
     )
     def test_streaming_operations_raise_in_every_mode(self, service, operation):
         for mode in (CassetteMode.RECORD, CassetteMode.REPLAY):

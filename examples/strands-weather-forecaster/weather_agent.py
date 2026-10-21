@@ -26,8 +26,8 @@ When displaying responses:
 
 Always explain the weather conditions clearly and provide context for the forecast."""
 
-# Cassettes do not record streaming calls (agentverify raises CassetteUnsupportedCallError on ConverseStream), so turn streaming off. Pin the model id explicitly so SDK-default drift does not move the recorded cassette out from under us.
-model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-6", streaming=False)
+# Strands streams by default (ConverseStream), and the cassette records and replays it. Pin the model id explicitly so SDK-default drift does not move the recorded cassette out from under us.
+model = BedrockModel(model_id="us.anthropic.claude-sonnet-4-6")
 
 weather_agent = Agent(
     model=model,

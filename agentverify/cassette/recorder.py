@@ -173,6 +173,9 @@ class LLMCassetteRecorder:
         # Replay cursor — index of the next interaction to return.
         self._replay_index: int = 0
 
+        # Fill-ins for recorded streams the caller has not finished reading.
+        self._pending_streams: list[Any] = []
+
         # Load existing cassette when replaying.
         if self.mode == CassetteMode.REPLAY:
             self._metadata, self._interactions = load_cassette(self.cassette_path)
@@ -210,6 +213,9 @@ class LLMCassetteRecorder:
         if self._patch_ctx is not None:
             self._patch_ctx.__exit__(*args)
             self._patch_ctx = None
+        for fill_in in self._pending_streams:
+            fill_in()
+        self._pending_streams = []
 
         if self.mode == CassetteMode.RECORD:
             interactions = self._interactions
@@ -324,6 +330,14 @@ class LLMCassetteRecorder:
         # Record the probe stack active at record time for step
         # reconstruction in to_execution_result.
         self._interaction_probe_stack.append(list(self._current_probe_stack))
+
+    def discard(self, response: NormalizedResponse) -> None:
+        """Remove a recorded interaction (a stream that raised partway) by its response object."""
+        for index, (_, recorded) in enumerate(self._interactions):
+            if recorded is response:
+                del self._interactions[index]
+                del self._interaction_probe_stack[index]
+                return
 
     # -- Result construction -------------------------------------------------
 

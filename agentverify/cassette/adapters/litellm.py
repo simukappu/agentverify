@@ -22,8 +22,10 @@ from agentverify.cassette.adapters.base import (
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
+    StreamAccumulator,
+    StreamingWire,
 )
-from agentverify.cassette.adapters.openai import OpenAIAdapter
+from agentverify.cassette.adapters.openai import ChatChunkAccumulator, OpenAIAdapter, chat_chunks, wants_usage
 
 if TYPE_CHECKING:
     from agentverify.cassette.recorder import LLMCassetteRecorder
@@ -49,7 +51,32 @@ def _ensure_litellm_installed() -> None:
         )
 
 
-class LiteLLMAdapter(LLMProviderAdapter):
+class _ReplayedStream:
+    """Yields the chunks of a replayed ``litellm.completion(stream=True)`` call, sync or async.
+
+    It stands in for LiteLLM's ``CustomStreamWrapper``, which needs a live logging context to build.
+    """
+
+    def __init__(self, chunks: list[Any]) -> None:
+        self._chunks = iter(chunks)
+
+    def __iter__(self) -> _ReplayedStream:
+        return self
+
+    def __next__(self) -> Any:
+        return next(self._chunks)
+
+    def __aiter__(self) -> _ReplayedStream:
+        return self
+
+    async def __anext__(self) -> Any:
+        try:
+            return next(self._chunks)
+        except StopIteration:
+            raise StopAsyncIteration from None
+
+
+class LiteLLMAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for LiteLLM (OpenAI-compatible interface to 140+ providers)."""
 
     @property
@@ -79,6 +106,17 @@ class LiteLLMAdapter(LLMProviderAdapter):
         """
         _ensure_litellm_installed()
         return _litellm_module.ModelResponse(**_openai_adapter.denormalize_response(normalized).model_dump())
+
+    # -- streaming -------------------------------------------------------------
+
+    def stream_accumulator(self) -> StreamAccumulator:
+        return ChatChunkAccumulator()
+
+    def replay_stream(self, normalized: NormalizedResponse, kwargs: dict[str, Any], is_async: bool) -> Any:
+        """Yield the recorded response as ``litellm.ModelResponseStream`` chunks."""
+        _ensure_litellm_installed()
+        chunks = chat_chunks(normalized, wants_usage(kwargs))
+        return _ReplayedStream([_litellm_module.ModelResponseStream(**chunk) for chunk in chunks])
 
     # -- monkey-patching -----------------------------------------------------
 

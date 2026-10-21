@@ -22,10 +22,14 @@ from agentverify.cassette.adapters.base import (
     patch_scope,
     redispatch,
     reject_streaming,
+    replayed_sdk_stream,
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
+    StreamAccumulator,
+    StreamingWire,
 )
+from agentverify.cassette.adapters._openai_raw import _RawResponseWrapper, tap_raw_or_stream, wrap_raw  # noqa: F401 — re-exported
 from agentverify.cassette.adapters.openai_responses import ResponsesWire
 from agentverify.models import TokenUsage
 
@@ -43,7 +47,9 @@ _ASYNC_PATCH_TARGET = "openai.resources.chat.completions.AsyncCompletions.create
 # Responses API entry points the adapter does not record yet. Each is patched
 # only if the installed SDK has it.
 _RESPONSES_UNINTERCEPTED = ("parse",)
-_RESPONSES_STREAMING = ("stream", "connect")
+# ``responses.stream()`` and ``chat.completions.stream()`` call ``create(stream=True)``,
+# so they are recorded through it. ``connect()`` opens a WebSocket session.
+_RESPONSES_STREAMING = ("connect",)
 
 
 def _is_openai_sentinel(value: Any) -> bool:
@@ -77,31 +83,83 @@ def _ensure_openai_installed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Lightweight wrappers used for replay responses.
-# ---------------------------------------------------------------------------
-
-
-class _RawResponseWrapper:
-    """Minimal stand-in for ``openai._legacy_response.LegacyAPIResponse``.
-
-    langchain-openai v1.x calls ``client.with_raw_response.create(...)`` which returns an object that exposes ``.parse()`` and ``.headers``. When the underlying ``create`` is intercepted via our monkey-patch we detect the raw-response code path (via the ``X-Stainless-Raw-Response`` extra header) and wrap the synthesized ``ChatCompletion`` so the caller can ``.parse()`` it.
-    """
-
-    def __init__(self, parsed: Any) -> None:
-        self._parsed = parsed
-        self.headers: dict[str, str] = {}
-        self.http_response = None
-
-    def parse(self) -> Any:  # noqa: D401 — mimics openai SDK
-        return self._parsed
-
-
-# ---------------------------------------------------------------------------
 # Adapter implementation
 # ---------------------------------------------------------------------------
 
 
-class OpenAIAdapter(LLMProviderAdapter):
+class ChatChunkAccumulator(StreamAccumulator):
+    """Collects ``ChatCompletionChunk`` objects (or LiteLLM's ``ModelResponseStream``) into one response."""
+
+    def __init__(self) -> None:
+        self._text: list[str] = []
+        self._calls: dict[int, dict[str, Any]] = {}
+        self._usage: TokenUsage | None = None
+        self._model = ""
+
+    def add(self, chunk: Any) -> None:
+        self._model = getattr(chunk, "model", None) or self._model
+        usage = getattr(chunk, "usage", None)
+        if usage is not None and getattr(usage, "prompt_tokens", None) is not None:
+            self._usage = TokenUsage(input_tokens=usage.prompt_tokens, output_tokens=usage.completion_tokens)
+        for choice in getattr(chunk, "choices", None) or []:
+            delta = getattr(choice, "delta", None)
+            if delta is None or getattr(choice, "index", 0):
+                continue  # only the first choice is recorded, as for non-streamed responses
+            if getattr(delta, "content", None):
+                self._text.append(delta.content)
+            for tc in getattr(delta, "tool_calls", None) or []:
+                index = getattr(tc, "index", None)
+                call = self._calls.setdefault(index if index is not None else len(self._calls), {"name": "", "arguments": ""})
+                if isinstance(getattr(tc, "id", None), str) and tc.id:
+                    call["id"] = tc.id
+                fn = getattr(tc, "function", None)
+                if fn is not None:
+                    call["name"] += getattr(fn, "name", None) or ""
+                    call["arguments"] += getattr(fn, "arguments", None) or ""
+
+    def result(self) -> NormalizedResponse:
+        return NormalizedResponse(
+            content="".join(self._text) if self._text else None,
+            tool_calls=[self._calls[i] for i in sorted(self._calls)] or None,
+            token_usage=self._usage,
+            raw_metadata={"model": self._model} if self._model else {},
+        )
+
+
+def chat_chunks(normalized: NormalizedResponse, include_usage: bool, model_default: str = "gpt-4o-mini") -> list[dict[str, Any]]:
+    """The chunks of a replayed Chat Completions stream, as JSON-shaped dicts.
+
+    The text arrives in one chunk and each tool call in one chunk. Usage comes last, in a chunk with no choices, only when the request asked for it with ``stream_options={"include_usage": True}``, as the API does.
+    """
+    model = normalized.raw_metadata.get("model", "") or model_default
+    base = {"id": normalized.raw_metadata.get("id", "") or "chatcmpl-replayed", "object": "chat.completion.chunk", "created": 0, "model": model}
+
+    def chunk(delta: dict[str, Any], finish_reason: str | None = None) -> dict[str, Any]:
+        return {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}]}
+
+    chunks = [chunk({"role": "assistant", "content": normalized.content})]
+    for i, tc in enumerate(normalized.tool_calls or []):
+        args = tc["arguments"]
+        if isinstance(args, (dict, list)):
+            args = json.dumps(args, ensure_ascii=False)
+        call = {"index": i, "id": tc.get("id") or fallback_call_id(), "type": "function", "function": {"name": tc["name"], "arguments": args}}
+        chunks.append(chunk({"tool_calls": [call]}))
+    chunks.append(chunk({}, "tool_calls" if normalized.tool_calls else "stop"))
+    if include_usage and normalized.token_usage is not None:
+        tokens = normalized.token_usage
+        usage = {"prompt_tokens": tokens.input_tokens, "completion_tokens": tokens.output_tokens, "total_tokens": tokens.input_tokens + tokens.output_tokens}
+        chunks.append({**base, "choices": [], "usage": usage})
+    return chunks
+
+
+def wants_usage(kwargs: dict[str, Any]) -> bool:
+    options = kwargs.get("stream_options")
+    return isinstance(options, dict) and bool(options.get("include_usage"))
+
+
+
+
+class OpenAIAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the OpenAI Python SDK (``openai>=1.0``)."""
 
     @property
@@ -141,8 +199,16 @@ class OpenAIAdapter(LLMProviderAdapter):
         parameters = {
             k: v
             for k, v in raw_request.items()
-            if k not in _reserved and not _is_openai_sentinel(v)
+            if k not in _reserved and not _is_openai_sentinel(v) and not (k.startswith("extra_") and v is None)
         }
+        headers = parameters.get("extra_headers")
+        if isinstance(headers, dict):
+            # The SDK's own markers (helper method, raw response) say nothing about the request.
+            headers = {h: v for h, v in headers.items() if not h.startswith("X-Stainless-")}
+            if headers:
+                parameters["extra_headers"] = headers
+            else:
+                del parameters["extra_headers"]
 
         # Normalise messages so ``role="user"`` / ``"system"`` dicts
         # without a ``content`` key (sent by the Agents SDK with
@@ -265,6 +331,24 @@ class OpenAIAdapter(LLMProviderAdapter):
 
         return _ChatCompletionType.model_validate(payload)
 
+    # -- streaming -------------------------------------------------------------
+
+    def stream_accumulator(self) -> StreamAccumulator:
+        return ChatChunkAccumulator()
+
+    def replay_stream(self, normalized: NormalizedResponse, kwargs: dict[str, Any], is_async: bool) -> Any:
+        """Build an ``openai.Stream[ChatCompletionChunk]`` (or ``AsyncStream``) for a recorded response."""
+        from openai import AsyncStream, Stream
+        from openai._models import construct_type
+        from openai.types.chat import ChatCompletionChunk
+
+        items = [construct_type(type_=ChatCompletionChunk, value=c) for c in chat_chunks(normalized, wants_usage(kwargs))]
+        return wrap_raw(replayed_sdk_stream(Stream, AsyncStream, items, is_async), kwargs, is_async)
+
+    def tap_response(self, response: Any, tap: Any) -> Any:
+        """``with_raw_response`` / ``with_streaming_response`` return a raw response; the stream is what it parses to."""
+        return tap_raw_or_stream(response, tap)
+
     # -- monkey-patching -----------------------------------------------------
 
     @contextmanager
@@ -281,30 +365,16 @@ class OpenAIAdapter(LLMProviderAdapter):
 
         adapter = self
 
-        def _is_raw_response_call(kwargs: dict[str, Any]) -> bool:
-            """Detect whether the caller is the ``with_raw_response`` wrapper from openai SDK. langchain-openai v1.x routes through this path and expects a ``LegacyAPIResponse``-like object back.
-
-            The openai SDK sets ``X-Stainless-Raw-Response`` to a truthy string when routing through ``with_raw_response``; the exact value has varied across SDK versions (``"raw"`` / ``"true"``), so we accept any non-empty value.
-            """
-            extra = kwargs.get("extra_headers") or {}
-            return bool(extra.get("X-Stainless-Raw-Response"))
-
-        def _replayed(wire, kwargs: dict[str, Any]):  # type: ignore[no-untyped-def]
-            """Build the replayed response; ``with_raw_response`` callers get a ``.parse()``-able wrapper."""
-            raw_mode = _is_raw_response_call(kwargs)
-
-            def build(norm_resp: NormalizedResponse) -> Any:
-                denormalized = wire.denormalize_response(norm_resp)
-                return _RawResponseWrapper(denormalized) if raw_mode else denormalized
-
-            return build
+        def _replayed(wire, kwargs: dict[str, Any], is_async: bool):  # type: ignore[no-untyped-def]
+            """Build the replayed response; ``with_raw_response`` callers (langchain-openai v1.x) get a ``.parse()``-able wrapper."""
+            return lambda norm_resp: wrap_raw(wire.denormalize_response(norm_resp), kwargs, is_async)
 
         def _patched_create(wire, call, original_fn, scope, cls, is_async):  # type: ignore[no-untyped-def]
             """Wrap ``create`` for one wire format (Chat Completions or Responses)."""
 
             def run(args: Any, kwargs: dict[str, Any], helper):  # type: ignore[no-untyped-def]
                 return helper(
-                    scope, recorder, wire, call, kwargs, lambda: original_fn(*args, **kwargs), _replayed(wire, kwargs)
+                    scope, recorder, wire, call, kwargs, lambda: original_fn(*args, **kwargs), _replayed(wire, kwargs, is_async)
                 )
 
             if is_async:

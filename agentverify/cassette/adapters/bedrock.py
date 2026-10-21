@@ -22,6 +22,8 @@ from agentverify.cassette.adapters.base import (
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
+    StreamAccumulator,
+    StreamingWire,
 )
 from agentverify.models import TokenUsage
 
@@ -41,7 +43,7 @@ _PATCH_TARGET = "botocore.client.BaseClient._make_api_call"
 # operations on these services (CountTokens, ApplyGuardrail, Retrieve, ...) do not
 # generate and pass through untouched. Not exhaustive: AWS adds operations.
 _GENERATING_OPERATIONS: dict[str, frozenset[str]] = {
-    "bedrock-runtime": frozenset({"InvokeModel", "InvokeModelWithResponseStream", "ConverseStream", "StartAsyncInvoke"}),
+    "bedrock-runtime": frozenset({"InvokeModel", "InvokeModelWithResponseStream", "StartAsyncInvoke"}),
     "bedrock-agent-runtime": frozenset(
         {
             "InvokeAgent",
@@ -71,7 +73,56 @@ def _ensure_boto3_installed() -> None:
 # ---------------------------------------------------------------------------
 
 
-class BedrockAdapter(LLMProviderAdapter):
+class ConverseStreamAccumulator(StreamAccumulator):
+    """Collects ``ConverseStream`` events into one response."""
+
+    def __init__(self) -> None:
+        self._blocks: dict[int, dict[str, Any]] = {}
+        self._usage: TokenUsage | None = None
+
+    def add(self, event: Any) -> None:
+        if not isinstance(event, dict):
+            return
+        if "contentBlockStart" in event:
+            start = event["contentBlockStart"]
+            tool_use = (start.get("start") or {}).get("toolUse")
+            if tool_use is not None:
+                self._blocks[start.get("contentBlockIndex", len(self._blocks))] = {
+                    "toolUse": {"toolUseId": tool_use.get("toolUseId"), "name": tool_use.get("name", "")},
+                    "json": "",
+                }
+        elif "contentBlockDelta" in event:
+            body = event["contentBlockDelta"]
+            block = self._blocks.setdefault(body.get("contentBlockIndex", len(self._blocks)), {"text": ""})
+            delta = body.get("delta") or {}
+            if "text" in delta:
+                block["text"] = block.get("text", "") + delta["text"]
+            elif "toolUse" in delta:
+                block["json"] = block.get("json", "") + (delta["toolUse"].get("input") or "")
+        elif "metadata" in event:
+            usage = event["metadata"].get("usage")
+            if usage is not None:
+                self._usage = TokenUsage(input_tokens=usage.get("inputTokens", 0), output_tokens=usage.get("outputTokens", 0))
+
+    def result(self) -> NormalizedResponse:
+        content: list[dict[str, Any]] = []
+        for index in sorted(self._blocks):
+            block = self._blocks[index]
+            if "toolUse" in block:
+                try:
+                    arguments = json.loads(block["json"]) if block["json"] else {}
+                except ValueError:
+                    arguments = {}
+                content.append({"toolUse": {**block["toolUse"], "input": arguments}})
+            else:
+                content.append({"text": block["text"]})
+        response: dict[str, Any] = {"output": {"message": {"role": "assistant", "content": content}}}
+        normalized = BedrockAdapter().normalize_response(response)
+        normalized.token_usage = self._usage
+        return normalized
+
+
+class BedrockAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the Amazon Bedrock Converse API (via boto3)."""
 
     @property
@@ -223,13 +274,42 @@ class BedrockAdapter(LLMProviderAdapter):
 
         return result
 
+    # -- streaming -------------------------------------------------------------
+
+    def stream_accumulator(self) -> StreamAccumulator:
+        return ConverseStreamAccumulator()
+
+    def tap_response(self, response: Any, tap: Any) -> Any:
+        """The event stream is the ``stream`` key of the ``ConverseStream`` response."""
+        response["stream"] = tap(response["stream"])
+        return response
+
+    def replay_stream(self, normalized: NormalizedResponse, kwargs: dict[str, Any], is_async: bool) -> Any:
+        """Build a ``ConverseStream`` response whose ``stream`` yields the recorded response as events."""
+        message = self.denormalize_response(normalized)
+        events: list[dict[str, Any]] = [{"messageStart": {"role": "assistant"}}]
+        for index, block in enumerate(message["output"]["message"]["content"]):
+            if "toolUse" in block:
+                tool_use = block["toolUse"]
+                start = {"toolUse": {"toolUseId": tool_use["toolUseId"], "name": tool_use["name"]}}
+                events.append({"contentBlockStart": {"start": start, "contentBlockIndex": index}})
+                delta = {"toolUse": {"input": json.dumps(tool_use["input"], ensure_ascii=False)}}
+            else:
+                delta = {"text": block["text"]}
+            events.append({"contentBlockDelta": {"delta": delta, "contentBlockIndex": index}})
+            events.append({"contentBlockStop": {"contentBlockIndex": index}})
+        events.append({"messageStop": {"stopReason": message["stopReason"]}})
+        if "usage" in message:
+            events.append({"metadata": {"usage": message["usage"], "metrics": {"latencyMs": 0}}})
+        return {"stream": iter(events), "ResponseMetadata": {"HTTPStatusCode": 200}}
+
     # -- monkey-patching -----------------------------------------------------
 
     @contextmanager
     def patch(self, recorder: LLMCassetteRecorder) -> Generator[None, None, None]:
         """Monkey-patch ``botocore.client.BaseClient._make_api_call``.
 
-        Records and replays the ``bedrock-runtime`` ``Converse`` operation. Other operations that make a model generate (``InvokeModel``, ``ConverseStream``, ``InvokeAgent``, ``RetrieveAndGenerate``, ...) are guarded: streaming ones raise :class:`~agentverify.errors.CassetteUnsupportedCallError` in every mode, the rest raise in replay mode and pass through with a warning in record mode. Every other AWS call passes through untouched.
+        Records and replays the ``bedrock-runtime`` ``Converse`` and ``ConverseStream`` operations. Other operations that make a model generate (``InvokeModel``, ``InvokeAgent``, ``RetrieveAndGenerate``, ...) are guarded: streaming ones raise :class:`~agentverify.errors.CassetteUnsupportedCallError` in every mode, the rest raise in replay mode and pass through with a warning in record mode. Every other AWS call passes through untouched.
 
         In **record** mode the real API is called, the response is normalised, recorded into the cassette, and the original response is returned.
 
@@ -245,7 +325,16 @@ class BedrockAdapter(LLMProviderAdapter):
 
         def _patched_make_api_call(self_client: Any, operation_name: str, api_params: dict[str, Any]) -> Any:
             """Intercept Converse calls; guard other bedrock-runtime calls; pass through everything else."""
-            # Converse exists only on bedrock-runtime, so the operation name alone selects the recorded path.
+            # Converse and ConverseStream exist only on bedrock-runtime, so the operation name alone selects the recorded path.
+            if operation_name == "ConverseStream":
+                return call_sync(
+                    scope,
+                    recorder,
+                    adapter,
+                    "ConverseStream",
+                    {**api_params, "stream": True},
+                    lambda: original_fn(self_client, operation_name, api_params),
+                )
             if operation_name != "Converse":
                 service = getattr(getattr(getattr(self_client, "meta", None), "service_model", None), "service_name", None)
                 if operation_name in _GENERATING_OPERATIONS.get(service, ()) and not _guards_off(recorder):
