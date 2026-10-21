@@ -37,13 +37,18 @@ This is probably for you if:
 - You're building on MCP servers and need to pin down which tools get called with which arguments
 - You want token, cost, and latency budgets enforced in CI, not caught only on the billing dashboard
 
-This is the **regression-test layer** for agents: deterministic assertions on what the agent did. It's distinct from quality evaluation (LLM-as-judge scoring on open-ended output) and production trace observability, both of which are often used alongside agentverify rather than instead of it. See [Where agentverify fits](#where-agentverify-fits).
+agentverify does one job in agent evaluation: deterministic regression tests on what the agent did. It runs next to a quality-evaluation tool, not instead of one:
+
+- **On every PR: agentverify.** Assert tool calls, arguments, step-to-step data flow, handoffs, cost, and latency in pytest. Replay needs no LLM call, no secret, and no cloud account, and runs in seconds.
+- **On staging, on a schedule: a judge-based evaluator** such as Amazon Bedrock AgentCore Evaluations, DeepEval, or LangSmith. Score answer quality, run datasets, and reuse production traces, where the judge model's cost is worth paying.
 
 ## Install
 
 ```bash
 pip install agentverify
 ```
+
+Requires Python 3.10+ and pytest 7+.
 
 ## Quick Start
 
@@ -90,7 +95,7 @@ test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
 
-> **Using a real agent framework?** Walk through the [Real-World Examples](#real-world-examples) below for in-depth walkthroughs with cassettes, or jump to the [Examples](#examples) table for a quick index of all runnable samples.
+> **Using a real agent framework?** See the [Real-World Examples](#real-world-examples) below, or the [Examples](#examples) table for every runnable sample.
 
 ## Real-World Examples
 
@@ -230,7 +235,7 @@ Full-depth examples for the LangChain ecosystem live under [`examples/`](example
 - **[LangGraph multi-agent supervisor](examples/langgraph-multi-agent-supervisor/)**: a supervisor routes to a research expert and a math expert; each `add` in the math chain must consume the previous `add`'s result. `assert_step_uses_result_from` matches the numeric running total (`"231317.0"` produced as a string, consumed as `231317` int/float) across type boundaries, with digit-boundary checks that keep `"231"` from falsely appearing inside `1231`.
 - **[LangChain GitHub issue triage](examples/langchain-issue-triage/)**: a `create_react_agent` drives the GitHub MCP server to list issues, read one, propose labels. The step-level tests verify that the `issue_number` passed to `get_issue` actually came from the preceding `list_issues` response, that the GitHub reads returned usable results (`assert_no_tool_errors`, `assert_tool_result_matches`), and that destructive tools like `close_issue` are never called.
 
-Each example ships with its own pre-recorded cassette, a detailed `README.md`, and a full test file. Pick whichever framework fits your stack.
+Each example ships with its own pre-recorded cassette, a detailed `README.md`, and a full test file.
 
 ## Build an ExecutionResult
 
@@ -276,7 +281,7 @@ def test_weather_agent(cassette):
     ])
 ```
 
-The `cassette` fixture is provided by the agentverify pytest plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP; it patches the SDK's chat completion method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
+The `cassette` fixture is provided by the agentverify pytest plugin. It creates an `LLMCassetteRecorder` that intercepts LLM SDK calls (not HTTP; it patches each SDK's call method directly). Use `@pytest.mark.agentverify` to mark your test, and call your agent code inside the `with cassette(...)` block. After the block exits, call `rec.to_execution_result()` to build the result for assertions.
 
 Record the cassette once, then replay it forever:
 
@@ -301,8 +306,8 @@ agentverify supports three cassette modes:
 ### Stale Cassette Detection
 
 Cassette replay verifies request content by default so a stale cassette fails loudly instead of returning the old response. Each replay request is compared against the recorded request:
-- **Model name**: must match exactly (empty model in either side skips the check)
-- **Tool names**: the sorted list of tool names must match (empty tools in either side skips the check)
+- **Model name**: must match exactly (an empty model on either side skips the check)
+- **Tool names**: the sorted list of tool names must match (empty tools on either side skip the check)
 
 A `CassetteRequestMismatchError` is raised on mismatch with a clear message indicating which field differs and suggesting re-recording.
 
@@ -324,24 +329,28 @@ with cassette("my_test.yaml", provider="openai", match_requests=False) as rec:
 Cassettes drift when your prompts, tool schemas, or model versions change. agentverify's stale detection catches model-name and tool-name mismatches automatically (see [Stale Cassette Detection](#stale-cassette-detection)); a prompt-only change won't invalidate the cassette unless the model's tool-call output differs. In practice:
 
 - Re-record on major prompt rewrites or tool schema changes
-- Pin model versions (`gpt-4o-2024-08-06`, not `gpt-4o`) in your agent code so cassettes don't silently shift underneath you
+- Pin model versions (a dated snapshot, not a moving alias) in your agent code so cassettes don't silently shift underneath you
 - Treat cassette diffs as part of the PR review. A YAML diff next to the prompt diff is a feature, not noise
 - Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments, so small wording changes in LLM outputs don't cascade into test failures
 
 ### Calls Cassettes Cannot Record
 
-Cassettes record non-streaming chat calls, sync or async: OpenAI `chat.completions.create` and `responses.create`, Anthropic `messages.create`, Gemini `models.generate_content`, Bedrock `Converse`, and LiteLLM `completion` / `acompletion`. Inside a cassette or `MockLLM`, agentverify raises `CassetteUnsupportedCallError` instead of letting other LLM calls reach the real API:
+Cassettes record non-streaming chat calls, sync or async: OpenAI `chat.completions.create` and `responses.create`, Anthropic `messages.create`, Gemini `models.generate_content`, Bedrock `Converse`, and LiteLLM `completion` / `acompletion`. Inside a cassette or `MockLLM`, other LLM calls are handled as follows.
+
+These raise `CassetteUnsupportedCallError`:
 - Streaming entry points (`stream=True`, `messages.stream()`, `generate_content_stream()`, Bedrock `ConverseStream`, OpenAI Responses `stream()`), in record and replay mode.
-- In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client, including `parse()` and embeddings. Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...) and LiteLLM `text_completion` and `responses` raise too.
 - LLM calls that overlap in time while recording (`asyncio.gather`, threads). They finish in a different order on each run, so the cassette would replay the wrong response. Await them one at a time.
-- In record mode, the entry points named above run with a warning. Other requests (beta resources, WebSocket APIs) run without one, and replay then fails at that call.
-- With no cassette file (`AUTO` passthrough), nothing is saved and no guard applies.
+- In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client (`parse()`, embeddings, beta resources, ...), Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...), and LiteLLM `text_completion` and `responses`.
+
+These reach the real API:
+- In record mode, those other requests. `parse()`, the Bedrock operations, and the LiteLLM calls warn that the cassette will not contain them; embeddings, beta resources, and WebSocket APIs do not. Replay then fails at that call.
+- With no cassette file (`AUTO` passthrough), every call. Nothing is saved.
 
 Frameworks that stream by default need streaming turned off, e.g. `BedrockModel(streaming=False)` in Strands.
 
 ### OpenAI Responses API
 
-`responses.create` is recorded in the same `provider="openai"` cassette as Chat Completions, including the `with_raw_response` path that langchain-openai uses. The OpenAI Agents SDK uses it by default, so `set_default_openai_api("chat_completions")` is no longer needed. Tool results sent back as `function_call_output` items become the step's `tool_results`, so `assert_step_uses_result_from` works the same way. Only function tools are recorded: a response with a client-executed computer, shell, apply-patch, or custom tool call raises `CassetteUnsupportedCallError`.
+`responses.create` is recorded in the same `provider="openai"` cassette as Chat Completions, including the `with_raw_response` path that langchain-openai uses. The OpenAI Agents SDK uses it by default. Tool results sent back as `function_call_output` items become the step's `tool_results`, so `assert_step_uses_result_from` works the same way. Only function tools are recorded: a response with a client-executed computer, shell, apply-patch, or custom tool call raises `CassetteUnsupportedCallError`.
 
 With `previous_response_id` or `conversation`, the API keeps earlier turns on the server and each request carries only the new input. The cassette then misses those turns, and agentverify warns. Pass `store=False` and send the full input instead.
 
@@ -502,7 +511,7 @@ assert_final_output(result, contains="tokyo", case_sensitive=False)
 
 ### Strict Mode
 
-`assert_cost()` and `assert_latency()` silently pass when the underlying data (`token_usage`, `total_cost_usd`, `duration_ms`) is `None`. Useful during cassette replay where some data may be unavailable. Pass `strict=True` to require the data to be present:
+`assert_cost()` and `assert_latency()` silently pass when the underlying data (`token_usage`, `total_cost_usd`, `duration_ms`) is `None`, which keeps them usable on cassette replay where some data may be missing. Pass `strict=True` to require the data to be present:
 
 ```python
 # Fails if token_usage or total_cost_usd is None
@@ -661,12 +670,12 @@ agentverify ships with built-in adapters for popular agent frameworks. No conver
 
 | Framework | Adapter | Input |
 |---|---|---|
-| [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | `AgentExecutor.invoke()` dict |
-| [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` result dict |
+| [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | Legacy `AgentExecutor.invoke()` dict |
+| [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` / `create_supervisor` result dict, and LangChain 1.x `create_agent` result |
 | [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
 
-For LangChain, pass the conversation history `messages` list as a second argument to capture token usage:
+LangChain 1.x `create_agent` returns a LangGraph graph, so pass its result to `from_langgraph`. For a legacy `AgentExecutor`, pass the conversation history `messages` list as a second argument to `from_langchain` to capture token usage:
 
 ```python
 from agentverify.frameworks.langchain import from_langchain
@@ -681,7 +690,7 @@ from agentverify.frameworks.langgraph import from_langgraph
 from agentverify.frameworks.strands import from_strands
 from agentverify.frameworks.openai_agents import from_openai_agents
 
-# LangGraph: create_react_agent / create_supervisor result
+# LangGraph: create_react_agent / create_supervisor / LangChain create_agent result
 execution_result = from_langgraph(app.invoke({"messages": [...]}))
 
 # Strands: agent call result
@@ -752,7 +761,7 @@ Provide one `mock_response(...)` per LLM call your agent is expected to make. If
 | You haven't recorded a cassette yet | You want fidelity with real LLM output |
 | You want to test hypothetical scenarios (errors, edge cases) | You want to catch prompt-regression bugs |
 | You're doing behavior-driven tests of routing | You're regression-testing full agent runs |
-| You want zero dependency on any API key | You've already got recordings to replay |
+| You want each LLM response visible in the test code | You've already got recordings to replay |
 
 ## CI Integration
 
@@ -768,18 +777,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      # Shown separately here for clarity. In practice, list agentverify
-      # alongside the rest of your project's deps in requirements.txt.
-      - run: pip install "agentverify[all]"
-      - run: pip install -r requirements.txt  # your project's deps
+      - run: pip install -r requirements.txt  # your project's deps, including agentverify[...]
       - run: pytest --tb=short -v
 ```
 
-Cassette files in `tests/cassettes/` are replayed automatically. No API keys or secrets needed in CI.
+Committed cassettes (by default in a `cassettes/` directory next to each test file) are replayed automatically. No API keys or secrets needed in CI.
 
 ## Error Messages
 
@@ -813,12 +819,7 @@ LatencyBudgetError: Latency budget exceeded
   Exceeded by: 450.0 ms (15.0%)
 ```
 
-Other error types follow the same pattern: `SafetyRuleViolationError`, `FinalOutputError`, `CassetteRequestMismatchError` (stale cassette detected), `CassetteMissingRequestError` (cassette or MockLLM ran out of queued responses), and the step-level `StepIndexError`, `StepNameNotFoundError`, `StepNameAmbiguousError`, `StepOutputError`, `StepDependencyError`. All inherit from `AgentVerifyError`, which itself extends `AssertionError` so pytest treats them as normal test failures.
-
-## Requirements
-
-- Python 3.10+
-- pytest 7+
+Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure. The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), and `CassetteUnsupportedCallError`.
 
 ## Examples
 
@@ -838,14 +839,7 @@ See each example's README for setup and recording mode details.
 
 ## Benchmark
 
-The [`benchmarks/execution-model-trajectory/`](benchmarks/execution-model-trajectory/) directory contains a comparison study that writes the same execution-trajectory assertion in three different assertion-execution-model styles (inline pytest via agentverify, separate-runner via [DeepEval](https://www.deepeval.com/docs/evaluation-llm-tracing) [`ToolCorrectnessMetric`](https://www.deepeval.com/docs/metrics-tool-correctness) + `@observe`, managed remote via [Amazon Bedrock AgentCore Evaluations Custom code-based evaluator](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/code-based-evaluators.html) on Lambda) over two agents (Strands single-agent ReAct and LangGraph multi-agent supervisor). Per-cell numbers (LOC, wall time, API calls, dollar cost, CI secrets, cold-start) are recorded under [`results/`](benchmarks/execution-model-trajectory/results/). See the bench's [`README.md`](benchmarks/execution-model-trajectory/README.md) for the operating manual and [`DESIGN.md`](benchmarks/execution-model-trajectory/DESIGN.md) for the methodology and explicit non-goals. The benchmark is a one-time exercise that refreshes when tooling versions change materially, not a continuous CI gate.
-
-## Where agentverify fits
-
-agentverify does one job in agent evaluation: deterministic regression tests on what the agent did. It runs next to a quality-evaluation tool, not instead of one:
-
-- **On every PR: agentverify.** Assert tool calls, arguments, step-to-step data flow, handoffs, cost, and latency in pytest. Replay needs no LLM call, no secret, and no cloud account, and runs in seconds.
-- **On staging, on a schedule: a judge-based evaluator** such as Amazon Bedrock AgentCore Evaluations, DeepEval, or LangSmith. Score answer quality, run datasets, and reuse production traces, where the judge model's cost is worth paying.
+[`benchmarks/execution-model-trajectory/`](benchmarks/execution-model-trajectory/) measures the same tool-trajectory assertion written three ways for CI (agentverify in pytest, DeepEval, and an AgentCore Evaluations code-based evaluator), recording lines of code, wall time, API calls, cost, and CI secrets for each.
 
 ## Roadmap
 
