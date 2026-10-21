@@ -693,6 +693,24 @@ The signal is three-valued: a result is a **known error**, a **known success**, 
 
 If you build an `ExecutionResult` by hand or with a custom converter, set the signal yourself via the `tool_results_meta` field on each `Step`: a list positionally aligned with `tool_results`, where entry `i` is `{"is_error": True}`, `{"is_error": False}`, or `{}` (unknown). With `step_probe`, pass it through `handle.set_tool_result(result, is_error=True)`.
 
+## Production Traces
+
+`from_otel` turns OpenTelemetry traces of agent runs into `ExecutionResult`s, one per trace, so the same assertions run on what the agent did in production or on staging, without a judge model:
+
+```python
+from agentverify import assert_no_tool_call, assert_no_tool_errors
+from agentverify.traces import from_otel
+
+for result in from_otel("traces.jsonl"):  # an OTLP JSON export
+    assert_no_tool_call(result, forbidden_tools=["delete_user"])
+    assert_no_tool_errors(result)
+```
+
+It reads an OTLP JSON file or document, or the spans of the OpenTelemetry SDK (`InMemorySpanExporter.get_finished_spans()`). Each model call becomes a step with its tool calls, tool results and errors, token usage, and agent, and agent changes become handoffs (an agent called as a tool, or agents running in parallel, are not handoffs). Tested with the traces of Strands Agents, Pydantic AI, and Google ADK, and of the OpenAI Agents SDK through OpenInference and OpenLLMetry.
+
+- Arguments, results, and text are in a trace only when the instrumentation captures message content. Without it, steps still carry tool names, errors, agents, and token usage.
+- Tool results keep the shape the trace stores them in, which can differ from what the framework adapter returns for the same run (Strands stores the result's content blocks, ADK a `{"result": ...}` dict).
+
 ## Framework Integration
 
 ### Built-in Adapters

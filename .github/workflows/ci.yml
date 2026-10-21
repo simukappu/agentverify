@@ -82,8 +82,8 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -p no:agentverify
 
-  # Records and replays tool calls through real agent frameworks. The unit tests cover the hooks
-  # against stand-in modules; this job checks them against the frameworks themselves.
+  # Runs tool replay and trace import against real agent frameworks. The unit tests cover them
+  # with stand-in modules and hand-built spans; this job checks the frameworks themselves.
   frameworks:
     runs-on: ubuntu-latest
 
@@ -99,10 +99,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[openai,anthropic,bedrock,dev]"
-          pip install strands-agents langchain langgraph openai-agents pydantic-ai-slim
+          pip install strands-agents langchain langgraph openai-agents pydantic-ai-slim opentelemetry-sdk
 
       - name: Run framework tests
-        run: python -m pytest tests/test_tool_replay_frameworks.py tests/test_tool_replay.py -v -p no:agentverify
+        run: python -m pytest tests/test_real_frameworks.py tests/test_tool_replay.py tests/test_traces.py -v -p no:agentverify
 
   examples:
     runs-on: ubuntu-latest

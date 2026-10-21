@@ -1,4 +1,4 @@
-"""Tool calls of real agent frameworks are recorded and replayed (run where the framework is installed)."""
+"""Real agent frameworks: tool calls are recorded and replayed, and traces convert (run where the framework is installed)."""
 
 from __future__ import annotations
 
@@ -165,3 +165,48 @@ def test_pydantic_ai_tool(tmp_path):
 
     executions = _round_trip(tmp_path / "pai.yaml", lambda: agent.run_sync("go").output)
     assert executions[0]["result"] == 3
+
+
+def test_pydantic_ai_trace_becomes_an_execution_result():
+    pytest.importorskip("pydantic_ai")
+    pytest.importorskip("opentelemetry.sdk")
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from pydantic_ai import Agent, ModelRetry
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+    from pydantic_ai.models.instrumented import InstrumentationSettings
+
+    from agentverify import ToolCall, assert_tool_calls
+    from agentverify.traces import from_otel
+
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    turns = iter(
+        [
+            ModelResponse(parts=[ToolCallPart("add", {"a": 2, "b": 3}, tool_call_id="c1"), ToolCallPart("check", {"x": "bad"}, tool_call_id="c2")]),
+            ModelResponse(parts=[TextPart("5")]),
+        ]
+    )
+    agent = Agent(FunctionModel(lambda messages, info: next(turns)), name="calc")
+    agent.instrument = InstrumentationSettings(tracer_provider=provider, include_content=True)
+
+    @agent.tool_plain
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    @agent.tool_plain(retries=0)
+    def check(x: str) -> str:
+        raise ModelRetry("bad x")
+
+    try:
+        agent.run_sync("2+3?")
+    except Exception:
+        pass  # retries=0 ends the run; the trace still has the calls
+    [result] = from_otel(exporter.get_finished_spans())
+    assert_tool_calls(result, expected=[ToolCall("add", {"a": 2, "b": 3}), ToolCall("check", {"x": "bad"})])
+    assert result.steps[0].agent == "calc" and result.steps[0].tool_results[0] == 5
+    assert result.steps[0].tool_results_meta[1] == {"is_error": True}
+
