@@ -21,7 +21,7 @@ Specifically:
 - **Budgets**: token counts, cost in USD, end-to-end latency
 - **Safety**: a list of tools that must never be called, no matter what the LLM decides
 
-Built-in adapters cover LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK, and agents may be sync or async, streamed or not. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
+Built-in adapters cover LangChain, LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, and CrewAI, and agents may be sync or async, streamed or not. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
 
 ## Why I built this
 
@@ -242,7 +242,7 @@ Each example ships with its own pre-recorded cassette, a detailed `README.md`, a
 Every agentverify assertion takes an `ExecutionResult`. You can build one three ways:
 
 1. **From a dict**: convenient for quick tests and fixtures, as in the [Quick Start](#quick-start).
-2. **From a built-in adapter**: one-liner for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK. See [Framework Integration](#framework-integration).
+2. **From a built-in adapter**: one-liner for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, and CrewAI. See [Framework Integration](#framework-integration).
 3. **From a custom converter**: for frameworks or pure-Python agents not covered by a built-in adapter, map your output to the schema below. See [`examples/custom-converter-python-agent/`](examples/custom-converter-python-agent/) for a complete walkthrough with an Anthropic SDK agent, including a pre-recorded cassette and step-level tests.
 
 `ExecutionResult.from_dict()` accepts these keys:
@@ -723,6 +723,9 @@ agentverify ships with built-in adapters for popular agent frameworks. No conver
 | [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` / `create_supervisor` result dict, and LangChain 1.x `create_agent` result |
 | [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
+| [Pydantic AI](https://github.com/pydantic/pydantic-ai) | `from agentverify.frameworks.pydantic_ai import from_pydantic_ai` | `AgentRunResult` (pass `agent_name=` to name the steps' agent) |
+| [Google ADK](https://github.com/google/adk-python) | `from agentverify.frameworks.google_adk import from_google_adk` | The events of `Runner.run()` / `run_async()`, streamed or not |
+| [CrewAI](https://github.com/crewAIInc/crewAI) | `from agentverify.frameworks.crewai import from_crewai` | `CrewOutput` from `crew.kickoff()` (token usage is the crew total) |
 
 LangChain 1.x `create_agent` returns a LangGraph graph, so pass its result to `from_langgraph`. For a legacy `AgentExecutor`, pass the conversation history `messages` list as a second argument to `from_langchain` to capture token usage:
 
@@ -895,7 +898,6 @@ See each example's README for setup and recording mode details.
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
 - Concurrent LLM calls: record and replay calls that overlap (`asyncio.gather`), and async Bedrock (`aiobotocore`)
-- Framework adapters for Google ADK and CrewAI
 
 ## Changelog
 

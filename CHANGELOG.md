@@ -7,6 +7,7 @@
 - **Tool calls are recorded and replayed**: replay returns each tool's recorded result instead of running the tool. Built in for LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP; `@cassette_tool` covers hand-written tools. A call with no recorded match raises `CassetteToolMismatchError`. See README "Tool Calls".
 - **Stale cassettes are caught when the prompt changes**: replay now also compares each tool's schema, the system prompt, and user message text, and shows a diff. pytest lists the stale cassettes and the command to re-record them. `match_ignore` leaves changing text out. See README "Stale Cassette Detection".
 - **`from_otel` builds `ExecutionResult`s from OpenTelemetry traces**, so the assertions run on production and staging runs. Reads the GenAI conventions and OpenInference. See README "Production Traces".
+- **Framework adapters for Pydantic AI, Google ADK, and CrewAI**: `from_pydantic_ai`, `from_google_adk`, `from_crewai`. See README "Built-in Adapters".
 - **Streamed responses are recorded and replayed** for every provider, so frameworks that stream by default work without turning streaming off. A cassette recorded either way replays either way. See README "Streaming".
 
 ### Bug Fixes

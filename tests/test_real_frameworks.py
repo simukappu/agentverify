@@ -210,3 +210,36 @@ def test_pydantic_ai_trace_becomes_an_execution_result():
     assert result.steps[0].agent == "calc" and result.steps[0].tool_results[0] == 5
     assert result.steps[0].tool_results_meta[1] == {"is_error": True}
 
+
+def test_from_pydantic_ai_on_a_real_run():
+    pytest.importorskip("pydantic_ai")
+    from pydantic_ai import Agent, ModelRetry
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from agentverify import ToolCall, assert_tool_calls
+    from agentverify.frameworks.pydantic_ai import from_pydantic_ai
+
+    turns = iter(
+        [
+            ModelResponse(parts=[ToolCallPart("add", {"a": 2, "b": 3}, tool_call_id="c1"), ToolCallPart("check", {"x": "bad"}, tool_call_id="c2")]),
+            ModelResponse(parts=[ToolCallPart("check", {"x": "ok"}, tool_call_id="c3")]),
+            ModelResponse(parts=[TextPart("5")]),
+        ]
+    )
+    agent = Agent(FunctionModel(lambda messages, info: next(turns)))
+
+    @agent.tool_plain
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    @agent.tool_plain
+    def check(x: str) -> str:
+        if x != "ok":
+            raise ModelRetry("bad x")
+        return "fine"
+
+    result = from_pydantic_ai(agent.run_sync("2+3?"), agent_name="calc")
+    assert_tool_calls(result, expected=[ToolCall("add", {"a": 2, "b": 3}), ToolCall("check", {"x": "bad"}), ToolCall("check", {"x": "ok"})])
+    assert result.steps[0].tool_results == [5, "bad x"] and result.steps[0].tool_results_meta[1] == {"is_error": True}
+    assert result.final_output == "5"
