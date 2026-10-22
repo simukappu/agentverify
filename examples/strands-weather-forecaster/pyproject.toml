@@ -9,6 +9,7 @@ description = "Strands Weather Forecaster example for agentverify"
 requires-python = ">=3.10"
 dependencies = [
     "strands-agents",
+    "strands-agents-tools",  # http_request
     "agentverify",
 ]
 

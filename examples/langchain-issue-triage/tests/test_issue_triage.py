@@ -2,6 +2,8 @@
 
 Tests use cassette replay mode — no LLM API key is required. Cassette files in ``cassettes/`` contain pre-recorded OpenAI LLM interactions that are replayed deterministically.
 
+These tests assert on the cassettes themselves and do not run the agent: ``issue_triage_mock.yaml`` was written by hand for the mock MCP server, and ``issue_triage_real.yaml`` was recorded against the real GitHub MCP server, which needs a token to start.
+
 Requirements: 2.3, 2.5, 3.5
 """
 

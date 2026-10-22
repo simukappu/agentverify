@@ -68,4 +68,4 @@ To re-record the cassette with real LLM calls:
 
 ## Framework Adapter
 
-This example uses agentverify's built-in Strands Agents adapter (`from_strands`) under the hood, invoked transparently by the `cassette` fixture. See the [main README's Framework Integration section](../../README.md#framework-integration) for details.
+The tests run the agent inside the `cassette` fixture and build the `ExecutionResult` from the recording (`rec.to_execution_result()`), tool results included. When you call the agent outside a cassette, `from_strands(result)` builds one from the `AgentResult`; see the [main README's Framework Integration section](../../README.md#framework-integration).

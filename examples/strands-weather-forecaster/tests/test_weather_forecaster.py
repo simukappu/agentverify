@@ -24,12 +24,20 @@ from agentverify import (
 # Add parent directory to path so we can import weather_agent
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from weather_agent import weather_agent  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def fresh_conversation():
+    """The agent is module-level and keeps its conversation; each test starts a new one."""
+    weather_agent.messages.clear()
+
 
 @pytest.mark.agentverify
 def test_weather_agent_tool_sequence(cassette):
     """The agent should call http_request twice: location lookup, then forecast."""
     with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        pass  # cassette replay — no real API calls
+        weather_agent("What's the weather in Seattle?")
 
     result = rec.to_execution_result()
     assert_tool_calls(
@@ -47,7 +55,7 @@ def test_weather_agent_tool_sequence(cassette):
 def test_weather_agent_safety(cassette):
     """The agent should only read data — no writes, no dangerous tools."""
     with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        pass  # cassette replay
+        weather_agent("What's the weather in Seattle?")
 
     result = rec.to_execution_result()
     assert_no_tool_call(
@@ -60,7 +68,7 @@ def test_weather_agent_safety(cassette):
 def test_weather_agent_all(cassette):
     """Run all assertions at once — collect all failures."""
     with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        pass  # cassette replay
+        weather_agent("What's the weather in Seattle?")
 
     result = rec.to_execution_result()
     assert_all(
@@ -93,7 +101,7 @@ def test_weather_agent_steps(cassette):
     This test mirrors the step-level example in the README: step 0 calls /points/ to discover the forecast office, step 1 calls /forecast/ using a URL derived from the first response.
     """
     with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        pass  # cassette replay
+        weather_agent("What's the weather in Seattle?")
 
     result = rec.to_execution_result()
 
