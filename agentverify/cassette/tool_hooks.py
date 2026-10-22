@@ -65,9 +65,15 @@ def _langchain(stack: ExitStack) -> None:
     run, arun = BaseTool.run, BaseTool.arun
 
     def arguments_of(tool: Any, tool_input: Any) -> Any:
-        # Injected arguments (state, runtime) are not the model's arguments; keep the ones the model sees.
+        # Injected arguments (state, runtime, the call id) are not the model's arguments; keep the ones the model sees.
         if not isinstance(tool_input, dict):
             return tool_input
+        drop_injected = getattr(tool, "_filter_injected_args", None)  # langchain-core 1.x
+        if callable(drop_injected):
+            try:
+                return dict(drop_injected(dict(tool_input)))
+            except Exception:  # pragma: no cover — a tool whose schema the helper cannot read
+                pass
         fields = getattr(getattr(tool, "tool_call_schema", None), "model_fields", None)
         if isinstance(fields, dict) and fields:
             return {k: v for k, v in tool_input.items() if k in fields}

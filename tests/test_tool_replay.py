@@ -304,6 +304,12 @@ class TestLangChainHook:
         class Untyped(BaseTool):
             tool_call_schema = None
 
+        class WithInjected(BaseTool):
+            """langchain-core 1.x: the tool drops its own injected arguments (state, runtime)."""
+
+            def _filter_injected_args(self, tool_input):
+                return {k: v for k, v in tool_input.items() if k != "runtime"}
+
         fake_modules(
             langchain_core=_module("langchain_core"),
             **{
@@ -311,10 +317,10 @@ class TestLangChainHook:
                 "langchain_core.tools": _module("langchain_core.tools", BaseTool=BaseTool),
             },
         )
-        return BaseTool, Untyped
+        return BaseTool, Untyped, WithInjected
 
     def test_run_and_arun(self, tmp_path, lc):
-        BaseTool, Untyped = lc
+        BaseTool, Untyped, WithInjected = lc
 
         def run():
             tool = BaseTool()
@@ -325,6 +331,7 @@ class TestLangChainHook:
                 asyncio.run(tool.arun({"q": "b"}, tool_call_id="c2")).content,
                 Untyped().run("raw text"),
                 Untyped().run({"q": "dict", "x": 1}),
+                WithInjected().run({"q": "inj", "runtime": object()}),
             )
 
         recorded, replayed, executions = _round_trip(tmp_path, run)
@@ -332,9 +339,10 @@ class TestLangChainHook:
         assert executions[0] == {"name": "search", "arguments": {"q": "a"}, "result": "found a"}
         assert executions[1]["result"] == {"tool_message": {"content": "found art", "artifact": {"n": 1}}}
         assert executions[2]["result"] == {"tool_message": {"content": "failed", "status": "error"}}
+        assert executions[-1]["arguments"] == {"q": "inj"}
 
     def test_a_plain_recording_replays_into_a_message(self, tmp_path, lc):
-        BaseTool, _ = lc
+        BaseTool, _, _ = lc
         path = tmp_path / "p.yaml"
         with LLMCassetteRecorder(path, mode=CassetteMode.RECORD):
             BaseTool().run({"q": "z"})
