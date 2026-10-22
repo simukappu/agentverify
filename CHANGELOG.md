@@ -50,7 +50,7 @@
 
 ### Bug Fixes
 
-- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See [README "Calls Cassettes Cannot Record"](README.md#calls-cassettes-cannot-record).
+- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See [README "Recorded and Unsupported Calls"](README.md#recorded-and-unsupported-calls).
 - **Credentials passed as call arguments are redacted from cassettes**, such as `api_key=` or an `x-api-key` header. Default patterns also cover Google, Bedrock, AWS temporary, and GitHub keys. See [README "Cassette Sanitization"](README.md#cassette-sanitization).
 - **OpenAI Agents SDK tool failures are detected**, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` no longer pass on them.
 
