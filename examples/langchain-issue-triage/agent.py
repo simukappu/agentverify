@@ -6,6 +6,7 @@ Uses a GitHub MCP server (or mock MCP server) to analyze issues in a target repo
 import argparse
 import asyncio
 import os
+import sys
 from pathlib import Path
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -65,7 +66,7 @@ async def run_issue_triage(
         )
         mcp_config = {
             "github": {
-                "command": "python",
+                "command": sys.executable,
                 "args": [mock_server_path],
                 "env": {"MOCK_REPO": target_repo},
                 "transport": "stdio",
@@ -90,8 +91,8 @@ async def run_issue_triage(
         f"You are a GitHub Issue triage assistant. "
         f"Analyze the issues in the repository {target_repo} "
         f"and suggest labels, priorities, and assignees. "
-        f"Only perform read operations and add labels; "
-        f"do not close or delete any issues."
+        f"Only perform read operations; do not modify, close, or delete any issues. "
+        f"Start your answer with the heading 'Issue Triage Results'."
     )
 
     # langchain-mcp-adapters 0.1.0+ does not support context manager usage.

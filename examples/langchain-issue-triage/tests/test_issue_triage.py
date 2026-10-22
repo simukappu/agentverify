@@ -2,10 +2,14 @@
 
 Tests use cassette replay mode — no LLM API key is required. Cassette files in ``cassettes/`` contain pre-recorded OpenAI LLM interactions that are replayed deterministically.
 
-These tests assert on the cassettes themselves and do not run the agent: ``issue_triage_mock.yaml`` was written by hand for the mock MCP server, and ``issue_triage_real.yaml`` was recorded against the real GitHub MCP server, which needs a token to start.
+The mock-server tests run the agent against the mock GitHub MCP server (``examples/mcp-server``), replaying ``issue_triage_mock.yaml`` for the model and the tool results. ``issue_triage_real.yaml`` was recorded against the real GitHub MCP server, which needs a token to start, so its test asserts on the recording without running the agent.
 
 Requirements: 2.3, 2.5, 3.5
 """
+
+import asyncio
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +21,19 @@ from agentverify import (
     assert_tool_calls,
 )
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from agent import DEFAULT_REPO, run_issue_triage  # noqa: E402
+
+MOCK_CASSETTE = "issue_triage_mock.yaml"
+
+
+def run_mock_triage(cassette):
+    """Run the agent on the mock GitHub MCP server inside the cassette."""
+    with cassette(MOCK_CASSETTE, provider="openai") as rec:
+        asyncio.run(run_issue_triage(DEFAULT_REPO, use_mock=True))
+    return rec.to_execution_result()
+
 
 class TestIssueTriage_MockMCP:
     """Tests using the mock GitHub MCP server cassette."""
@@ -27,10 +44,7 @@ class TestIssueTriage_MockMCP:
 
         The agent should first list open issues, then fetch details for specific issues that need triage.
         """
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass  # cassette replay — no real API calls
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
 
         assert_tool_calls(
             result,
@@ -48,10 +62,7 @@ class TestIssueTriage_MockMCP:
 
         The issue triage agent should only read issues and add labels. It must not close, delete, update, or create issues.
         """
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass  # cassette replay
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
         assert_no_tool_call(
             result,
             forbidden_tools=[
@@ -101,16 +112,13 @@ from agentverify import (
 
 
 class TestIssueTriageStepLevel:
-    """Verify the multi-step ReAct pattern: step 0 lists issues, step 1 fetches issue details using the number discovered in step 0, step 2 lists labels, step 3 produces the final triage summary.
+    """Verify the multi-step ReAct pattern: step 0 lists issues, step 1 lists labels and fetches each issue by the numbers discovered in step 0 (in parallel), step 2 writes the triage summary.
     """
 
     @pytest.mark.agentverify
     def test_step_sequence(self, cassette):
         """Each step makes exactly the tool call it should."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
 
         assert_step(
             result, step=0,
@@ -119,34 +127,28 @@ class TestIssueTriageStepLevel:
         )
         assert_step(
             result, step=1,
-            expected_tool=ToolCall(
-                "get_issue", {"repo": ANY, "issue_number": ANY},
-            ),
+            expected_tools=[
+                ToolCall("list_labels", {"repo": ANY}),
+                ToolCall("get_issue", {"repo": ANY, "issue_number": 1}),
+                ToolCall("get_issue", {"repo": ANY, "issue_number": 2}),
+                ToolCall("get_issue", {"repo": ANY, "issue_number": 3}),
+            ],
+            order=OrderMode.ANY_ORDER,
             partial_args=True,
         )
-        assert_step(
-            result, step=2,
-            expected_tool=ToolCall("list_labels", {"repo": ANY}),
-            partial_args=True,
-        )
+        assert_step(result, step=2, expected_tools=[])
 
     @pytest.mark.agentverify
     def test_step_1_uses_step_0_result(self, cassette):
         """The issue_number picked in step 1 comes from step 0's list_issues output."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
         # step 1's get_issue must reference a number produced by step 0
         assert_step_uses_result_from(result, step=1, depends_on=0)
 
     @pytest.mark.agentverify
     def test_final_step_reports_triage(self, cassette):
         """The last step (no tool calls) summarizes the triage result."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
         # Find the last step — it should have the summary text
         last_step = result.steps[-1]
         assert_step_output(
@@ -176,36 +178,24 @@ class TestIssueTriageToolResults:
     @pytest.mark.agentverify
     def test_no_tool_errored(self, cassette):
         """No GitHub read in the run came back as an error."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
         assert_no_tool_errors(result)
 
     @pytest.mark.agentverify
     def test_list_issues_returned_usable_result(self, cassette):
         """Step 0's list_issues call produced a usable (non-error) result."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
         assert_tool_invocation_succeeded(result, step=0)
 
     @pytest.mark.agentverify
     def test_list_issues_result_content(self, cassette):
         """The issue list came back with the labels the triage logic needs."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
+        result = run_mock_triage(cassette)
         assert_tool_result_matches(result, step=0, contains="enhancement")
 
     @pytest.mark.agentverify
     def test_get_issue_returned_requested_number(self, cassette):
-        """Step 1's get_issue returned the issue it was asked for (#2)."""
-        with cassette("issue_triage_mock.yaml", provider="openai") as rec:
-            pass
-
-        result = rec.to_execution_result()
-        assert_tool_result_matches(result, step=1, matches=r'"number":\s*2')
+        """Step 1's get_issue calls returned the issues they asked for, #2 among them."""
+        result = run_mock_triage(cassette)
+        assert_tool_result_matches(result, step=1, contains="partial_args and nested dicts")
 

@@ -4,3 +4,14 @@ Registers the agentverify ``cassette`` fixture for cassette replay testing. The 
 """
 
 from agentverify.fixtures import cassette  # noqa: F401
+
+import os
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _openai_key(monkeypatch):
+    """ChatOpenAI needs a key to start; replay never sends it."""
+    if not os.environ.get("OPENAI_API_KEY"):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
