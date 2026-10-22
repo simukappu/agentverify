@@ -17,3 +17,8 @@ dev = ["pytest"]
 
 [tool.setuptools]
 py-modules = ["agent", "converter"]
+
+# Its own pytest config, so the repository's settings (which turn the agentverify plugin off
+# for its own tests) do not apply and --cassette-mode works here.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
