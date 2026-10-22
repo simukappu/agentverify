@@ -290,9 +290,9 @@ class LLMCassetteRecorder:
     # -- ProbeSession protocol ----------------------------------------------
 
     def probe_enter(self, name: str) -> int:
-        handle_id = self._next_probe_handle_id
-        self._next_probe_handle_id += 1
         with self._lock:
+            handle_id = self._next_probe_handle_id
+            self._next_probe_handle_id += 1
             self._probe_events.append(("enter", handle_id, name, None))
             stack = self._probe_stack.get()
             self._probe_stack.set((tuple(self._shared_probe_stack) if stack is None else stack) + (handle_id,))
@@ -314,8 +314,9 @@ class LLMCassetteRecorder:
         return list(self._shared_probe_stack if stack is None else stack)
 
     def probe_attach_tool_result(self, handle_id: int, result: Any, is_error: bool = False) -> None:
-        self._probe_tool_results.setdefault(handle_id, []).append(result)
-        self._probe_tool_results_meta.setdefault(handle_id, []).append(is_error)
+        with self._lock:
+            self._probe_tool_results.setdefault(handle_id, []).append(result)
+            self._probe_tool_results_meta.setdefault(handle_id, []).append(is_error)
 
     # -- Core operations -----------------------------------------------------
 
@@ -326,7 +327,7 @@ class LLMCassetteRecorder:
 
         When ``match_requests`` is enabled, the incoming request is compared with the recorded one: model, tool names and schemas, the system prompt, and the text of user messages (not tool results, which carry the tools' output). A :class:`CassetteRequestMismatchError` is raised on a difference, signalling that the cassette is stale.
 
-        When ``match_requests`` is disabled, interactions are consumed in recorded order without verifying request content.
+        When ``match_requests`` is disabled, the request is still matched to a recording the same way, but a difference does not raise.
 
         Returns:
             The next :class:`NormalizedResponse`, or ``None`` if all
@@ -480,9 +481,14 @@ class LLMCassetteRecorder:
                 if recorded is response:
                     del self._interactions[index]
                     del self._interaction_probe_stack[index]
-                    # Later interactions move down by one.
+                    # Later interactions move down by one, and so do the positions tool calls point at.
                     self._used = {i - 1 if i > index else i for i in self._used if i != index}
                     self._keys = {}
+                    for execution in self._tool_session.recorded if self._tool_session is not None else []:
+                        execution.llm_calls = [i - 1 if i > index else i for i in execution.llm_calls if i != index]
+                        if execution.step is not None and execution.step >= index:
+                            # The step is the last call before the tool ran; without the removed one, that is the call before it.
+                            execution.step = execution.step - 1 if execution.step > 0 else None
                     return
 
     # -- Result construction -------------------------------------------------
@@ -639,7 +645,6 @@ def _build_execution_result(
     flush_bucket()
 
     # Emit standalone probe steps for probes that had no LLM interaction.
-    seen_probe_ids = {s.index for s in steps}  # placeholder — not by index
     used_probe_handles: set[int] = set()
     # Actually we need to track handle_id usage — reconstruct from stacks.
     for stack in probe_stacks:
@@ -678,11 +683,11 @@ def _build_execution_result(
     # replay.
     for i in range(len(steps) - 1):
         producer = steps[i]
-        consumer_next = _continuation(steps, i, step_call_ids[i] if i < len(step_call_ids) else [])
         if producer.tool_results:
             continue  # already populated (e.g. by framework adapter)
         if not producer.tool_calls:
             continue  # nothing to correlate with
+        consumer_next = _continuation(steps, i, step_call_ids[i] if i < len(step_call_ids) else [])
         if consumer_next.input_context is None:
             continue
         messages = consumer_next.input_context.get("messages")

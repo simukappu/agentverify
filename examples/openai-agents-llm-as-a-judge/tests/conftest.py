@@ -7,5 +7,7 @@ import os
 
 # Set a dummy API key if none is configured. The OpenAI Agents SDK requires an API key at client construction time even when the calls are being intercepted for cassette replay.
 os.environ.setdefault("OPENAI_API_KEY", "sk-placeholder-for-cassette-replay")
+# The SDK exports traces to OpenAI over its own HTTP client, outside the cassette; keep tests offline.
+os.environ.setdefault("OPENAI_AGENTS_DISABLE_TRACING", "1")
 
 from agentverify.fixtures import cassette  # noqa: F401, E402

@@ -28,6 +28,8 @@ from agentverify.cassette.adapters.base import (
     NormalizedResponse,
     StreamAccumulator,
     StreamingWire,
+    _guards_off,
+    unsupported_call_error,
 )
 from agentverify.models import TokenUsage
 
@@ -463,7 +465,8 @@ class AnthropicAdapter(LLMProviderAdapter, StreamingWire):
                     return original_fn(self_, **kwargs)
                 if _is_given(kwargs.get("output_format")):
                     # Structured output: create() does not take output_format, so this stream is not recorded.
-                    check_unrecorded(recorder, "anthropic", "messages.stream(output_format=...)", {"stream": True}, stacklevel=2)
+                    if not _guards_off(recorder):
+                        raise unsupported_call_error("anthropic", "messages.stream(output_format=...)", "streaming is not recorded")
                     return original_fn(self_, **kwargs)
                 if is_async:
                     return AsyncMessageStreamManager(self_.create(**kwargs, stream=True))

@@ -243,3 +243,112 @@ def test_from_pydantic_ai_on_a_real_run():
     assert_tool_calls(result, expected=[ToolCall("add", {"a": 2, "b": 3}), ToolCall("check", {"x": "bad"}), ToolCall("check", {"x": "ok"})])
     assert result.steps[0].tool_results == [5, "bad x"] and result.steps[0].tool_results_meta[1] == {"is_error": True}
     assert result.final_output == "5"
+
+
+def test_google_adk_function_tool(tmp_path):
+    pytest.importorskip("google.adk")
+    from google.adk.agents import LlmAgent
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_response import LlmResponse
+    from google.adk.runners import InMemoryRunner
+    from google.genai import types
+
+    def http_request(url: str) -> dict:
+        """Fetch a URL."""
+        CALLS.append(url)
+        return {"body": f"body of {url}"}
+
+    class Fake(BaseLlm):
+        model: str = "fake"
+
+        async def generate_content_async(self, llm_request, stream=False):
+            last = llm_request.contents[-1].parts[0]
+            if last.function_response is None:
+                call = types.FunctionCall(id="c1", name="http_request", args={"url": "http://x"})
+                yield LlmResponse(content=types.Content(role="model", parts=[types.Part(function_call=call)]))
+            else:
+                yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text=f"saw {last.function_response.response}")]))
+
+    async def main():
+        runner = InMemoryRunner(agent=LlmAgent(name="a", model=Fake(), tools=[http_request]), app_name="x")
+        session = await runner.session_service.create_session(app_name="x", user_id="u")
+        texts = []
+        message = types.Content(role="user", parts=[types.Part(text="go")])
+        async for event in runner.run_async(user_id="u", session_id=session.id, new_message=message):
+            texts += [p.text for p in (event.content.parts if event.content else []) if p.text]
+        return texts
+
+    executions = _round_trip(tmp_path / "adk.yaml", lambda: asyncio.run(main()), provider="gemini")
+    assert executions[0]["name"] == "http_request" and executions[0]["result"] == {"body": "body of http://x"}
+
+
+def test_mcp_client_session_call_tool(tmp_path):
+    pytest.importorskip("mcp")
+    import sys
+    from pathlib import Path
+
+    import mcp.client.session as client_session
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    server = StdioServerParameters(command=sys.executable, args=[str(Path(__file__).parents[1] / "examples" / "mcp-server" / "github_server.py")])
+    send_request = client_session.ClientSession.send_request
+
+    async def counting(self, request, *args, **kwargs):
+        # Count the calls that reach the server.
+        if getattr(getattr(request, "root", request), "method", "") == "tools/call":
+            CALLS.append("tools/call")
+        return await send_request(self, request, *args, **kwargs)
+
+    async def main():
+        async with stdio_client(server) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool("get_issue", {"repo": "simukappu/agentverify", "issue_number": 1})
+                return result.content[0].text
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(client_session.ClientSession, "send_request", counting)
+        executions = _round_trip(tmp_path / "mcp.yaml", lambda: asyncio.run(main()))
+    assert [e["name"] for e in executions] == ["get_issue"]
+
+
+def test_crewai_tool(tmp_path, monkeypatch):
+    pytest.importorskip("crewai")
+    monkeypatch.setenv("CREWAI_DISABLE_TELEMETRY", "true")
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+    from crewai import Agent, Crew, Task
+    from crewai.llms.base_llm import BaseLLM
+    from crewai.tools import tool
+
+    @tool("http_request")
+    def http_request(url: str) -> str:
+        """Fetch a URL."""
+        CALLS.append(url)
+        return f"BODY {url}"
+
+    class Fake(BaseLLM):
+        turn: int = 0
+
+        def call(self, messages, *args, **kwargs):
+            self.turn += 1
+            if self.turn % 2:
+                return 'Thought: fetch\nAction: http_request\nAction Input: {"url": "http://x"}'
+            seen = any("BODY http://x" in str(m.get("content")) for m in messages)
+            return "Thought: done\nFinal Answer: " + ("saw the body" if seen else "no body")
+
+        def supports_function_calling(self):
+            return False
+
+        def supports_stop_words(self):
+            return False
+
+        def get_context_window_size(self):
+            return 8000
+
+    def run():
+        agent = Agent(role="r", goal="g", backstory="b", llm=Fake(model="fake"), tools=[http_request], verbose=False)
+        return Crew(agents=[agent], tasks=[Task(description="d", expected_output="e", agent=agent)]).kickoff().raw
+
+    executions = _round_trip(tmp_path / "crew.yaml", run)
+    assert executions[0]["name"] == "http_request" and executions[0]["result"] == "BODY http://x"

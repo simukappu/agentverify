@@ -150,7 +150,7 @@ def unsupported_call_error(provider: str, call: str, reason: str):
 
     return CassetteUnsupportedCallError(
         f"{provider}: {call} is not supported inside a cassette or MockLLM ({reason}). "
-        "Use the non-streaming call the adapter records, or make this call outside the cassette."
+        "Use a call the adapter records, or make this call outside the cassette."
     )
 
 
@@ -392,7 +392,14 @@ def _tapped_class(cls: type) -> type:
             return _tap_generator(super(tapped, self).__iter__(), self._agentverify_tap)
 
         namespace["__iter__"] = __iter__
-    if hasattr(cls, "__anext__"):
+    if inspect.isasyncgenfunction(getattr(cls, "__anext__", None)):
+        # aiobotocore's AioEventStream: __aiter__ returns the async generator __anext__ makes.
+
+        def __aiter__(self: Any) -> Any:  # type: ignore[no-redef]
+            return _tap_async_generator(super(tapped, self).__aiter__(), self._agentverify_tap)
+
+        namespace["__aiter__"] = __aiter__
+    elif hasattr(cls, "__anext__"):
 
         async def __anext__(self: Any) -> Any:
             return await self._agentverify_tap.astep(super(tapped, self).__anext__)
@@ -516,13 +523,6 @@ async def _tap_async_generator(stream: Any, tap: _StreamTap) -> Any:
 _REPLAY_MISS: Any = object()
 
 
-@contextmanager
-def _live_call(scope: PatchScope, recorder: LLMCassetteRecorder, provider: str) -> Generator[None, None, None]:
-    """Run one real call; the guards stay out of the way of what it does internally."""
-    with allow_live_call():
-        yield
-
-
 def _replay_or_miss(
     recorder: LLMCassetteRecorder,
     adapter: LLMProviderAdapter,
@@ -628,7 +628,7 @@ def call_sync(
     result = _replay_or_miss(recorder, adapter, norm_req, _stream_replayer(adapter, kwargs, False) if streaming else replayed)
     if result is not _REPLAY_MISS:
         return result
-    with _live_call(scope, recorder, adapter.name):
+    with allow_live_call():  # the guards stay out of the way of what the real call does internally
         response = call_real()
     return _record(recorder, adapter, norm_req, response, streaming)
 
@@ -652,6 +652,6 @@ async def call_async(
     result = _replay_or_miss(recorder, adapter, norm_req, _stream_replayer(adapter, kwargs, True) if streaming else replayed)
     if result is not _REPLAY_MISS:
         return result
-    with _live_call(scope, recorder, adapter.name):
+    with allow_live_call():  # the guards stay out of the way of what the real call does internally
         response = await call_real()
     return _record(recorder, adapter, norm_req, response, streaming)

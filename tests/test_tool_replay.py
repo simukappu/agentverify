@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from agentverify import CassetteToolMismatchError, cassette_tool
-from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
+from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder, OnMissingRequest
 from agentverify.cassette.tools import (
     ReplayedToolError,
     ToolExecution,
@@ -234,6 +234,16 @@ def test_mock_llm_runs_real_tools():
     with MockLLM([mock_response(content="hi")], provider="openai"):
         get_weather("Tokyo")
     assert CALLS == ["Tokyo"]
+
+
+def test_mock_llm_inside_a_cassette_keeps_its_tools_out_of_it(tmp_path):
+    from agentverify import MockLLM, mock_response
+
+    with LLMCassetteRecorder(tmp_path / "outer.yaml", mode=CassetteMode.RECORD):
+        with MockLLM([mock_response(content="hi")], provider="openai"):
+            get_weather("Tokyo")
+        get_weather("Paris")
+    assert [e["arguments"]["city"] for e in yaml.safe_load((tmp_path / "outer.yaml").read_text())["tool_executions"]] == ["Paris"]
 
 
 def test_cassette_fixture_passes_replay_tools(cassette, tmp_path):
@@ -487,19 +497,44 @@ class TestMCPHook:
 
 
 class TestPydanticAIHook:
-    def test_raw_execute(self, tmp_path, fake_modules):
-        class ToolManager:
-            async def _raw_execute(self, validated, *, usage=None):
-                CALLS.append(validated.validated_args)
-                return {"sum": sum(validated.validated_args.values())}
+    def test_call_tool_of_every_toolset(self, tmp_path, fake_modules):
+        class AbstractToolset:
+            async def call_tool(self, name, tool_args, ctx, tool):  # pragma: no cover — abstract in Pydantic AI
+                raise NotImplementedError
 
+        class FunctionToolset(AbstractToolset):
+            async def call_tool(self, name, tool_args, ctx, tool):
+                CALLS.append(tool_args)
+                return {"sum": sum(tool_args.values())}
+
+        class WrapperToolset(AbstractToolset):
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            async def call_tool(self, name, tool_args, ctx, tool):
+                return await self.wrapped.call_tool(name, tool_args, ctx, tool)
+
+        outputs: list = []
+
+        class OutputToolset(AbstractToolset):
+            async def call_tool(self, name, tool_args, ctx, tool):
+                outputs.append(tool_args)
+                return tool_args
+
+        OutputToolset.__module__ = "pydantic_ai._output"
         fake_modules(
             pydantic_ai=_module("pydantic_ai"),
-            **{"pydantic_ai.tool_manager": _module("pydantic_ai.tool_manager", ToolManager=ToolManager)},
+            **{"pydantic_ai.toolsets": _module("pydantic_ai.toolsets", AbstractToolset=AbstractToolset)},
         )
-        validated = types.SimpleNamespace(call=types.SimpleNamespace(tool_name="add"), validated_args={"a": 1, "b": 2})
-        recorded, replayed, _ = _round_trip(tmp_path, lambda: asyncio.run(ToolManager()._raw_execute(validated, usage=None)))
-        assert recorded == replayed == {"sum": 3}
+
+        def run():
+            wrapped = asyncio.run(WrapperToolset(FunctionToolset()).call_tool("add", {"a": 1, "b": 2}, None, None))
+            output = asyncio.run(OutputToolset().call_tool("final_result", {"answer": 3}, None, None))
+            return wrapped, output
+
+        recorded, replayed, executions = _round_trip(tmp_path, run)
+        assert recorded == replayed == ({"sum": 3}, {"answer": 3}) and len(outputs) == 2
+        assert [e["name"] for e in executions] == ["add"]  # recorded once, and the agent's answer is not a tool
 
 
 class TestGoogleADKHook:
@@ -758,3 +793,139 @@ class TestReviewFixes:
                 context = types.SimpleNamespace(tool_name="t", tool_input={}, tool_result="r", tool=None)
                 assert [hook(context) for hook in befores] == [None] and [hook(context) for hook in afters] == [None]
         assert yaml.safe_load((tmp_path / "d.yaml").read_text())["tool_executions"] == []
+
+
+class TestFinalReview:
+    def test_fallback_runs_a_tool_the_cassette_does_not_have(self, tmp_path):
+        path = tmp_path / "f.yaml"
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD):
+            get_weather("Tokyo")
+        CALLS.clear()
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, on_missing=OnMissingRequest.FALLBACK):
+            assert get_weather("Tokyo") == "sunny in Tokyo, 22C"
+            assert get_weather("Paris") == "sunny in Paris, 22C"
+        assert CALLS == ["Paris"]
+
+    def test_a_method_records_without_its_object(self, tmp_path):
+        class Weather:
+            @cassette_tool
+            def lookup(self, city: str) -> str:
+                CALLS.append(city)
+                return f"rain in {city}"
+
+        recorded, replayed, calls = _record_then_replay(tmp_path / "m.yaml", lambda: Weather().lookup("Oslo"))
+        assert recorded == replayed and calls == ["Oslo"] and CALLS == []
+        assert yaml.safe_load((tmp_path / "m.yaml").read_text())["tool_executions"][0]["arguments"] == {"city": "Oslo"}
+
+    def test_control_flow_signals_run_again_on_replay(self, tmp_path):
+        class GraphBubbleUp(Exception):
+            pass
+
+        class GraphInterrupt(GraphBubbleUp):
+            pass
+
+        @cassette_tool
+        def ask_human(question: str) -> str:
+            CALLS.append(question)
+            raise GraphInterrupt(question)
+
+        path = tmp_path / "i.yaml"
+        for mode in (CassetteMode.RECORD, CassetteMode.REPLAY):
+            with LLMCassetteRecorder(path, mode=mode):
+                with pytest.raises(GraphInterrupt):
+                    ask_human("ok?")
+        assert CALLS == ["ok?", "ok?"]
+        assert yaml.safe_load(path.read_text())["tool_executions"][0]["run_on_replay"] is True
+
+    def test_framework_control_tools_run_for_real(self, tmp_path, fake_modules):
+        class BaseTool:
+            name = "base"
+
+            async def run_async(self, *, args, tool_context):
+                CALLS.append(self.name)
+                return {"done": True}
+
+        class ExitLoopTool(BaseTool):
+            name = "exit_loop"
+
+            async def run_async(self, *, args, tool_context):
+                return await super().run_async(args=args, tool_context=tool_context)
+
+        fake_modules(
+            google=sys.modules.get("google") or _module("google"),
+            **{
+                "google.adk": _module("google.adk"),
+                "google.adk.tools": _module("google.adk.tools"),
+                "google.adk.tools.base_tool": _module("google.adk.tools.base_tool", BaseTool=BaseTool),
+            },
+        )
+        path = tmp_path / "c.yaml"
+        for mode in (CassetteMode.RECORD, CassetteMode.REPLAY):
+            with LLMCassetteRecorder(path, mode=mode):
+                asyncio.run(ExitLoopTool().run_async(args={}, tool_context=None))
+        assert CALLS == ["exit_loop", "exit_loop"] and yaml.safe_load(path.read_text())["tool_executions"] == []
+
+    def test_strands_handoff_runs_for_real(self, tmp_path, fake_modules):
+        class BeforeToolCallEvent:
+            def __init__(self, tool_use):
+                self.tool_use, self.selected_tool, self.cancel_tool = tool_use, object(), False
+
+        class HookRegistry:
+            async def invoke_callbacks_async(self, event):
+                return event, []
+
+        fake_modules(
+            strands=_module("strands"),
+            **{
+                "strands.hooks": _module("strands.hooks", AfterToolCallEvent=type("AfterToolCallEvent", (), {}), BeforeToolCallEvent=BeforeToolCallEvent),
+                "strands.hooks.registry": _module("strands.hooks.registry", HookRegistry=HookRegistry),
+                "strands.tools": _module("strands.tools"),
+                "strands.tools.tools": _module("strands.tools.tools", PythonAgentTool=object),
+            },
+        )
+        path = tmp_path / "s.yaml"
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD):
+            pass
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY):
+            event = BeforeToolCallEvent({"name": "handoff_to_agent", "input": {}})
+            before, _ = asyncio.run(HookRegistry().invoke_callbacks_async(event))
+        assert before.selected_tool is event.selected_tool  # not swapped for a replayed result
+
+    def test_a_broken_framework_install_warns_and_the_others_still_hook(self, tmp_path, monkeypatch):
+        from agentverify.cassette import tool_hooks
+
+        def _missing(stack):
+            raise ImportError("not installed")
+
+        def _broken(stack):
+            raise AttributeError("moved")
+
+        monkeypatch.setattr(tool_hooks, "_INSTALLERS", (_missing, _broken, *tool_hooks._INSTALLERS))
+        with pytest.warns(UserWarning, match="could not hook broken tool calls: AttributeError"):
+            with LLMCassetteRecorder(tmp_path / "b.yaml", mode=CassetteMode.RECORD):
+                get_weather("Tokyo")
+        assert "get_weather" in (tmp_path / "b.yaml").read_text()
+
+    def test_discarding_a_call_moves_the_positions_tools_point_at(self, tmp_path):
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+
+        rec = LLMCassetteRecorder(tmp_path / "d.yaml", mode=CassetteMode.RECORD)
+        request = NormalizedRequest(messages=[], model="m")
+        failed = NormalizedResponse(content="broken stream")
+
+        @cassette_tool
+        def helper_agent(task: str) -> str:
+            rec.record(request, NormalizedResponse(content="inner"))
+            return "done"
+
+        with rec:
+            get_weather("Kyoto")  # before any call
+            rec.record(request, NormalizedResponse(content="first"))
+            get_weather("Osaka")  # step 0
+            rec.record(request, failed)
+            helper_agent("a")  # step 1, makes call 2
+            rec.record(request, NormalizedResponse(content="outer"))
+            get_weather("Tokyo")  # step 3
+            rec.discard(failed)
+            positions = [(e.step, e.llm_calls) for e in rec._tool_session.recorded]
+            assert positions == [(None, []), (0, []), (0, [1]), (2, [])]

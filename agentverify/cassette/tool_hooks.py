@@ -6,7 +6,7 @@ Each hook is installed only if its framework is importable, and removed when the
 - Strands Agents: the agent's ``BeforeToolCallEvent`` / ``AfterToolCallEvent``, at the hook registry, so agents created before the cassette are covered
 - OpenAI Agents SDK: the function tool invocation in its run loop
 - MCP: ``ClientSession.call_tool``, for MCP tools of any framework without its own hook here
-- Pydantic AI: ``ToolManager._raw_execute``
+- Pydantic AI: ``call_tool`` of every toolset class except the output toolset, inside its retry and usage handling
 - Google ADK: ``run_async`` of every tool class, which both of ADK's tool runners call
 - CrewAI: its global before / after tool call hooks
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import json
+import warnings
 from contextlib import ExitStack, contextmanager
 from typing import Any, Callable, Generator
 from unittest.mock import patch
@@ -34,7 +35,12 @@ def tool_hooks(session: ToolSession | None) -> Generator[ToolSession | None, Non
         stack.enter_context(activate(session))
         if _installed == 0:
             for install in _INSTALLERS:
-                install(stack)
+                try:
+                    install(stack)
+                except ImportError:
+                    pass  # the framework is not installed
+                except Exception as error:  # a broken install of a framework the test may not even use
+                    warnings.warn(f"agentverify: could not hook {install.__name__.strip('_')} tool calls: {error!r}", stacklevel=3)
         _installed += 1
         try:
             yield session
@@ -49,6 +55,18 @@ def _json_arguments(arguments: Any) -> Any:
         except ValueError:
             return arguments
     return arguments
+
+
+def _subclasses(cls: type) -> list[type]:
+    found = [cls]
+    for sub in cls.__subclasses__():
+        found += _subclasses(sub)
+    return found
+
+
+# Framework tools that steer the run rather than fetch something; they run for real on replay.
+_ADK_CONTROL_TOOLS = frozenset({"transfer_to_agent", "exit_loop"})
+_STRANDS_CONTROL_TOOLS = frozenset({"handoff_to_agent"})
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +180,8 @@ def _strands(stack: ExitStack) -> None:
             return outcome
         interrupted = isinstance(outcome, tuple) and len(outcome) > 1 and bool(outcome[1])
         tool_use = getattr(event, "tool_use", None) or {}
+        if tool_use.get("name") in _STRANDS_CONTROL_TOOLS:
+            return outcome  # a Swarm handoff acts on the run, which a replayed result would not
         if isinstance(event, BeforeToolCallEvent) and event.selected_tool is not None and not event.cancel_tool and not interrupted:
             if session.replaying:
                 execution = session.take(tool_use["name"], tool_use.get("input"))
@@ -250,18 +270,24 @@ def _mcp(stack: ExitStack) -> None:
 
 def _pydantic_ai(stack: ExitStack) -> None:
     try:
-        from pydantic_ai.tool_manager import ToolManager
+        from pydantic_ai.toolsets import AbstractToolset
     except ImportError:
         return
-    execute = getattr(ToolManager, "_raw_execute", None)
-    if execute is None:  # pragma: no cover — a version without this entry point
-        return
 
-    async def patched(self: Any, validated: Any, *args: Any, **kwargs: Any) -> Any:
-        call = validated.call
-        return await acall_tool(call.tool_name, validated.validated_args, lambda: execute(self, validated, *args, **kwargs))
+    def wrap(cls: type) -> Any:
+        call = cls.__dict__["call_tool"]
 
-    stack.enter_context(patch.object(ToolManager, "_raw_execute", new=patched))
+        async def patched(self: Any, name: str, tool_args: Any, *args: Any, **kwargs: Any) -> Any:
+            # A wrapper toolset delegating to the one it wraps is inside the outer call and passes through.
+            return await acall_tool(name, tool_args, lambda: call(self, name, tool_args, *args, **kwargs))
+
+        return patched
+
+    # Below ToolManager, so a ModelRetry from the tool replays through Pydantic AI's own retry
+    # and usage handling. The output toolset (final_result) is the agent's answer, not a tool.
+    for cls in dict.fromkeys(_subclasses(AbstractToolset)):
+        if "call_tool" in cls.__dict__ and not cls.__module__.startswith("pydantic_ai._output"):
+            stack.enter_context(patch.object(cls, "call_tool", new=wrap(cls)))
 
 
 # ---------------------------------------------------------------------------
@@ -275,16 +301,13 @@ def _google_adk(stack: ExitStack) -> None:
     except ImportError:
         return
 
-    def subclasses(cls: type) -> list[type]:
-        found = [cls]
-        for sub in cls.__subclasses__():
-            found += subclasses(sub)
-        return found
-
     def wrap(cls: type) -> Any:
         run_async = cls.__dict__["run_async"]
 
         async def patched(self: Any, *, args: Any, tool_context: Any) -> Any:
+            if self.name in _ADK_CONTROL_TOOLS:
+                # They act on the run itself (transfer, escalate), which a replayed result would not.
+                return await run_async(self, args=args, tool_context=tool_context)
             # A subclass calling super().run_async() is inside the outer call and passes through.
             return await acall_tool(self.name, args, lambda: run_async(self, args=args, tool_context=tool_context))
 
@@ -292,7 +315,7 @@ def _google_adk(stack: ExitStack) -> None:
 
     # Every class that defines run_async, so ADK's callbacks, confirmation gate, and error
     # handling see a replayed call as they see a real one.
-    for cls in dict.fromkeys(subclasses(BaseTool)):
+    for cls in dict.fromkeys(_subclasses(BaseTool)):
         if "run_async" in cls.__dict__:
             stack.enter_context(patch.object(cls, "run_async", new=wrap(cls)))
 

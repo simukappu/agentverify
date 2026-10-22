@@ -954,3 +954,39 @@ class TestAsyncBedrock:
                 asyncio.run(AioBaseClient._make_api_call(client, "InvokeModel", {}))
         assert calls == ["Converse", "ConverseStream", "ListFoundationModels", "ListFoundationModels"]
         assert rec.to_execution_result().token_usage == TokenUsage(14, 6)
+
+    def test_aio_event_stream_is_recorded(self, tmp_path, aio, monkeypatch):
+        """aiobotocore's AioEventStream: __aiter__ returns the async generator its __anext__ makes."""
+        AioBaseClient, _ = aio
+        class AioEventStream:
+            def __init__(self, events):
+                self._events = events
+
+            def __aiter__(self):
+                return self.__anext__()
+
+            async def __anext__(self):
+                async for event in self._events:
+                    yield event
+
+        live = AioBaseClient._make_api_call
+
+        async def make_api_call(self, operation_name, api_params):
+            response = await live(self, operation_name, api_params)
+            return {**response, "stream": AioEventStream(response["stream"])}
+
+        monkeypatch.setattr(AioBaseClient, "_make_api_call", make_api_call)
+        params = {"modelId": "m", "messages": [{"role": "user", "content": [{"text": "hi"}]}]}
+        client = MagicMock()
+        client.meta.service_model.service_name = "bedrock-runtime"
+
+        async def run():
+            stream = await AioBaseClient._make_api_call(client, "ConverseStream", params)
+            return [e async for e in stream["stream"]]
+
+        path = tmp_path / "aio.yaml"
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD, provider="bedrock") as rec:
+            events = asyncio.run(run())
+        assert events and rec.to_execution_result().token_usage == TokenUsage(7, 3)
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, provider="bedrock") as rec:
+            assert len(asyncio.run(run())) == len(events)

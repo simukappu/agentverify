@@ -129,7 +129,7 @@ class ToolSession:
     def take(self, name: str, arguments: Any) -> ToolExecution:
         """The next unreplayed recording of this call; raise (and remember) a mismatch when there is none.
 
-        A replayed call skips the LLM calls the tool made while recording.
+        A replayed call skips the LLM calls the tool made while recording. With ``on_missing=FALLBACK``, a call with no recording runs for real.
         """
         key = _key(name, self.normalize(plain(arguments)))
         for index, execution in enumerate(self.replayable or []):
@@ -138,6 +138,11 @@ class ToolSession:
                 if execution.llm_calls and not execution.run_on_replay:
                     self.recorder.skip_interactions(execution.llm_calls)
                 return execution
+        from agentverify.cassette.recorder import OnMissingRequest
+
+        if getattr(self.recorder, "on_missing", None) == OnMissingRequest.FALLBACK:
+            # As for LLM calls: a call the cassette does not have runs for real.
+            return ToolExecution(name=name, arguments=plain(arguments), run_on_replay=True)
         left = [(e.name, e.arguments) for i, e in enumerate(self.replayable or []) if i not in self._used]
         error = CassetteToolMismatchError(name, plain(arguments), left)
         # Frameworks often turn a tool's exception into a message for the model, so the
@@ -227,6 +232,11 @@ def active_session() -> ToolSession | None:
     return None  # replaying a cassette recorded without tool results
 
 
+def _control_flow(error: BaseException) -> bool:
+    """A framework's control-flow signal raised through a tool (LangGraph's interrupt), not a tool error."""
+    return any(cls.__name__ == "GraphBubbleUp" for cls in type(error).__mro__)
+
+
 class ReplayedToolError(Exception):
     """A recorded tool error whose exception type cannot be rebuilt on replay."""
 
@@ -287,7 +297,8 @@ def call_tool(
             result = run()
     except Exception as error:
         frame, step = session.end(started)
-        session.add(name, arguments, error=error, llm_calls=frame, step=step)
+        # A control-flow signal is raised again by running the tool on replay.
+        session.add(name, arguments, error=error, llm_calls=frame, step=step, run_on_replay=_control_flow(error))
         raise
     frame, step = session.end(started)
     session.add(name, arguments, encode(result), llm_calls=frame, step=step)
@@ -319,7 +330,8 @@ async def acall_tool(
             result = await run()
     except Exception as error:
         frame, step = session.end(started)
-        session.add(name, arguments, error=error, llm_calls=frame, step=step)
+        # A control-flow signal is raised again by running the tool on replay.
+        session.add(name, arguments, error=error, llm_calls=frame, step=step, run_on_replay=_control_flow(error))
         raise
     frame, step = session.end(started)
     session.add(name, arguments, encode(result), llm_calls=frame, step=step)
@@ -329,7 +341,7 @@ async def acall_tool(
 def cassette_tool(fn: Callable[..., Any] | None = None, *, name: str | None = None) -> Any:
     """Record a hand-written tool function's results into the cassette, and replay them.
 
-    Use it on tools of an agent the built-in hooks do not cover (a hand-written ReAct loop). Outside a cassette the function runs as usual. Put it under a framework's own ``@tool`` decorator; the signature is kept for schema generation::
+    Use it on tools of an agent the built-in hooks do not cover (a hand-written ReAct loop). Outside a cassette the function runs as usual. On a method, ``self`` / ``cls`` is not part of the recorded arguments. Put it under a framework's own ``@tool`` decorator; the signature is kept for schema generation::
 
         @cassette_tool
         def get_weather(city: str) -> str:
@@ -340,10 +352,15 @@ def cassette_tool(fn: Callable[..., Any] | None = None, *, name: str | None = No
         tool_name = name or func.__name__
         signature = inspect.signature(func)
 
+        first = next(iter(signature.parameters), None)
+
         def arguments_of(args: Any, kwargs: Any) -> dict[str, Any]:
             bound = signature.bind(*args, **kwargs)
             bound.apply_defaults()
-            return dict(bound.arguments)
+            arguments = dict(bound.arguments)
+            if first in ("self", "cls"):
+                arguments.pop(first)  # a method's object is not a tool argument
+            return arguments
 
         if inspect.iscoroutinefunction(func):
 

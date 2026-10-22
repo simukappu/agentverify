@@ -142,6 +142,11 @@ class MockLLM:
         self._patch_ctx.__enter__()
         self._probe_ctx = _activate_session(self)
         self._probe_ctx.__enter__()
+        from agentverify.cassette.tool_hooks import tool_hooks
+
+        # Tools run for real under MockLLM, also inside a cassette, which must not record them.
+        self._tool_ctx = tool_hooks(None)
+        self._tool_ctx.__enter__()
         self._start_time = time.monotonic()
         return self
 
@@ -149,6 +154,9 @@ class MockLLM:
         if self._start_time is not None:
             self._duration_ms = (time.monotonic() - self._start_time) * 1000
             self._start_time = None
+        if getattr(self, "_tool_ctx", None) is not None:
+            self._tool_ctx.__exit__(*args)
+            self._tool_ctx = None
         if getattr(self, "_probe_ctx", None) is not None:
             self._probe_ctx.__exit__(*args)
             self._probe_ctx = None
