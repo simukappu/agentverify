@@ -46,12 +46,12 @@
 
 ### Improvements
 
-- **`contains=` accepts a list** of substrings, and `case_sensitive=False` ignores case, in `assert_final_output`, `assert_step_output`, and `assert_tool_result_matches`. Thanks to @Neohu-ceo ([#4](https://github.com/simukappu/agentverify/pull/4)). See README "Final Output Assertions".
+- **`contains=` accepts a list** of substrings, and `case_sensitive=False` ignores case, in `assert_final_output`, `assert_step_output`, and `assert_tool_result_matches`. Thanks to @Neohu-ceo ([#4](https://github.com/simukappu/agentverify/pull/4)).
 
 ### Bug Fixes
 
-- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See README "Calls Cassettes Cannot Record".
-- **Credentials passed as call arguments are redacted from cassettes**, such as `api_key=` or an `x-api-key` header. Default patterns also cover Google, Bedrock, AWS temporary, and GitHub keys. See README "Cassette Sanitization".
+- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See [README "Calls Cassettes Cannot Record"](README.md#calls-cassettes-cannot-record).
+- **Credentials passed as call arguments are redacted from cassettes**, such as `api_key=` or an `x-api-key` header. Default patterns also cover Google, Bedrock, AWS temporary, and GitHub keys. See [README "Cassette Sanitization"](README.md#cassette-sanitization).
 - **OpenAI Agents SDK tool failures are detected**, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` no longer pass on them.
 
 ### Dependency
@@ -62,7 +62,7 @@
 
 ### Features
 
-- **Tool result assertions** verify that tool calls actually succeeded, not just that they were made: `assert_tool_invocation_succeeded`, `assert_no_tool_errors`, `assert_tool_result_matches`, and `assert_retry_count`. See README "Tool Result Assertions".
+- **Tool result assertions** verify that tool calls actually succeeded, not just that they were made: `assert_tool_invocation_succeeded`, `assert_no_tool_errors`, `assert_tool_result_matches`, and `assert_retry_count`. See [README "Tool Result Assertions"](README.md#tool-result-assertions).
 - **Per-result error signal on `Step`** via the additive `tool_results_meta` field, populated by the built-in adapters, reconstructed on cassette replay, and settable from custom converters and `step_probe`.
 
 ### Bug Fixes
@@ -73,7 +73,7 @@
 
 ### Features
 
-- **Step-level assertions** for agents making multiple LLM calls per run. New `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow. See README "Step-Level Assertions".
+- **Step-level assertions** for agents making multiple LLM calls per run. New `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow. See [README "Step-Level Assertions"](README.md#step-level-assertions).
 - **`step_probe` context manager** to mark logical step boundaries in agent code, including LLM-free steps like cache hits, state management, and validation. Zero-cost no-op outside of recorder/MockLLM contexts, safe to leave in production code.
 - **Data-flow matching** in `assert_step_uses_result_from` tolerates common serialization differences: numeric tool results encoded as strings match their int/float consumers, and multi-line produced strings match consumers that hold them inside a container.
 - **`MATCHES(pattern)` regex matcher** for verifying string tool-call arguments against a regex, with the same semantics as `ANY`.
