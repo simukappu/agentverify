@@ -4,13 +4,13 @@
 
 ### Features
 
-- **Tool calls are recorded and replayed**: replay returns each tool's recorded result instead of running the tool. Built in for LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP; `@cassette_tool` covers hand-written tools. A call with no recorded match raises `CassetteToolMismatchError`. See README "Tool Calls".
-- **Stale cassettes are caught when the prompt changes**: replay now also compares each tool's schema, the system prompt, and user message text, and shows a diff. pytest lists the stale cassettes and the command to re-record them. `match_ignore` leaves changing text out. See README "Stale Cassette Detection".
-- **`from_otel` builds `ExecutionResult`s from OpenTelemetry traces**, so the assertions run on production and staging runs. Reads the GenAI conventions and OpenInference. See README "Production Traces".
-- **Framework adapters for Pydantic AI, Google ADK, and CrewAI**: `from_pydantic_ai`, `from_google_adk`, `from_crewai`. See README "Built-in Adapters".
-- **Concurrent LLM calls are recorded and replayed** (`asyncio.gather`, threads): replay matches each request to its recording, so calls that finish in another order still get their own responses. Async Bedrock clients (`aiobotocore` / `aioboto3`) are recorded too. See README "Async Agents".
-- **Live runs judged by pass rate**: `@pytest.mark.agentverify(runs=10, min_pass_rate=0.9)` with `--agentverify-live` runs a test against the live model and passes at the required rate. See README "Live Runs and Pass Rates".
-- **Streamed responses are recorded and replayed** for every provider, so frameworks that stream by default work without turning streaming off. A cassette recorded either way replays either way. See README "Streaming".
+- **Tool calls are recorded and replayed**: replay returns each tool's recorded result instead of running the tool. Built in for LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP; `@cassette_tool` covers hand-written tools. A call with no recorded match raises `CassetteToolMismatchError`. See [README "Tool Calls"](README.md#tool-calls).
+- **Stale cassettes are caught when the prompt changes**: replay now also compares each tool's schema, the system prompt, and user message text, and shows a diff. pytest lists the stale cassettes and the command to re-record them. `match_ignore` leaves changing text out. See [README "Stale Cassette Detection"](README.md#stale-cassette-detection).
+- **`from_otel` builds `ExecutionResult`s from OpenTelemetry traces**, so the assertions run on production and staging runs. Reads the GenAI conventions and OpenInference. See [README "Production Traces"](README.md#production-traces).
+- **Framework adapters for Pydantic AI, Google ADK, and CrewAI**: `from_pydantic_ai`, `from_google_adk`, `from_crewai`.
+- **Concurrent LLM calls are recorded and replayed** (`asyncio.gather`, threads): replay matches each request to its recording, so calls that finish in another order still get their own responses. Async Bedrock clients (`aiobotocore` / `aioboto3`) are recorded too.
+- **Live runs judged by pass rate**: `@pytest.mark.agentverify(runs=10, min_pass_rate=0.9)` with `--agentverify-live` runs a test against the live model and passes at the required rate. See [README "Live Runs and Pass Rates"](README.md#live-runs-and-pass-rates).
+- **Streamed responses are recorded and replayed** for every provider, so frameworks that stream by default work without turning streaming off. A cassette recorded either way replays either way.
 
 ### Bug Fixes
 
@@ -26,9 +26,9 @@
 
 ### Features
 
-- **Async agents**: the async clients of Anthropic, Gemini, and LiteLLM are recorded and replayed, as OpenAI's already were. See README "Async Agents".
-- **OpenAI Responses API** is recorded and replayed, so the OpenAI Agents SDK works on its default model. See README "OpenAI Responses API".
-- **Multi-agent handoff assertions**: `assert_handoffs`, `assert_no_handoff`, and `assert_step(agent=...)`, via `ExecutionResult.handoffs` and `Step.agent`. See README "Multi-Agent Handoffs".
+- **Async agents**: the async clients of Anthropic, Gemini, and LiteLLM are recorded and replayed, as OpenAI's already were.
+- **OpenAI Responses API** is recorded and replayed, so the OpenAI Agents SDK works on its default model. See [README "OpenAI Responses API"](README.md#openai-responses-api).
+- **Multi-agent handoff assertions**: `assert_handoffs`, `assert_no_handoff`, and `assert_step(agent=...)`, via `ExecutionResult.handoffs` and `Step.agent`. See [README "Multi-Agent Handoffs"](README.md#multi-agent-handoffs).
 
 ### Bug Fixes
 

@@ -70,7 +70,7 @@ Within a release section, use only the sections below, in this order. **Omit any
 - **One sentence per entry, under ~180 characters.** Readers skim; don't write implementation notes.
 - **Start each entry with a bolded subject** — a feature name, an API name, or an area of the codebase — so the entries align visually.
 - **Describe user-visible behaviour**, not implementation details. Internal helpers, private method names, and line-by-line reasoning belong in the commit body, not the CHANGELOG.
-- **Link to README sections or examples** for details when an entry would otherwise grow long.
+- **Link to a README section only when the entry needs details it cannot hold** (limits, caveats, how to opt out), as `See [README "Section"](README.md#section)`. Keep these few: each link has to follow the README's headings.
 - **Merge closely related entries.** Two small internal fixes that together improve the same user-visible behaviour should be one entry, not two.
 - **Features vs Improvements triage in an Unreleased cycle**: internal tuning of a *new* feature that also lands in this release is folded into the **Features** entry for that feature — it's not a separate Improvement. `Improvements` is reserved for changes to features that users have already seen in a previous release.
 
@@ -81,7 +81,7 @@ Within a release section, use only the sections below, in this order. **Omit any
 
 ### Features
 
-- **Step-level assertions** for agents that make multiple LLM calls per run. `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow on the new `Step` data model. See README "Step-Level Assertions".
+- **Step-level assertions** for agents that make multiple LLM calls per run. `assert_step`, `assert_step_output`, and `assert_step_uses_result_from` verify tool calls, intermediate outputs, and step-to-step data flow on the new `Step` data model. See [README "Step-Level Assertions"](README.md#step-level-assertions).
 - **`MATCHES(pattern)` regex matcher** for verifying string tool-call arguments against a regex, with the same semantics as `ANY`.
 
 ### Improvements
