@@ -55,6 +55,8 @@ The cassette replays deterministically. No OpenAI API calls, zero cost.
 | `TestSupervisorStepLevel` | `test_research_agent_uses_web_search` | `assert_step(order=ANY_ORDER)` | The research step contains at least one `web_search` call whose query mentions FAANG / headcount / employees. Uses `ANY_ORDER` to handle parallel tool calls in the same step |
 | `TestSupervisorStepLevel` | `test_math_agent_adds_with_research_derived_numbers` | `assert_step_uses_result_from()` | The second `add` step consumes the first `add` step's result. Catches the "agent dropped the running total" bug |
 | `TestSupervisorStepLevel` | `test_final_answer_includes_a_number` | `assert_step_output()` | The final summary step produces text matching `\d[\d,]*` |
+| `TestSupervisorRouting` | `test_route_from_the_framework_adapter` | `assert_handoffs()` + `assert_no_handoff()` + `assert_step(agent=...)` | `from_langgraph` reads each message's agent name: supervisor → research expert → supervisor → math expert → supervisor, never the admin expert |
+| `TestSupervisorRouting` | `test_route_from_the_cassette` | `assert_handoffs()` | The cassette alone infers the same route; only the first agent is unnamed |
 
 Step-level testing works on cassette replay because agentverify backfills tool results from the next step's LLM input. See [Step-Level Assertions](../../README.md#step-level-assertions) in the main README.
 
@@ -66,9 +68,9 @@ To re-record the cassette with real LLM calls:
    ```bash
    export OPENAI_API_KEY=sk-your_key_here
    ```
-2. Run the tests with `--cassette-mode=record`:
+2. Run **a single test** with `--cassette-mode=record`. Every test shares the same cassette, so recording the whole suite would rewrite it once per test:
    ```bash
-   pytest --cassette-mode=record
+   pytest -k test_tool_sequence_in_order --cassette-mode=record
    ```
    The cassette file is overwritten with a fresh recording.
 3. Commit the updated cassette.

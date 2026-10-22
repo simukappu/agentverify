@@ -66,6 +66,7 @@ The cassette replays deterministically. No OpenAI API calls, zero cost.
 | `TestJudgeLoopStepLevel` | `test_regeneration_consumes_evaluator_feedback` | `assert_step_uses_result_from()` | **The headline check.** Step 2 (generator, round 2) must reference step 1's feedback. Catches "agent ignored the judge" bugs |
 | `TestJudgeLoopStepLevel` | `test_final_evaluator_step_emits_pass` | `assert_step_output()` | The last step is an evaluator verdict with `"score": "pass"` |
 | (module level) | `test_no_tool_calls_anywhere` | direct assertion | Neither agent defines any tools. `result.tool_calls` is empty and every step's `tool_calls` list is empty |
+| (module level) | `test_cassette_opened_inside_async_code` | `JudgeLoopResult` shape | The cassette opened inside a coroutine around `await run_judge_loop(...)` replays the same loop, with no async test plugin |
 
 Step-level checks work on cassette replay because agentverify reconstructs each step's `input_context` from the recorded LLM request, and the consumed-leaf walker in `assert_step_uses_result_from` tolerates the multi-line text formatting the evaluator produces.
 
@@ -83,7 +84,7 @@ To re-record the cassette with real LLM calls:
    ```
 3. Commit the updated cassette.
 
-Note: `gpt-4o-mini` is non-deterministic even at `temperature=0`, so re-recording may change exact token counts and produce slightly different feedback text. The test assertions tolerate that variance: flat tests check budget ceilings and verdict shape, step-level tests match on structural patterns (tool counts, `"score"` regex) rather than exact text.
+Note: the agents do not pin `temperature`, and `gpt-4o-mini` is non-deterministic, so re-recording may change exact token counts and produce slightly different feedback text. The test assertions tolerate that variance: flat tests check budget ceilings and verdict shape, step-level tests match on structural patterns (tool counts, `"score"` regex) rather than exact text.
 
 ## Framework Adapter
 

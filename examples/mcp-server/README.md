@@ -24,13 +24,15 @@ The server communicates over stdio (MCP's standard transport).
 
 ## Connection Configuration
 
-When used from the LangChain issue triage agent, the server is launched as a subprocess via MCP's `StdioServerParameters`:
+When used from the LangChain issue triage agent, the server is launched as a subprocess via MCP's `StdioServerParameters`, with the interpreter that runs the agent:
 
 ```python
+import sys
+
 from mcp import StdioServerParameters
 
 server_params = StdioServerParameters(
-    command="python",
+    command=sys.executable,
     args=["../mcp-server/github_server.py"],
     env={"MOCK_REPO": "simukappu/agentverify"},
 )

@@ -2,7 +2,7 @@
 
 A GitHub Issue triage agent built with [LangChain](https://python.langchain.com/) and the [GitHub MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/github). It lists issues, reads details, and suggests labels, priorities, and assignees. Tested with [agentverify](https://github.com/simukappu/agentverify).
 
-The agent follows the official [`langchain-mcp-adapters` quickstart pattern](https://github.com/langchain-ai/langchain-mcp-adapters) (`MultiServerMCPClient` plus `create_react_agent`) applied to the GitHub MCP server. agentverify's built-in `from_langchain` adapter extracts the `ExecutionResult` in one call; no custom converter needed for this agent.
+The agent follows the official [`langchain-mcp-adapters` quickstart pattern](https://github.com/langchain-ai/langchain-mcp-adapters) (`MultiServerMCPClient` plus `create_react_agent`) applied to the GitHub MCP server. The tests build the `ExecutionResult` from the cassette with `rec.to_execution_result()`, since the agent's MCP tool calls are recorded along with the LLM calls; no custom converter needed for this agent.
 
 ## Prerequisites
 

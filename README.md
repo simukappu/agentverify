@@ -118,6 +118,12 @@ from agentverify import (
 from weather_agent import weather_agent
 
 
+@pytest.fixture(autouse=True)
+def fresh_conversation():
+    """The sample's agent is a module-level object that keeps its conversation between calls."""
+    weather_agent.messages.clear()
+
+
 @pytest.mark.agentverify
 def test_weather_agent(cassette):
     """Verify tool sequence, budget, latency, safety, and final output in one go."""
@@ -304,7 +310,7 @@ agentverify supports three cassette modes:
 
 ### Tool Calls
 
-The cassette records the agent's tool calls too. Replay returns each tool's recorded result instead of running the tool, so a replayed test makes no tool requests, needs no tool credentials, and leaves no side effects:
+The cassette records the agent's tool calls too. Replay returns each tool's recorded result instead of running the tool, so a replayed test makes no tool requests, needs no tool credentials, and leaves no side effects (MCP servers still start, since the agent lists their tools):
 
 ```yaml
 tool_executions:
@@ -317,9 +323,10 @@ tool_executions:
 - Tools are recorded through LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP's `ClientSession.call_tool`, including agents created before the cassette.
 - For a hand-written agent, decorate the tool function with `@cassette_tool`.
 - Calls match on the tool name and arguments, in any order. A call with no recorded match raises `CassetteToolMismatchError`, and fails the test when the cassette closes, even if the framework passed the error to the model. Re-record the cassette when the agent's tool calls change.
-- A tool error replays as it was recorded: the error result the framework made of it, or the same exception type and message (a `ReplayedToolError` when the type cannot be rebuilt from its message).
+- A tool error replays as it was recorded: the error result the framework made of it, or the same exception type and message (`agentverify.cassette.tools.ReplayedToolError` when the type cannot be rebuilt from its message).
 - A few calls run for real on replay too, marked `run_on_replay` in the cassette: results that do not survive YAML (a LangGraph `Command`, binary content), and CrewAI tools with `result_as_answer`.
 - A replayed tool that called the LLM while recording (an agent used as a tool) skips those LLM calls on replay, so the outer agent's calls stay in step.
+- Replay returns the recorded result only. What a tool does to the agent's own state is not replayed: Google ADK `tool_context.state`, Pydantic AI `deps`, an OpenAI Agents SDK context object, or anything else the tool changes in the process. LangChain tool callbacks (`on_tool_start` / `on_tool_end`) do not fire for a replayed call either. Pass `replay_tools=False` when a test depends on these.
 - Tool arguments and results go through [sanitization](#cassette-sanitization) like the rest of the cassette.
 - Cassettes recorded before 0.7.0 have no `tool_executions`, and their tools run for real. Pass `replay_tools=False` to run the real tools always, for example to test a tool's side effects.
 
@@ -327,7 +334,7 @@ tool_executions:
 
 Replay checks that the agent still sends what was recorded, so a prompt or tool change fails the test instead of replaying old responses. Each request is compared with the recorded one:
 - **Model name** (an empty model on either side skips the check)
-- **Tool names**, and each tool's **parameter schema**
+- **Tool names**, and each tool's **parameter schema** (a request with no tools on either side skips the check)
 - **System prompt**: system and developer messages, and the providers' `system` / `instructions` parameters
 - **User message text**. Tool results in their own messages or blocks are not compared, since a tool running for real may return something new.
 
@@ -832,7 +839,7 @@ pytest                      # replays the cassette once, as usual
 pytest --agentverify-live   # runs it 10 times against the live model; fails below 90%
 ```
 
-Under `--agentverify-live`, every `cassette` in a marked test calls the real model and tools and saves nothing. Each run is a full run of the test, with its function-scoped fixtures set up again, so async tests (pytest-asyncio, anyio) and parametrized tests work as usual. A run that skips is not counted. The end of the session lists each test's pass rate and failed runs (under pytest-xdist too). It costs one agent run per `runs`, so it fits a nightly job or a check before release, not every PR. `min_pass_rate` defaults to 1.0.
+Under `--agentverify-live`, every `cassette` in a test marked with `runs=` calls the real model and tools and saves nothing, whatever `mode` or `cassette_dir` it was given. Each run is a full run of the test, with its function-scoped fixtures set up again, so async tests (pytest-asyncio, anyio) and parametrized tests work as usual. A run that skips is not counted. The end of the session lists each test's pass rate and failed runs (under pytest-xdist too). It costs one agent run per `runs`, so it fits a nightly job or a check before release, not every PR. `min_pass_rate` defaults to 1.0.
 
 ## CI Integration
 
@@ -904,7 +911,16 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 | [`custom-converter-python-agent`](examples/custom-converter-python-agent/) | Anthropic SDK (no framework) | Reference for writing a custom converter: a hand-rolled ReAct loop calling the Anthropic Messages API directly |
 | [`mcp-server`](examples/mcp-server/) | (shared utility) | Mock GitHub MCP server for token-free testing |
 
-See each example's README for setup and recording mode details.
+To run one, install agentverify and the example from a clone of this repository, then run its tests:
+
+```bash
+git clone https://github.com/simukappu/agentverify.git && cd agentverify
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]" -e "examples/langchain-issue-triage[dev]"
+cd examples/langchain-issue-triage && pytest
+```
+
+See each example's README for what its tests check and how to re-record its cassette.
 
 ## Benchmark
 

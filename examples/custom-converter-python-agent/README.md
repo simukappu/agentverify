@@ -4,7 +4,7 @@ Reference example for writing a [custom converter](../../README.md#custom-conver
 
 ## Why this example?
 
-agentverify ships [built-in adapters](../../README.md#built-in-adapters) for LangChain, LangGraph, Strands Agents, and OpenAI Agents SDK. If you're using any of those, you don't need this example. `from_langchain(...)` / `from_langgraph(...)` / `from_strands(...)` / `from_openai_agents(...)` each turn the framework's native output into an `ExecutionResult` in one call.
+agentverify ships [built-in adapters](../../README.md#built-in-adapters) for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, and CrewAI, and [`from_otel`](../../README.md#production-traces) for frameworks that export OpenTelemetry traces. If you're using any of those, you don't need this example: each turns the framework's native output into an `ExecutionResult` in one call.
 
 If your agent is built without any of those frameworks (a pure-Python script calling an LLM SDK directly, a custom orchestrator, or an in-house framework), you write a small converter function that does the same job. This example shows what that converter looks like and how much code it actually takes (about 80 lines of real logic).
 

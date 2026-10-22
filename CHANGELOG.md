@@ -14,7 +14,7 @@
 
 ### Bug Fixes
 
-- **Data-flow assertions work on Anthropic, Bedrock, and Gemini cassettes**: replayed steps carry the tool results from those providers' tool result messages, with their error status, as they did for OpenAI.
+- **Data-flow assertions work on Anthropic, Bedrock, and Gemini cassettes**: replayed steps carry the tool results from those providers' tool result messages (with their error status on Anthropic and Bedrock), as they did for OpenAI.
 - **Replayed Anthropic tool calls keep their recorded ids**, and calls recorded without one get unique ids instead of reusing `toolu_0`.
 
 ### Breaking Changes
