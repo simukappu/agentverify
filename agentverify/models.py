@@ -70,8 +70,19 @@ def _agent_named(target: str, later_steps: list[Any]) -> str:
     return target
 
 
-def handoff_target(tool_name: str) -> Optional[str]:
-    """Return the agent a handoff tool call routes to, or ``None`` if the tool is not a handoff."""
+def handoff_target(tool_name: str, arguments: Any = None) -> Optional[str]:
+    """Return the agent a handoff tool call routes to, or ``None`` if the tool is not a handoff.
+
+    Google ADK has one handoff tool for every agent, ``transfer_to_agent(agent_name=...)``, so its target is in the arguments.
+    """
+    if tool_name == "transfer_to_agent":
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except ValueError:
+                return None
+        target = arguments.get("agent_name") if isinstance(arguments, dict) else None
+        return target if isinstance(target, str) and target else None
     match = _HANDOFF_TOOL.match(tool_name)
     return match.group(1) if match else None
 
@@ -82,7 +93,7 @@ def first_handoff(tool_calls: list[Any]) -> Optional[str]:
     The OpenAI Agents SDK runs only the first handoff in a response and answers the rest with "Multiple handoffs detected, ignoring this one", so later ones are not handoffs that happened.
     """
     for tc in tool_calls:
-        target = handoff_target(tc.name)
+        target = handoff_target(tc.name, tc.arguments)
         if target is not None:
             return target
     return None

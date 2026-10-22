@@ -1058,7 +1058,7 @@ def assert_handoffs(
 ) -> None:
     """Verify the handoffs between agents in a multi-agent run.
 
-    Handoffs are read from ``result.handoffs``: tool calls named ``transfer_to_<agent>`` or ``transfer_back_to_<agent>``. ``from_agent`` and ``to_agent`` accept ``ANY`` and ``MATCHES``. ``order`` works as in :func:`assert_tool_calls`: ``EXACT`` (the default) compares the whole sequence, ``IN_ORDER`` allows other handoffs in between, ``ANY_ORDER`` only requires each expected handoff to happen.
+    Handoffs are read from ``result.handoffs``: changes of agent the framework adapters report, or, in a cassette, tool calls named ``transfer_to_<agent>`` / ``transfer_back_to_<agent>`` and Google ADK's ``transfer_to_agent``. ``from_agent`` and ``to_agent`` accept ``ANY`` and ``MATCHES``. ``order`` works as in :func:`assert_tool_calls`: ``EXACT`` (the default) compares the whole sequence, ``IN_ORDER`` allows other handoffs in between, ``ANY_ORDER`` only requires each expected handoff to happen.
 
     In a cassette-recorded run the first agent has no name to read, so its handoffs have ``from_agent=None``; use ``ANY`` there or build the result with a framework adapter.
 

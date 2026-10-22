@@ -354,3 +354,36 @@ class TestHandoffsFromTheFramework:
         result = from_openai_agents(run)
         assert result.handoffs == [Handoff("Bank", "Billing", 1)]
         assert_no_handoff(result, to_agent="savings")
+
+
+class TestGoogleADKTransfers:
+    def test_the_target_is_in_the_arguments(self):
+        assert handoff_target("transfer_to_agent", {"agent_name": "billing"}) == "billing"
+        assert handoff_target("transfer_to_agent", '{"agent_name": "billing"}') == "billing"
+        assert handoff_target("transfer_to_agent", "not json") is None
+        assert handoff_target("transfer_to_agent", {"agent_name": ""}) is None
+        assert handoff_target("transfer_to_agent") is None
+        assert handoff_target("transfer_to_billing") == "billing"
+
+    def test_a_cassette_follows_transfers_across_user_turns(self, tmp_path):
+        from agentverify.cassette.adapters.base import NormalizedRequest, NormalizedResponse
+        from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
+
+        def transfer(target, call_id):
+            return {"id": call_id, "type": "function", "function": {"name": "transfer_to_agent", "arguments": f'{{"agent_name": "{target}"}}'}}
+
+        user = lambda text: {"role": "user", "content": text}  # noqa: E731
+        handoff = {"role": "assistant", "content": None, "tool_calls": [transfer("greeter", "c1")]}
+        done = {"role": "tool", "tool_call_id": "c1", "content": "{}"}
+        rec = LLMCassetteRecorder(tmp_path / "adk.yaml", mode=CassetteMode.RECORD)
+        with rec:
+            # Turn 1: the root hands off; the greeter answers.
+            rec.record(NormalizedRequest(messages=[user("hi")], model="m"), NormalizedResponse(tool_calls=[{"id": "c1", "name": "transfer_to_agent", "arguments": {"agent_name": "greeter"}}]))
+            rec.record(NormalizedRequest(messages=[user("hi")], model="m"), NormalizedResponse(content="hello"))
+            # Turn 2 starts with the greeter, which hands back to the root; the root's own
+            # history still shows its turn-1 transfer, followed by the new user turn.
+            rec.record(NormalizedRequest(messages=[user("hi"), user("weather?")], model="m"), NormalizedResponse(tool_calls=[{"id": "c2", "name": "transfer_to_agent", "arguments": {"agent_name": "root"}}]))
+            rec.record(NormalizedRequest(messages=[user("hi"), handoff, done, user("weather?")], model="m"), NormalizedResponse(content="sunny"))
+        result = rec.to_execution_result()
+        assert [s.agent for s in result.steps] == [None, "greeter", "greeter", "root"]
+        assert result.handoffs == [Handoff(None, "greeter", 0), Handoff("greeter", "root", 2)]

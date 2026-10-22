@@ -742,36 +742,41 @@ def _build_execution_result(
 
 def _tool_names_in(message: Any) -> list[str]:
     """Names of the tool calls a model message makes: OpenAI, Anthropic, Bedrock, and Gemini shapes."""
+    return [name for name, _ in _tool_calls_in(message)]
+
+
+def _tool_calls_in(message: Any) -> list[tuple[str, Any]]:
+    """The (name, arguments) of the tool calls a model message makes: OpenAI, Anthropic, Bedrock, and Gemini shapes."""
     from agentverify.cassette.sanitize import _as_plain
 
     # Recording keeps the request's SDK objects; replay loads dicts. Read both the same way.
     message = _as_plain(message)
     if not isinstance(message, dict) or message.get("role") not in ("assistant", "model"):
         return []
-    names: list[str] = []
+    calls: list[tuple[str, Any]] = []
     for tc in message.get("tool_calls") or []:  # OpenAI / LiteLLM
         if isinstance(tc, dict):
             fn = tc.get("function")
             name = fn.get("name") if isinstance(fn, dict) else tc.get("name")
             if isinstance(name, str):
-                names.append(name)
+                calls.append((name, fn.get("arguments") if isinstance(fn, dict) else tc.get("arguments")))
     content = message.get("content")
     for block in content if isinstance(content, list) else []:
         block = _as_plain(block)  # SDK content blocks while recording
         if not isinstance(block, dict):
             continue
         if block.get("type") == "tool_use" and isinstance(block.get("name"), str):  # Anthropic
-            names.append(block["name"])
+            calls.append((block["name"], block.get("input")))
         tool_use = block.get("toolUse")  # Bedrock Converse
         if isinstance(tool_use, dict) and isinstance(tool_use.get("name"), str):
-            names.append(tool_use["name"])
+            calls.append((tool_use["name"], tool_use.get("input")))
     for part in message.get("parts") or []:  # Gemini
         part = _as_plain(part)
         call = (part.get("function_call") or part.get("functionCall")) if isinstance(part, dict) else None
         call = _as_plain(call)
         if isinstance(call, dict) and isinstance(call.get("name"), str):
-            names.append(call["name"])
-    return names
+            calls.append((call["name"], call.get("args")))
+    return calls
 
 
 # (cassette path, test id, field) for each stale cassette found in this run, for the pytest summary.
@@ -918,15 +923,21 @@ def _tool_results_in(message: Any) -> list[tuple[Any, bool | None]]:
 def _agent_from_history(step: Step) -> Step:
     """Name the step's agent after the last handoff in its input history.
 
-    The request resends the conversation, including handoffs the framework writes without an LLM call (langgraph-supervisor's ``transfer_back_to_supervisor``), so the last handoff there names the agent making this call.
+    The request resends the conversation, including handoffs the framework writes without an LLM call (langgraph-supervisor's ``transfer_back_to_supervisor``), so the last handoff there names the agent making this call. A user message after it starts a new turn, which the history does not say who answers; the previous step's handoff decides then (Google ADK).
     """
+    from agentverify.cassette.sanitize import _as_plain
+
     if step.agent is not None or not step.input_context:
         return step
     messages = step.input_context.get("messages")
     agent = None
     for message in messages if isinstance(messages, list) else []:
+        plain = _as_plain(message)
+        if isinstance(plain, dict) and plain.get("role") == "user" and (_texts(plain.get("content")) or _texts(plain.get("parts"))):
+            agent = None
+            continue
         # Only the first handoff in a message takes effect (see first_handoff).
-        target = next((t for t in map(handoff_target, _tool_names_in(message)) if t is not None), None)
+        target = next((t for t in (handoff_target(name, args) for name, args in _tool_calls_in(message)) if t is not None), None)
         if target is not None:
             agent = target
     return step if agent is None else replace(step, agent=agent)

@@ -660,7 +660,7 @@ assert_step(result, step=1, agent="research_expert", expected_tool=ToolCall("web
 `result.handoffs` lists them, and `Step.agent` names the agent at each step.
 
 - The framework adapters (`from_openai_agents`, `from_langgraph`, `from_google_adk`, `from_crewai`) and `from_otel` take agent names from the framework, and a handoff is a change of acting agent. Tool names are not read, so an ordinary tool named `transfer_to_savings` is not a handoff and a handoff tool renamed with `tool_name_override` still is.
-- A cassette has no agent names. It reads handoffs from the `transfer_to_<agent>` / `transfer_back_to_<agent>` tool calls that the OpenAI Agents SDK and langgraph-supervisor make, and names each step after the last handoff in its request history. The first agent is unnamed (`Handoff(ANY, "research_expert")`), and returns to a supervisor are seen only when the framework writes them into the history, as langgraph-supervisor does by default.
+- A cassette has no agent names. It reads handoffs from the `transfer_to_<agent>` / `transfer_back_to_<agent>` tool calls that the OpenAI Agents SDK and langgraph-supervisor make, and from Google ADK's `transfer_to_agent(agent_name=...)`. It names each step after the last handoff in its request history, or after the previous step's handoff when a new user turn follows that one. The first agent is unnamed (`Handoff(ANY, "research_expert")`), and returns to a supervisor are seen only when the framework writes them into the history, as langgraph-supervisor does by default.
 
 Plain-string names compare as handoff tools spell them: `"Billing Agent"` matches `billing_agent`.
 
