@@ -3,6 +3,8 @@
 Registers the ``agentverify`` marker, the ``--cassette-mode`` CLI option, and auto-loads fixtures when the plugin is discovered via the ``pytest11`` entry point.
 """
 
+from pathlib import Path
+
 import pytest
 
 from agentverify.fixtures import cassette  # noqa: F401 — auto-register fixture
@@ -55,9 +57,15 @@ def pytest_runtest_protocol(item, nextitem):  # type: ignore[no-untyped-def]
 
 
 def pytest_runtest_logreport(report):  # type: ignore[no-untyped-def]
+    from agentverify.cassette.recorder import _stale_cassettes
+    from agentverify.fixtures import STALE_PROPERTY
     from agentverify.live import collect
 
     collect(report)
+    if report.when == "teardown":
+        for name, value in report.user_properties:
+            if name == STALE_PROPERTY:
+                _stale_cassettes.extend(tuple(entry) for entry in value)
 
 
 def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
@@ -69,17 +77,25 @@ def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
 
     if not _stale_cassettes:
         return
-    seen: dict[str, tuple[str | None, str]] = {}
+    root = terminalreporter.config.rootpath
+    stale: dict[str, tuple[set[str], set[str]]] = {}
     for path, test_id, field in _stale_cassettes:
-        seen.setdefault(path, (test_id, field))
+        fields, tests = stale.setdefault(path, (set(), set()))
+        fields.add(field)
+        if test_id:
+            tests.add(test_id)
     terminalreporter.section("agentverify: stale cassettes")
-    for path, (test_id, field) in seen.items():
-        terminalreporter.write_line(f"{path}  ({field} changed)")
-    tests = sorted({test_id for test_id, _ in seen.values() if test_id})
-    if tests:
+    for path, (fields, tests) in stale.items():
+        try:
+            shown = str(Path(path).relative_to(root))
+        except ValueError:
+            shown = path
+        terminalreporter.write_line(f"{shown}  ({', '.join(sorted(fields))} changed)")
+    every_test = sorted(set().union(*(tests for _, tests in stale.values())))
+    if every_test:
         import shlex
 
         terminalreporter.write_line("")
-        terminalreporter.write_line(f"Re-record them with (from {terminalreporter.config.rootpath}):")
-        terminalreporter.write_line("  pytest --cassette-mode=record " + " ".join(shlex.quote(t) for t in tests))
+        terminalreporter.write_line(f"Re-record them with (from {root}):")
+        terminalreporter.write_line("  pytest --cassette-mode=record " + " ".join(shlex.quote(t) for t in every_test))
     _stale_cassettes.clear()

@@ -14,6 +14,7 @@ Spans following the OpenTelemetry GenAI semantic conventions are read, in the cu
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -136,7 +137,9 @@ def _from_otlp(span: dict[str, Any]) -> _Span:
 
 def _iso_ms(value: Any) -> float:
     if isinstance(value, str):
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() * 1000
+        # Python 3.10 reads only 3 or 6 fractional digits; exporters write up to 9.
+        value = re.sub(r"\.(\d+)", lambda m: "." + m.group(1)[:6].ljust(6, "0"), value.replace("Z", "+00:00"), count=1)
+        return datetime.fromisoformat(value).timestamp() * 1000
     return 0.0
 
 

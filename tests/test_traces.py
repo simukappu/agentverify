@@ -314,3 +314,8 @@ class TestReviewFixes:
             _span("chat", "c2", start=1, attributes={"gen_ai.operation.name": "chat", "gen_ai.agent.name": "b"}),
         ]
         assert [(h.from_agent, h.to_agent) for h in from_otel(spans)[0].handoffs] == [("a", "b")]
+
+    def test_timestamps_with_any_number_of_fractional_digits(self):
+        span = _span("chat", "c", attributes={"gen_ai.operation.name": "chat"})
+        span["start_time"], span["end_time"] = "2026-10-22T00:00:00.1Z", "2026-10-22T00:00:00.123456789Z"
+        assert from_otel([span])[0].steps[0].duration_ms == pytest.approx(23.456789, abs=1e-3)

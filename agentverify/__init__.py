@@ -9,7 +9,7 @@ Covers tool call sequences, workflow logic, and step-to-step data flow.  Public 
         assert_final_output, assert_latency, assert_all,
         assert_step, assert_step_output, assert_step_uses_result_from,
         step_probe,
-        LLMCassetteRecorder, CassetteMode,
+        LLMCassetteRecorder, CassetteMode, cassette_tool,
         MockLLM, mock_response,
     )
 
@@ -19,6 +19,13 @@ Framework adapters::
     from agentverify.frameworks.langchain import from_langchain
     from agentverify.frameworks.langgraph import from_langgraph
     from agentverify.frameworks.openai_agents import from_openai_agents
+    from agentverify.frameworks.pydantic_ai import from_pydantic_ai
+    from agentverify.frameworks.google_adk import from_google_adk
+    from agentverify.frameworks.crewai import from_crewai
+
+Traces from any framework that exports OpenTelemetry spans::
+
+    from agentverify.traces import from_otel
 """
 
 from agentverify.assertions import (
@@ -42,6 +49,7 @@ from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.cassette.tools import cassette_tool
 from agentverify.errors import (
+    CassetteMissingRequestError,
     CassetteRequestMismatchError,
     CassetteToolMismatchError,
     CassetteUnsupportedCallError,
@@ -98,6 +106,7 @@ __all__ = [
     # Cassette
     "LLMCassetteRecorder",
     "CassetteMode",
+    "CassetteMissingRequestError",
     "CassetteRequestMismatchError",
     "CassetteUnsupportedCallError",
     "CassetteToolMismatchError",

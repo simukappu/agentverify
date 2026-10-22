@@ -132,16 +132,16 @@ class TestReporting:
         reporter = Reporter()
         pytest_terminal_summary(reporter)
         assert reporter.lines[0] == "== agentverify: stale cassettes"
-        assert reporter.lines[1] == f"{path}  (user messages changed)" and len(reporter.lines) == 5
+        assert reporter.lines[1] == "s.yaml  (model, user messages changed)" and len(reporter.lines) == 5
         assert reporter.lines[-1].startswith("  pytest --cassette-mode=record ") and "test_summary_lists" in reporter.lines[-1]
         assert _stale_cassettes == []
         pytest_terminal_summary(reporter)  # nothing stale: no section
         assert len(reporter.lines) == 5
 
-        _stale_cassettes.append((str(path), None, "model"))
+        _stale_cassettes.append(("/elsewhere/s.yaml", None, "model"))
         reporter.lines = []
         pytest_terminal_summary(reporter)
-        assert reporter.lines == ["== agentverify: stale cassettes", f"{path}  (model changed)"]
+        assert reporter.lines == ["== agentverify: stale cassettes", "/elsewhere/s.yaml  (model changed)"]
 
 
 class TestReviewFixes:
