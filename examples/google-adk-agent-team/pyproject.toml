@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "google-adk-agent-team"
+version = "0.1.0"
+description = "Google ADK agent team (weather agent with greeting and farewell sub-agents), tested with agentverify"
+requires-python = ">=3.10"
+dependencies = [
+    "google-adk",
+    "litellm",
+    "mcp",  # recent LiteLLM releases import it for any call with tools, without depending on it
+    "boto3",  # LiteLLM reaches Bedrock through the AWS credential chain
+    "agentverify",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+py-modules = ["agent"]
+
+# Its own pytest config, so the repository's settings (which turn the agentverify plugin off
+# for its own tests) do not apply and --cassette-mode works here.
+[tool.pytest.ini_options]
+testpaths = ["tests"]

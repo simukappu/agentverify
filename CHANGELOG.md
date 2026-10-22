@@ -6,6 +6,10 @@
 
 - **Cassettes read Google ADK handoffs**: `transfer_to_agent(agent_name=...)` names its target in the arguments, and was read as a handoff to an agent called `agent`. A step after a new user turn is also no longer credited to the agent of an earlier turn's handoff.
 
+### Documentation
+
+- **New example: [Google ADK agent team](examples/google-adk-agent-team/)**, the ADK tutorial's weather agent with greeting and farewell sub-agents, on Bedrock through LiteLLM.
+
 ## 0.7.0 (2026-10-22)
 
 ### Features
