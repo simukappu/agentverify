@@ -15,6 +15,7 @@
 ### Bug Fixes
 
 - **Data-flow assertions work on Anthropic, Bedrock, and Gemini cassettes**: replayed steps carry the tool results from those providers' tool result messages (with their error status on Anthropic and Bedrock), as they did for OpenAI.
+- **`CassetteMissingRequestError` says how far the run got**: the request number that ran out and how many responses the cassette or `MockLLM` has ([#3](https://github.com/simukappu/agentverify/issues/3)).
 - **Replayed Anthropic tool calls keep their recorded ids**, and calls recorded without one get unique ids instead of reusing `toolu_0`.
 
 ### Breaking Changes

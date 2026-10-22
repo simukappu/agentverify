@@ -540,7 +540,11 @@ def _replay_or_miss(
         return (replayed or adapter.denormalize_response)(norm_resp)
     if recorder.on_missing == OnMissingRequest.FALLBACK:
         return _REPLAY_MISS
-    raise CassetteMissingRequestError(f"No matching cassette entry for request: model={norm_req.model}")
+    raise CassetteMissingRequestError(
+        f"No matching cassette entry for request #{recorder._replay_index + 1} (model={norm_req.model}): "
+        f"{recorder.cassette_path.name} has {len(recorder._interactions)} recorded response(s), all replayed. "
+        "The agent makes more LLM calls than when the cassette was recorded; re-record it with --cassette-mode=record."
+    )
 
 
 def _stream_passthrough(recorder: LLMCassetteRecorder, provider: str, call: str, kwargs: dict[str, Any]) -> bool:

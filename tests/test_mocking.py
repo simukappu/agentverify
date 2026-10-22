@@ -112,7 +112,7 @@ class TestMockLLMLookup:
         mock = MockLLM([mock_response(content="only")], provider="openai")
         req = NormalizedRequest(messages=[], model="gpt-4")
         mock.lookup(req)
-        with pytest.raises(CassetteMissingRequestError):
+        with pytest.raises(CassetteMissingRequestError, match=r"request #2, but only 1 response\(s\) are queued"):
             mock.lookup(req)
 
 

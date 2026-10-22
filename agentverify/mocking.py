@@ -190,8 +190,8 @@ class MockLLM:
         """
         if self._replay_index >= len(self._responses):
             raise CassetteMissingRequestError(
-                f"MockLLM ran out of predefined responses after "
-                f"{self._replay_index} call(s). "
+                f"MockLLM ran out of predefined responses: the agent made request #{self._replay_index + 1}, "
+                f"but only {len(self._responses)} response(s) are queued. "
                 f"Add more mock_response(...) entries to the MockLLM list."
             )
 

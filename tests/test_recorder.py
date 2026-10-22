@@ -113,6 +113,21 @@ class TestRecorderRecordAndLookup:
         result3 = rec.lookup(dummy_req)
         assert result3 is None
 
+    def test_exhausted_cassette_reports_how_far_the_run_got(self, tmp_path):
+        import openai
+
+        from agentverify.errors import CassetteMissingRequestError
+
+        path = tmp_path / "short.yaml"
+        request = NormalizedRequest(messages=[{"role": "user", "content": "hi"}], model="gpt-4.1")
+        save_cassette(path, [(request, NormalizedResponse(content="first"))], provider="openai")
+        client = openai.OpenAI(api_key="sk-test", max_retries=0)
+        with LLMCassetteRecorder(cassette_path=path, mode=CassetteMode.REPLAY):
+            ask = lambda: client.chat.completions.create(model="gpt-4.1", messages=[{"role": "user", "content": "hi"}])  # noqa: E731
+            assert ask().choices[0].message.content == "first"
+            with pytest.raises(CassetteMissingRequestError, match=r"request #2 \(model=gpt-4.1\): short.yaml has 1 recorded response\(s\), all replayed"):
+                ask()
+
     def test_lookup_exhausted_fallback(self, tmp_path):
         path = tmp_path / "test.yaml"
         save_cassette(path, [], provider="openai")
