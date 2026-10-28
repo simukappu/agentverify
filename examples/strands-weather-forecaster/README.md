@@ -68,4 +68,4 @@ To re-record the cassette with real LLM calls:
 
 ## Framework Adapter
 
-The tests run the agent inside the `cassette` fixture and build the `ExecutionResult` from the recording (`rec.to_execution_result()`), tool results included. When you call the agent outside a cassette, `from_strands(result)` builds one from the `AgentResult`; see the [main README's Framework Integration section](../../README.md#framework-integration).
+The tests run the agent inside the `cassette` fixture and build the `ExecutionResult` from the recording (`rec.to_execution_result()`), tool results included. When you call the agent outside a cassette, `from_strands(weather_agent)` builds one from the agent's conversation; see the [main README's Framework Integration section](../../README.md#framework-integration).

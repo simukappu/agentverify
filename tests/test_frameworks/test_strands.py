@@ -426,3 +426,37 @@ class TestFromStrandsToolOutcome:
         )
         er = from_strands(result)
         assert er.steps[0].tool_result_is_error(0) is None
+
+
+class TestAgent:
+    """The conversation lives on the Agent; the AgentResult a call returns does not carry it."""
+
+    MESSAGES = [
+        {"role": "user", "content": [{"text": "1+2?"}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "t1", "name": "add", "input": {"a": 1, "b": 2}}}]},
+        {"role": "user", "content": [{"toolResult": {"toolUseId": "t1", "status": "success", "content": [{"text": "3"}]}}]},
+        {"role": "assistant", "content": [{"text": "It is 3."}]},
+    ]
+
+    def test_reads_the_agent(self):
+        agent = SimpleNamespace(messages=self.MESSAGES, event_loop_metrics=SimpleNamespace(accumulated_usage={"inputTokens": 7, "outputTokens": 2}))
+        result = from_strands(agent)
+        assert [c.name for c in result.tool_calls] == ["add"]
+        assert result.steps[0].tool_results_meta == [{"is_error": False}]
+        assert result.final_output == "It is 3." and result.token_usage == TokenUsage(7, 2)
+
+    def test_metrics_without_usage(self):
+        agent = SimpleNamespace(messages=self.MESSAGES, event_loop_metrics=SimpleNamespace())
+        assert from_strands(agent).token_usage is None
+
+    def test_an_agent_that_has_not_answered(self):
+        result = from_strands(SimpleNamespace(messages=self.MESSAGES[:1]))
+        assert result.steps == [] and result.final_output is None
+        # A message whose content is not a list of blocks is skipped.
+        odd = SimpleNamespace(messages=[{"role": "assistant", "content": "plain"}])
+        assert from_strands(odd).final_output is None
+
+    def test_an_agent_result_says_to_pass_the_agent(self):
+        agent_result = SimpleNamespace(state={}, message={"role": "assistant", "content": [{"text": "It is 3."}]}, metrics=SimpleNamespace())
+        with pytest.raises(TypeError, match=r"from_strands\(agent\)"):
+            from_strands(agent_result)

@@ -1,21 +1,19 @@
 """Strands Agents adapter for agentverify.
 
-Converts a Strands Agents ``AgentResult`` into an agentverify ``ExecutionResult`` without requiring a custom converter function.
+Converts a Strands Agents ``Agent`` after a run into an agentverify ``ExecutionResult`` without requiring a custom converter function.
 
 Usage::
 
     from agentverify.frameworks.strands import from_strands
 
-    result = agent("Analyze the files")
-    execution_result = from_strands(result)
+    agent("Analyze the files")
+    execution_result = from_strands(agent)
 
-The Strands AgentResult has the following structure:
+The conversation lives on the agent, not on the ``AgentResult`` a call returns:
 
-- ``result.state.messages``: Conversation history (list of message dicts).
+- ``agent.messages``: Conversation history (list of message dicts), including earlier calls on the same agent; clear it between tests (``agent.messages.clear()``) for one run per result.
   Each ``assistant`` message's ``content`` is a list of blocks, which may contain ``{"toolUse": {...}}`` and/or ``{"text": "..."}`` entries. ``user`` messages between two assistant messages often contain ``{"toolResult": {...}}`` blocks that carry tool execution results.
-- ``result.metrics``: Token consumption dict with ``"inputTokens"`` and
-  ``"outputTokens"`` keys (may be absent during mock execution).
-- ``result.message``: Final response message dict.
+- ``agent.event_loop_metrics.accumulated_usage``: Token consumption, with ``"inputTokens"`` and ``"outputTokens"`` keys.
 
 Step boundary: **each ``assistant`` message becomes one step** (``source="llm"``).  Tool results observed in the next ``user`` message are attached to the previous step's ``tool_results``.
 """
@@ -54,16 +52,37 @@ def _extract_tool_results(content: list[Any]) -> list[Any]:
     return results
 
 
-def from_strands(result: Any) -> ExecutionResult:
-    """Build an ``ExecutionResult`` from a Strands Agents ``AgentResult``.
+def _messages(source: Any) -> list[Any]:
+    if isinstance(getattr(source, "messages", None), list):  # an Agent
+        return source.messages
+    state = getattr(source, "state", None)
+    if state is None:
+        return []
+    if isinstance(getattr(state, "messages", None), list):
+        return state.messages
+    raise TypeError(
+        "from_strands() reads the conversation from the Agent, and a Strands AgentResult does not carry it: "
+        "pass the agent after the call, as in agent(prompt); from_strands(agent)"
+    )
+
+
+def _usage(metrics: Any) -> dict[str, Any]:
+    if isinstance(metrics, dict):
+        return metrics
+    usage = getattr(metrics, "accumulated_usage", None)  # EventLoopMetrics
+    return usage if isinstance(usage, dict) else {}
+
+
+def from_strands(source: Any) -> ExecutionResult:
+    """Build an ``ExecutionResult`` from a Strands Agents ``Agent`` after a run.
 
     Args:
-        result: A Strands Agents SDK ``AgentResult`` object.
+        source: The ``Agent`` the run used. Its ``messages`` hold the conversation; the ``AgentResult`` the call returned does not, and raises ``TypeError``.
     """
     # Walk messages: each assistant message is one step; tool results
     # that appear after it (in the next user message) are attached to
     # that step's tool_results.
-    messages = result.state.messages if hasattr(result, "state") else []
+    messages = _messages(source)
 
     steps: list[Step] = []
     pending_input_context: dict[str, Any] | None = None
@@ -122,21 +141,21 @@ def from_strands(result: Any) -> ExecutionResult:
     # Token usage — Strands provides aggregate metrics at the top level,
     # not per-step.  Attach it to the overall ExecutionResult.
     token_usage: TokenUsage | None = aggregate_token_usage(steps)
-    if token_usage is None and hasattr(result, "metrics") and result.metrics:
-        metrics = result.metrics
-        it = metrics.get("inputTokens", 0)
-        ot = metrics.get("outputTokens", 0)
+    metrics = getattr(source, "event_loop_metrics", None) or getattr(source, "metrics", None)
+    if token_usage is None and metrics:
+        usage = _usage(metrics)
+        it = usage.get("inputTokens", 0)
+        ot = usage.get("outputTokens", 0)
         if it or ot:
             token_usage = TokenUsage(input_tokens=it, output_tokens=ot)
 
-    # Final output — prefer the last text block in result.message.
+    # Final output — the last text block of result.message, or of the agent's last assistant message.
     final_output: str | None = None
-    if hasattr(result, "message") and result.message:
-        mc = (
-            result.message.get("content")
-            if isinstance(result.message, dict)
-            else None
-        )
+    message = getattr(source, "message", None)
+    if not isinstance(message, dict):
+        message = next((m for m in reversed(messages) if isinstance(m, dict) and m.get("role") == "assistant"), None)
+    if message:
+        mc = message.get("content")
         if isinstance(mc, list):
             final_output = _extract_text(mc)
 

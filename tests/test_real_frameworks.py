@@ -352,3 +352,27 @@ def test_crewai_tool(tmp_path, monkeypatch):
 
     executions = _round_trip(tmp_path / "crew.yaml", run)
     assert executions[0]["name"] == "http_request" and executions[0]["result"] == "BODY http://x"
+
+
+def test_from_strands_on_a_real_agent():
+    pytest.importorskip("strands")
+    from strands import Agent, tool
+    from strands.models.bedrock import BedrockModel
+
+    from agentverify import MockLLM, mock_response
+    from agentverify.frameworks.strands import from_strands
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Add two numbers."""
+        return a + b
+
+    agent = Agent(model=BedrockModel(model_id="m", region_name="us-east-1"), tools=[add], callback_handler=None)
+    responses = [mock_response(tool_calls=[{"name": "add", "arguments": {"a": 1, "b": 2}}]), mock_response(content="It is 3.")]
+    with MockLLM(responses, provider="bedrock"):
+        agent_result = agent("1+2?")
+    result = from_strands(agent)
+    assert [(c.name, c.arguments) for c in result.tool_calls] == [("add", {"a": 1, "b": 2})]
+    assert result.steps[0].tool_results[0]["content"] == [{"text": "3"}] and result.final_output == "It is 3."
+    with pytest.raises(TypeError, match="pass the agent"):
+        from_strands(agent_result)

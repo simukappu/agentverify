@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **`from_strands` reads the Strands `Agent`**: it read the conversation from `AgentResult.state.messages`, which the Strands `AgentResult` does not have, and failed with `AttributeError` on real runs. Pass the agent after the call: `agent(prompt); from_strands(agent)`. Token usage comes from the agent's `event_loop_metrics`. An `AgentResult` now raises a `TypeError` that says to pass the agent.
+
 ## 0.7.1 (2026-10-22)
 
 ### Bug Fixes

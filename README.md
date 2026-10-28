@@ -728,7 +728,7 @@ agentverify ships with built-in adapters for popular agent frameworks. No conver
 |---|---|---|
 | [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | Legacy `AgentExecutor.invoke()` dict |
 | [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` / `create_supervisor` result dict, and LangChain 1.x `create_agent` result |
-| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | `AgentResult` |
+| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | The `Agent` after the call (its `messages` hold the conversation; the `AgentResult` does not) |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
 | [Pydantic AI](https://github.com/pydantic/pydantic-ai) | `from agentverify.frameworks.pydantic_ai import from_pydantic_ai` | `AgentRunResult` (pass `agent_name=` to name the steps' agent) |
 | [Google ADK](https://github.com/google/adk-python) | `from agentverify.frameworks.google_adk import from_google_adk` | The events of `Runner.run()` / `run_async()`, streamed or not |
@@ -742,7 +742,7 @@ from agentverify.frameworks.langchain import from_langchain
 execution_result = from_langchain(result, messages=memory.chat_memory.messages)
 ```
 
-LangGraph, Strands, and OpenAI Agents adapters take the raw agent output directly:
+LangGraph and OpenAI Agents adapters take the raw agent output directly, and the Strands adapter takes the agent:
 
 ```python
 from agentverify.frameworks.langgraph import from_langgraph
@@ -752,8 +752,9 @@ from agentverify.frameworks.openai_agents import from_openai_agents
 # LangGraph: create_react_agent / create_supervisor / LangChain create_agent result
 execution_result = from_langgraph(app.invoke({"messages": [...]}))
 
-# Strands: agent call result
-execution_result = from_strands(weather_agent("What's the weather in Seattle?"))
+# Strands: the agent after the call (its messages include earlier calls; clear them between tests)
+weather_agent("What's the weather in Seattle?")
+execution_result = from_strands(weather_agent)
 
 # OpenAI Agents SDK: Runner.run_sync() / await Runner.run() result
 execution_result = from_openai_agents(Runner.run_sync(agent, "your prompt"))
