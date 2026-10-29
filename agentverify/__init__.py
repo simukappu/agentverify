@@ -49,6 +49,7 @@ from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.cassette.tools import cassette_tool
 from agentverify.errors import (
+    CassetteExpiredError,
     CassetteMissingRequestError,
     CassetteRequestMismatchError,
     CassetteToolMismatchError,
@@ -106,6 +107,7 @@ __all__ = [
     # Cassette
     "LLMCassetteRecorder",
     "CassetteMode",
+    "CassetteExpiredError",
     "CassetteMissingRequestError",
     "CassetteRequestMismatchError",
     "CassetteUnsupportedCallError",

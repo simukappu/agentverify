@@ -160,6 +160,12 @@ class CassetteMissingRequestError(AgentVerifyError):
     pass
 
 
+class CassetteExpiredError(AgentVerifyError):
+    """Raised when replaying a cassette older than its ``max_age``."""
+
+    pass
+
+
 class CassetteUnsupportedCallError(AgentVerifyError):
     """Raised when an LLM call inside a cassette cannot be recorded or replayed.
 

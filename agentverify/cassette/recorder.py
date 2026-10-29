@@ -13,6 +13,7 @@ import json
 import re
 
 import time
+import warnings
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from agentverify.cassette.adapters.base import (
     NormalizedRequest,
     NormalizedResponse,
 )
+from agentverify.cassette.expiry import MaxAge, check_on_expired, expiry, parse_max_age
 from agentverify.cassette.io import _parse_interactions, load_document, save_cassette
 from agentverify.cassette.sanitize import (
     DEFAULT_PATTERNS,
@@ -139,8 +141,12 @@ class LLMCassetteRecorder:
         sanitize: bool | list[SanitizePattern] = True,
         replay_tools: bool = True,
         match_ignore: list[str] | None = None,
+        max_age: MaxAge = None,
+        on_expired: str = "error",
     ) -> None:
         self.cassette_path = Path(cassette_path)
+        self.max_age = parse_max_age(max_age)
+        self.on_expired = check_on_expired(on_expired)
         self.replay_tools = replay_tools
         self._match_ignore = [re.compile(p) for p in match_ignore or []]
         # Set by the cassette fixture, for the stale-cassette summary at the end of the run.
@@ -229,6 +235,7 @@ class LLMCassetteRecorder:
         """Apply the adapter's monkey-patch and activate probe session."""
         from agentverify.probe import _activate_session
 
+        self._check_expiry()
         self._patch_ctx = self._adapter.patch(self)
         self._patch_ctx.__enter__()
         self._probe_ctx = _activate_session(self)
@@ -247,6 +254,22 @@ class LLMCassetteRecorder:
         self._tool_ctx.__enter__()
         self._start_time = time.monotonic()
         return self
+
+    def _check_expiry(self) -> None:
+        """Fail (or warn) before replaying a cassette older than ``max_age``."""
+        if self.mode != CassetteMode.REPLAY or self.max_age is None:
+            return
+        reason = expiry(self._metadata, self.max_age)
+        if reason is None:
+            return
+        _stale_cassettes.append((str(self.cassette_path), self.test_id, reason))
+        message = f"{self.cassette_path}: {reason}. Re-record it with --cassette-mode=record."
+        if self.on_expired == "warn":
+            warnings.warn(message, UserWarning, stacklevel=3)
+            return
+        from agentverify.errors import CassetteExpiredError
+
+        raise CassetteExpiredError(message)
 
     def __exit__(self, *args: Any) -> None:
         """Remove the monkey-patch and save the cassette if recording."""

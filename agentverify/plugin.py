@@ -11,7 +11,7 @@ from agentverify.fixtures import cassette  # noqa: F401 — auto-register fixtur
 
 
 def pytest_addoption(parser):  # type: ignore[no-untyped-def]
-    """Add the ``--cassette-mode``, ``--no-cassette-match-requests``, and ``--agentverify-live`` command-line options."""
+    """Add the cassette and live-run command-line options and the ``agentverify_cassette_max_age`` ini setting."""
     parser.addoption(
         "--cassette-mode",
         default=None,
@@ -23,6 +23,28 @@ def pytest_addoption(parser):  # type: ignore[no-untyped-def]
         action="store_true",
         default=False,
         help="Disable request matching during cassette replay.",
+    )
+    parser.addoption(
+        "--cassette-max-age",
+        default=None,
+        help="Fail replaying cassettes recorded longer ago than this (e.g. 30d, 12h). Overrides the agentverify_cassette_max_age ini setting.",
+    )
+    parser.addoption(
+        "--cassette-expired",
+        default=None,
+        choices=["error", "warn"],
+        help="What replaying an expired cassette does: error (default) or warn.",
+    )
+    parser.addoption(
+        "--cassette-report",
+        action="store_true",
+        default=False,
+        help="List the cassettes next to the collected tests (recorded when, with which model, expired or not) instead of running the tests.",
+    )
+    parser.addini(
+        "agentverify_cassette_max_age",
+        default="",
+        help="Fail replaying cassettes recorded longer ago than this (e.g. 30d). Empty: no limit.",
     )
     parser.addoption(
         "--agentverify-live",
@@ -46,6 +68,17 @@ def pytest_collection_modifyitems(config, items):  # type: ignore[no-untyped-def
 
     for item in items:
         live_settings(item)
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtestloop(session):  # type: ignore[no-untyped-def]
+    """Under --cassette-report, list the cassettes instead of running the tests."""
+    if not session.config.getoption("--cassette-report", default=False):
+        return None
+    from agentverify.cassette.report import report
+
+    report(session)
+    return True
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -90,7 +123,9 @@ def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
             shown = str(Path(path).relative_to(root))
         except ValueError:
             shown = path
-        terminalreporter.write_line(f"{shown}  ({', '.join(sorted(fields))} changed)")
+        changed = [f for f in sorted(fields) if not f.startswith("expired")]
+        reasons = ([f"{', '.join(changed)} changed"] if changed else []) + [f for f in sorted(fields) if f.startswith("expired")]
+        terminalreporter.write_line(f"{shown}  ({'; '.join(reasons)})")
     every_test = sorted(set().union(*(tests for _, tests in stale.values())))
     if every_test:
         import shlex

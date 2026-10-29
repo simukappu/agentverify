@@ -367,6 +367,28 @@ Cassettes drift when your prompts, tool schemas, or model versions change, and [
 - Pin model versions (a dated snapshot, not a moving alias) in your agent code so cassettes don't silently shift underneath you
 - Treat cassette diffs as part of the PR review. A YAML diff next to the prompt diff is a feature, not noise
 - Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments, so small wording changes in LLM outputs don't cascade into test failures
+- Set an expiry, so that cassettes nobody re-records fail instead of drifting away from the live model unnoticed
+
+Replaying a cassette recorded longer ago than `max_age` raises `CassetteExpiredError` before the agent runs, and the cassette joins the stale list at the end of the run. The age comes from the cassette's `metadata.recorded_at` (a value without a time zone is UTC); a cassette without one counts as expired. Set the limit for the whole suite, per run, or per cassette (the later ones win):
+
+```toml
+# pyproject.toml
+[tool.pytest.ini_options]
+agentverify_cassette_max_age = "30d"   # or "12h"
+```
+
+```bash
+pytest --cassette-max-age=30d            # overrides the setting for this run
+pytest --cassette-expired=warn           # warn instead of failing, when there is no time to re-record
+pytest --cassette-report                 # list the cassettes: recorded when, with which model, expired or not; runs no tests
+```
+
+```python
+with cassette("weather.yaml", provider="openai", max_age="7d", on_expired="warn") as rec:
+    ...
+```
+
+The limit applies when a cassette is replayed. `--cassette-report` also lists the cassettes no test replays, from the `cassettes/` directory next to each collected test file.
 
 ### Recorded and Unsupported Calls
 
@@ -896,7 +918,7 @@ LatencyBudgetError: Latency budget exceeded
   Exceeded by: 450.0 ms (15.0%)
 ```
 
-Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure. The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), and `CassetteUnsupportedCallError`.
+Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure. The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), and `CassetteUnsupportedCallError`.
 
 ## Examples
 

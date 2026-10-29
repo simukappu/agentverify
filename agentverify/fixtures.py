@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import tempfile
 import uuid
+from datetime import timedelta
 from pathlib import Path
 from typing import Union
 
@@ -20,6 +21,14 @@ STALE_PROPERTY = "agentverify_stale_cassettes"
 #: Sentinel value to distinguish "caller didn't pass mode" from "caller
 #: explicitly passed CassetteMode.AUTO".
 _MODE_NOT_SET = object()
+
+
+def _ini(config, name: str):  # type: ignore[no-untyped-def]
+    """An ini setting the plugin registers, or None when the plugin is not loaded (``-p no:agentverify`` with the fixture imported)."""
+    try:
+        return config.getini(name) or None
+    except ValueError:
+        return None
 
 
 @pytest.fixture
@@ -63,6 +72,8 @@ def cassette(request):
         sanitize: Union[bool, list[SanitizePattern]] = True,
         replay_tools: bool = True,
         match_ignore: Union[list[str], None] = None,
+        max_age: Union[str, timedelta, None, object] = _MODE_NOT_SET,
+        on_expired: Union[str, None] = None,
     ) -> LLMCassetteRecorder:
         # Resolve mode: explicit arg > CLI option > default AUTO
         if mode is _MODE_NOT_SET:
@@ -83,6 +94,12 @@ def cassette(request):
                 "--no-cassette-match-requests", default=False
             )
             match_requests = not no_match
+
+        # Resolve the expiry: explicit arg > --cassette-max-age > the agentverify_cassette_max_age ini setting
+        if max_age is _MODE_NOT_SET:
+            max_age = request.config.getoption("--cassette-max-age", default=None) or _ini(request.config, "agentverify_cassette_max_age")
+        if on_expired is None:
+            on_expired = request.config.getoption("--cassette-expired", default=None) or "error"
 
         from agentverify.live import live_settings
 
@@ -115,6 +132,8 @@ def cassette(request):
             sanitize=sanitize,
             replay_tools=replay_tools,
             match_ignore=match_ignore,
+            max_age=max_age,  # type: ignore[arg-type]
+            on_expired=on_expired,
         )
         recorder.test_id = request.node.nodeid
         return recorder

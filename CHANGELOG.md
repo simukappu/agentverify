@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- **Cassettes can expire**: replaying a cassette recorded longer ago than `max_age` (the `agentverify_cassette_max_age` setting, `--cassette-max-age`, or `cassette(..., max_age="30d")`) raises `CassetteExpiredError`, or warns with `on_expired="warn"` / `--cassette-expired=warn`. `pytest --cassette-report` lists each cassette's recording date, model, and expiry without running the tests. See [README "Keeping Cassettes Current"](README.md#keeping-cassettes-current).
+
 ### Bug Fixes
 
 - **`from_strands` reads the Strands `Agent`**: it read the conversation from `AgentResult.state.messages`, which the Strands `AgentResult` does not have, and failed with `AttributeError` on real runs. Pass the agent after the call: `agent(prompt); from_strands(agent)`. Token usage comes from the agent's `event_loop_metrics`. An `AgentResult` now raises a `TypeError` that says to pass the agent.

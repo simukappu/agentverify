@@ -22,7 +22,15 @@ def test_pytest_addoption_registers_cassette_mode():
     """pytest_addoption registers the --cassette-mode and --cassette-match-requests options."""
     parser = MagicMock()
     pytest_addoption(parser)
-    assert parser.addoption.call_count == 3
+    assert {c.args[0] for c in parser.addoption.call_args_list} == {
+        "--cassette-mode",
+        "--no-cassette-match-requests",
+        "--cassette-max-age",
+        "--cassette-expired",
+        "--cassette-report",
+        "--agentverify-live",
+    }
+    parser.addini.assert_called_once()
 
     # First call: --cassette-mode
     first_call = parser.addoption.call_args_list[0]
@@ -38,4 +46,4 @@ def test_pytest_addoption_registers_cassette_mode():
     assert second_call[1]["default"] is False
 
     third_call = parser.addoption.call_args_list[2]
-    assert third_call[0][0] == "--agentverify-live" and third_call[1]["default"] is False
+    assert third_call[0][0] == "--cassette-max-age" and third_call[1]["default"] is None
