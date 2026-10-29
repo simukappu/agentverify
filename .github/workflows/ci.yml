@@ -99,7 +99,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[openai,anthropic,bedrock,dev]"
-          pip install strands-agents langchain langgraph openai-agents pydantic-ai-slim google-adk mcp opentelemetry-sdk
+          pip install strands-agents langchain langchain-classic langgraph openai-agents pydantic-ai-slim google-adk mcp opentelemetry-sdk
 
       - name: Run framework tests
         run: python -m pytest tests/test_real_frameworks.py tests/test_tool_replay.py tests/test_traces.py -v -p no:agentverify

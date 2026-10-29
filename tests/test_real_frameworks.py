@@ -376,3 +376,177 @@ def test_from_strands_on_a_real_agent():
     assert result.steps[0].tool_results[0]["content"] == [{"text": "3"}] and result.final_output == "It is 3."
     with pytest.raises(TypeError, match="pass the agent"):
         from_strands(agent_result)
+
+
+# ---------------------------------------------------------------------------
+# Each framework adapter on a real run's output (the adapters' own tests use stand-ins)
+# ---------------------------------------------------------------------------
+
+
+def _lc_tool_model():
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+
+    replies = iter([AIMessage("", tool_calls=[{"name": "search", "args": {"q": "a"}, "id": "c1"}]), AIMessage("done")])
+
+    class Model(BaseChatModel):
+        """Answers with a tool call, then with text. No streaming, so every caller gets whole messages."""
+
+        @property
+        def _llm_type(self) -> str:
+            return "fake"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(generations=[ChatGeneration(message=next(replies))])
+
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+    return Model()
+
+
+def _lc_search_tool():
+    from langchain_core.tools import tool
+
+    @tool
+    def search(q: str) -> str:
+        """Search."""
+        return f"found {q}"
+
+    return search
+
+
+def test_from_langgraph_on_a_create_agent_result():
+    pytest.importorskip("langchain")
+    from langchain.agents import create_agent
+
+    from agentverify.frameworks.langgraph import from_langgraph
+
+    result = from_langgraph(create_agent(_lc_tool_model(), tools=[_lc_search_tool()]).invoke({"messages": [("user", "go")]}))
+    assert [(c.name, c.arguments, c.call_id) for c in result.tool_calls] == [("search", {"q": "a"}, "c1")]
+    assert result.steps[0].tool_results == ["found a"] and result.final_output == "done"
+
+
+def test_from_langchain_on_an_agent_executor_result():
+    pytest.importorskip("langchain_classic")
+    from langchain_classic.agents import AgentExecutor, create_tool_calling_agent
+    from langchain_core.prompts import ChatPromptTemplate
+
+    from agentverify.frameworks.langchain import from_langchain
+
+    prompt = ChatPromptTemplate.from_messages([("human", "{input}"), ("placeholder", "{agent_scratchpad}")])
+    tools = [_lc_search_tool()]
+    executor = AgentExecutor(agent=create_tool_calling_agent(_lc_tool_model(), tools, prompt), tools=tools, return_intermediate_steps=True)
+    result = from_langchain(executor.invoke({"input": "go"}))
+    assert [(c.name, c.arguments, c.call_id) for c in result.tool_calls] == [("search", {"q": "a"}, "c1")]
+    assert result.steps[0].tool_results == ["found a"] and result.final_output == "done"
+
+
+def test_from_openai_agents_on_a_run_result(monkeypatch):
+    pytest.importorskip("agents")
+    from agents import Agent, ModelResponse, Runner, Usage, function_tool, set_tracing_disabled
+    from agents.models.interface import Model
+    from openai.types.responses import ResponseFunctionToolCall, ResponseOutputMessage, ResponseOutputText
+
+    from agentverify.frameworks.openai_agents import from_openai_agents
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    set_tracing_disabled(True)
+
+    @function_tool
+    def lookup(key: str) -> str:
+        return f"value of {key}"
+
+    class Fake(Model):
+        turn = 0
+
+        async def get_response(self, system_instructions, input, *args, **kwargs):
+            self.turn += 1
+            if self.turn == 1:
+                output = [ResponseFunctionToolCall(type="function_call", call_id="c1", name="lookup", arguments='{"key": "k"}', id="f1")]
+            else:
+                text = ResponseOutputText(type="output_text", text="done", annotations=[])
+                output = [ResponseOutputMessage(id="m", type="message", role="assistant", status="completed", content=[text])]
+            return ModelResponse(output=output, usage=Usage(), response_id=None)
+
+        def stream_response(self, *args, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+    result = from_openai_agents(Runner.run_sync(Agent(name="a", model=Fake(), tools=[lookup]), "go"))
+    assert [(c.name, c.arguments, c.call_id) for c in result.tool_calls] == [("lookup", {"key": "k"}, "c1")]
+    assert result.steps[0].tool_results == ["value of k"] and result.final_output == "done" and result.steps[0].agent == "a"
+
+
+def test_from_google_adk_on_runner_events():
+    pytest.importorskip("google.adk")
+    from google.adk.agents import LlmAgent
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_response import LlmResponse
+    from google.adk.runners import InMemoryRunner
+    from google.genai import types
+
+    from agentverify.frameworks.google_adk import from_google_adk
+
+    def lookup(key: str) -> dict:
+        """Look a key up."""
+        return {"value": key}
+
+    class Fake(BaseLlm):
+        model: str = "fake"
+
+        async def generate_content_async(self, llm_request, stream=False):
+            if llm_request.contents[-1].parts[0].function_response is None:
+                call = types.FunctionCall(id="c1", name="lookup", args={"key": "k"})
+                yield LlmResponse(content=types.Content(role="model", parts=[types.Part(function_call=call)]))
+            else:
+                yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text="done")]))
+
+    async def main():
+        runner = InMemoryRunner(agent=LlmAgent(name="a", model=Fake(), tools=[lookup]), app_name="x")
+        session = await runner.session_service.create_session(app_name="x", user_id="u")
+        message = types.Content(role="user", parts=[types.Part(text="go")])
+        return [event async for event in runner.run_async(user_id="u", session_id=session.id, new_message=message)]
+
+    result = from_google_adk(asyncio.run(main()))
+    assert [(c.name, c.arguments, c.call_id) for c in result.tool_calls] == [("lookup", {"key": "k"}, "c1")]
+    assert result.steps[0].tool_results == [{"value": "k"}] and result.final_output == "done" and result.steps[0].agent == "a"
+
+
+def test_from_crewai_on_a_crew_output(monkeypatch):
+    pytest.importorskip("crewai")
+    monkeypatch.setenv("CREWAI_DISABLE_TELEMETRY", "true")
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
+    from crewai import Agent, Crew, Task
+    from crewai.llms.base_llm import BaseLLM
+    from crewai.tools import tool
+
+    from agentverify.frameworks.crewai import from_crewai
+
+    @tool("lookup")
+    def lookup(key: str) -> str:
+        """Look a key up."""
+        return f"value of {key}"
+
+    class Fake(BaseLLM):
+        turn: int = 0
+
+        def call(self, messages, *args, **kwargs):
+            self.turn += 1
+            if self.turn == 1:
+                return 'Thought: look it up\nAction: lookup\nAction Input: {"key": "k"}'
+            return "Thought: done\nFinal Answer: done"
+
+        def supports_function_calling(self):
+            return False
+
+        def supports_stop_words(self):
+            return False
+
+        def get_context_window_size(self):
+            return 8000
+
+    agent = Agent(role="r", goal="g", backstory="b", llm=Fake(model="fake"), tools=[lookup], verbose=False)
+    result = from_crewai(Crew(agents=[agent], tasks=[Task(description="d", expected_output="e", agent=agent)]).kickoff())
+    assert [(c.name, c.arguments) for c in result.tool_calls] == [("lookup", {"key": "k"})]
+    assert result.final_output == "done"
