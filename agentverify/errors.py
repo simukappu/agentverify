@@ -459,3 +459,23 @@ def _format_arguments(arguments: Any) -> str:
     if isinstance(arguments, dict):
         return ", ".join(f"{k}={v!r}" for k, v in arguments.items())
     return repr(arguments)
+
+
+class ToolPolicyError(AgentVerifyError):
+    """Raised by :func:`assert_tool_calls_allowed` when tool calls fall outside the allowed tools or their argument conditions.
+
+    ``violations`` lists each offending call as a dict with ``position``, ``tool_name``, ``arguments``, ``call_id``, and ``reasons``.
+    """
+
+    def __init__(self, violations: list[dict[str, Any]]) -> None:
+        self.violations = violations
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        n = len(self.violations)
+        lines = [f"{n} tool call{'s' if n != 1 else ''} outside the allowed tools", ""]
+        for v in self.violations:
+            call_id = f"  [{v['call_id']}]" if v.get("call_id") else ""
+            lines.append(f"  #{v['position']} {v['tool_name']}({_truncate_repr(v['arguments'])}){call_id}")
+            lines.extend(f"    {reason}" for reason in v["reasons"])
+        return "\n".join(lines)

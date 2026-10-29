@@ -507,6 +507,26 @@ assert_all(
 )
 ```
 
+### Allowed Tools
+
+`assert_no_tool_call` names the tools that must not be called. `assert_tool_calls_allowed` names the ones that may, with conditions on their arguments, and fails on every other call:
+
+```python
+from agentverify import assert_tool_calls_allowed
+
+assert_tool_calls_allowed(result, allowed={
+    "get_weather": {
+        "type": "object",
+        "properties": {"city": {"type": "string", "maxLength": 40}, "days": {"type": "integer", "minimum": 1, "maximum": 7}},
+        "required": ["city"],
+        "additionalProperties": False,
+    },
+    "say_hello": None,  # any arguments
+})
+```
+
+The conditions are a small part of JSON Schema, as tool parameter schemas use it: `type`, `enum`, `const`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `required`, `properties`, and `additionalProperties`. Any other keyword raises `ValueError` rather than being ignored. Values are compared strictly: booleans are never numbers, `number` takes no NaN or infinity, `enum` and `const` compare types (`True` is not `1`), and, unlike JSON Schema, `integer` takes no float such as `3.0`. A failure (`ToolPolicyError`) lists each call outside the policy with its position, `call_id`, and reasons.
+
 ### Cost Assertions
 
 `assert_cost()` enforces token and dollar budgets on an agent run. Either bound is optional. Pass `max_tokens` only, `max_cost_usd` only, or both together:

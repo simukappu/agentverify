@@ -238,6 +238,45 @@ def assert_latency(
         )
 
 
+def assert_tool_calls_allowed(
+    result: ExecutionResult,
+    allowed: dict[str, Optional[dict]],
+) -> None:
+    """Verify that every tool call is to an allowed tool, with arguments within its conditions.
+
+    All violations are collected and reported at once.
+
+    Args:
+        result: The ExecutionResult to verify.
+        allowed: Tool name to the JSON Schema its arguments must meet, or ``None`` to allow the tool with any arguments. The schema is a small part of JSON Schema: ``type``, ``enum``, ``const``, ``minimum``, ``maximum``, ``minLength``, ``maxLength``, ``pattern``, ``required``, ``properties``, and ``additionalProperties``. Another keyword raises ``ValueError``. Unlike JSON Schema, ``integer`` takes no float such as ``3.0``; booleans are never numbers, ``number`` takes no NaN or infinity, and ``enum`` / ``const`` compare types too.
+
+    Raises:
+        ToolPolicyError: When a call is to a tool not in *allowed*, or its arguments miss the conditions.
+        ValueError: When *allowed* holds a schema keyword this assertion does not check.
+    """
+    from agentverify._schema import check_schema, violations as schema_violations
+    from agentverify.errors import ToolPolicyError
+
+    if not isinstance(allowed, dict):
+        raise ValueError(f"allowed must map tool names to argument schemas (or None), got {allowed!r}")
+    for name, schema in allowed.items():
+        if schema is not None:
+            check_schema(schema, f"allowed[{name!r}]")
+
+    found: list[dict] = []
+    for position, tc in enumerate(result.tool_calls):
+        if tc.name not in allowed:
+            reasons = ["not an allowed tool"]
+        elif allowed[tc.name] is None:
+            continue
+        else:
+            reasons = schema_violations(tc.arguments, allowed[tc.name])
+        if reasons:
+            found.append({"position": position, "tool_name": tc.name, "arguments": tc.arguments, "call_id": tc.call_id, "reasons": reasons})
+    if found:
+        raise ToolPolicyError(violations=found)
+
+
 def assert_no_tool_call(
     result: ExecutionResult,
     forbidden_tools: list[str],

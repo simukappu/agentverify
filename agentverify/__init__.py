@@ -42,6 +42,7 @@ from agentverify.assertions import (
     assert_step_output,
     assert_step_uses_result_from,
     assert_tool_calls,
+    assert_tool_calls_allowed,
     assert_tool_invocation_succeeded,
     assert_tool_result_matches,
 )
@@ -63,6 +64,7 @@ from agentverify.errors import (
     StepNameNotFoundError,
     StepOutputError,
     ToolInvocationError,
+    ToolPolicyError,
     ToolResultMatchError,
 )
 from agentverify.matchers import ANY, MATCHES, OrderMode
@@ -83,6 +85,7 @@ __all__ = [
     "OrderMode",
     # Assertions
     "assert_tool_calls",
+    "assert_tool_calls_allowed",
     "assert_cost",
     "assert_latency",
     "assert_no_tool_call",
@@ -126,6 +129,7 @@ __all__ = [
     "StepDependencyError",
     # Tool result errors
     "ToolInvocationError",
+    "ToolPolicyError",
     "ToolResultMatchError",
     "RetryBudgetError",
 ]
