@@ -24,7 +24,7 @@ from dataclasses import replace
 from typing import Any
 
 from agentverify._step_builder import aggregate_token_usage
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, call_id_or_none
 
 
 def _extract_tool_use_calls(content: list[Any]) -> list[ToolCall]:
@@ -32,7 +32,7 @@ def _extract_tool_use_calls(content: list[Any]) -> list[ToolCall]:
     for block in content:
         if isinstance(block, dict) and "toolUse" in block:
             tu = block["toolUse"]
-            calls.append(ToolCall(name=tu["name"], arguments=tu.get("input", {})))
+            calls.append(ToolCall(name=tu["name"], arguments=tu.get("input", {}), call_id=call_id_or_none(tu.get("toolUseId"))))
     return calls
 
 

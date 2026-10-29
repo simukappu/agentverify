@@ -15,13 +15,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, call_id_or_none, handoffs_from_agents
 
 _INFERENCE_OPERATIONS = {"chat", "generate_content", "text_completion"}
 
@@ -271,6 +271,7 @@ def _output(span: _Span, parent: _Span | None = None) -> tuple[str | None, list[
             calls.append((tool_call, span.attributes.get(f"{base}.id")))
             call_index += 1
         index += 1
+    calls = [(replace(call, call_id=call_id_or_none(call_id)), call_id) for call, call_id in calls]
     return ("".join(texts) if texts else None), calls
 
 
@@ -371,7 +372,7 @@ def _trace_to_result(spans: list[_Span]) -> ExecutionResult:
         # Without message content, tool spans are all there is to know about the calls.
         for tool_span in unmatched:
             arguments = _attribute(tool_span, "gen_ai.tool.call.arguments") or _attribute(tool_span, "gcp.vertex.agent.tool_call_args") or _attribute(tool_span, "input.value")
-            tool_calls.append(ToolCall(_tool_name(tool_span), _arguments(arguments)))
+            tool_calls.append(ToolCall(_tool_name(tool_span), _arguments(arguments), call_id=call_id_or_none(_attribute(tool_span, "gen_ai.tool.call.id"))))
             results.append(_tool_result(tool_span))
             meta.append(_tool_meta(tool_span))
         steps.append(

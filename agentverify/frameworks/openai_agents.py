@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents, call_id_or_none
 
 
 def _parse_arguments(raw: Any) -> dict[str, Any]:
@@ -102,8 +102,9 @@ def from_openai_agents(result: Any) -> ExecutionResult:
                 if isinstance(raw, dict)
                 else getattr(raw, "arguments", "{}")
             )
+            call_id = raw.get("call_id") if isinstance(raw, dict) else getattr(raw, "call_id", None)
             current_tool_calls.append(
-                ToolCall(name=name, arguments=_parse_arguments(args_raw))
+                ToolCall(name=name, arguments=_parse_arguments(args_raw), call_id=call_id_or_none(call_id))
             )
         elif item_type in ("tool_call_output_item", "handoff_output_item"):
             output = getattr(item, "output", None)

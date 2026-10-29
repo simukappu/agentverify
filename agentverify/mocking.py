@@ -31,6 +31,7 @@ from agentverify.cassette.adapters.base import (
     NormalizedRequest,
     NormalizedResponse,
 )
+from agentverify.cassette.adapters.base import with_call_ids
 from agentverify.cassette.recorder import _resolve_provider
 from agentverify.errors import CassetteMissingRequestError
 from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
@@ -46,7 +47,7 @@ def mock_response(
 
     Args:
         content: Final text content the mock LLM should return.
-        tool_calls: Tool calls the mock LLM should emit. Each entry may be either a ``(name, arguments)`` tuple or a dict with ``"name"`` and ``"arguments"`` keys.
+        tool_calls: Tool calls the mock LLM should emit. Each entry may be either a ``(name, arguments)`` tuple or a dict with ``"name"`` and ``"arguments"`` keys, and optionally ``"id"`` (else each call gets a unique one).
         input_tokens: Input token count to report (default 0).
         output_tokens: Output token count to report (default 0).
 
@@ -67,6 +68,7 @@ def mock_response(
                     {
                         "name": tc["name"],
                         "arguments": tc.get("arguments", {}),
+                        **({"id": tc["id"]} if tc.get("id") else {}),
                     }
                 )
             else:
@@ -195,7 +197,8 @@ class MockLLM:
                 f"Add more mock_response(...) entries to the MockLLM list."
             )
 
-        response = self._responses[self._replay_index]
+        # An id on every tool call, so the framework and ToolCall.call_id agree; ids given in mock_response are kept.
+        response = with_call_ids(self._responses[self._replay_index], self._adapter.call_id_prefix)
         self._interactions.append((request, response))
         self._interaction_probe_stack.append(list(self._probe_stack.get()))
         self._replay_index += 1

@@ -119,6 +119,7 @@ def tool_calls_from_response(
                 name=tc["name"],
                 arguments=parse_tool_call_arguments(tc.get("arguments", {})),
                 result=tc.get("result"),
+                call_id=tc["id"] if isinstance(tc.get("id"), str) else None,
             )
         )
     return result

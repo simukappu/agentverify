@@ -269,6 +269,8 @@ def message_events(normalized: NormalizedResponse) -> list[dict[str, Any]]:
 class AnthropicAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the Anthropic Python SDK (``anthropic>=0.20``)."""
 
+    call_id_prefix = "toolu"
+
     @property
     def name(self) -> str:
         return "anthropic"

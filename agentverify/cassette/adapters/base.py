@@ -8,11 +8,12 @@ from __future__ import annotations
 import functools
 import inspect
 import itertools
+import secrets
 import warnings
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING, Any, Callable, Generator
 
 from agentverify.models import TokenUsage
@@ -41,18 +42,30 @@ class NormalizedResponse:
     raw_metadata: dict[str, Any] = field(default_factory=dict)
 
 
-# Fallback ids for tool calls recorded without one (cassettes from before ids were kept).
-# Unique per process, so replayed turns never reuse an id; frameworks such as the OpenAI
-# Agents SDK reject a run that does.
+# Fallback ids for tool calls recorded without one (cassettes from before ids were kept, MockLLM
+# responses). Unique across processes too, so replayed turns never reuse an id: frameworks such as
+# the OpenAI Agents SDK reject a run that does, and tool gateways key their records on it.
 _fallback_call_ids = itertools.count()
+_FALLBACK_RUN = secrets.token_hex(2)
 
 
 def fallback_call_id(prefix: str = "call") -> str:
-    return f"{prefix}_replayed_{next(_fallback_call_ids)}"
+    return f"{prefix}_replayed_{_FALLBACK_RUN}_{next(_fallback_call_ids)}"
+
+
+def with_call_ids(response: NormalizedResponse, prefix: str | None) -> NormalizedResponse:
+    """*response* with an id on every tool call, so the framework and ``ToolCall.call_id`` see the same one. ``None``: the provider has no ids."""
+    calls = response.tool_calls
+    if prefix is None or not calls or all(not isinstance(tc, dict) or tc.get("id") for tc in calls):
+        return response
+    return replace(response, tool_calls=[{**tc, "id": fallback_call_id(prefix)} if isinstance(tc, dict) and not tc.get("id") else tc for tc in calls])
 
 
 class LLMProviderAdapter(ABC):
     """Abstract base class for LLM SDK chat completion adapters."""
+
+    #: Prefix of the ids given to replayed tool calls that have none; ``None`` for providers without tool call ids.
+    call_id_prefix: str | None = "call"
 
     @property
     @abstractmethod

@@ -5,6 +5,7 @@
 ### Features
 
 - **Cassettes can expire**: replaying a cassette recorded longer ago than `max_age` (the `agentverify_cassette_max_age` setting, `--cassette-max-age`, or `cassette(..., max_age="30d")`) raises `CassetteExpiredError`, or warns with `on_expired="warn"` / `--cassette-expired=warn`. `pytest --cassette-report` lists each cassette's recording date, model, and expiry without running the tests. See [README "Keeping Cassettes Current"](README.md#keeping-cassettes-current).
+- **`ToolCall.call_id`**: the id the provider or framework gave each tool call (`toolUseId`, `tool_call_id`, ...), from cassettes, `MockLLM`, the framework adapters, and `from_otel`. It is not compared, so expected `ToolCall`s match whatever id a call got, and failures show it. Tool calls that have no id (`MockLLM` responses, older cassettes) get one that is unique across runs, and `mock_response(tool_calls=[{"id": ...}])` sets a fixed one.
 
 ### Bug Fixes
 

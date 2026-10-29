@@ -11,7 +11,7 @@ from dataclasses import replace
 from typing import Any, Iterable
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents, call_id_or_none
 
 
 def _parts(event: Any) -> list[Any]:
@@ -72,7 +72,7 @@ def from_google_adk(events: Iterable[Any]) -> ExecutionResult:
             Step(
                 index=len(steps),
                 source="llm",
-                tool_calls=[ToolCall(c.name, dict(c.args or {})) for c in calls],
+                tool_calls=[ToolCall(c.name, dict(c.args or {}), call_id=call_id_or_none(getattr(c, "id", None))) for c in calls],
                 output="".join(texts) if texts else None,
                 token_usage=token_usage,
                 agent=author if isinstance(author, str) and author != "user" else None,

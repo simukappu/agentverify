@@ -20,6 +20,8 @@ class ToolCall:
     name: str
     arguments: dict[str, Any] = field(default_factory=dict)
     result: Optional[Any] = None
+    #: The id the framework or provider gave the call (``toolUseId``, ``tool_call_id``, ...), when known. Not compared: an expected ``ToolCall`` matches whatever id the call got.
+    call_id: Optional[str] = field(default=None, compare=False)
 
 
 @dataclass
@@ -68,6 +70,11 @@ def _agent_named(target: str, later_steps: list[Any]) -> str:
         if s.agent is not None and _same_agent(s.agent, target):
             return s.agent
     return target
+
+
+def call_id_or_none(value: Any) -> Optional[str]:
+    """A tool call id as frameworks give it: a non-empty string, else ``None``."""
+    return value if isinstance(value, str) and value else None
 
 
 def handoff_target(tool_name: str, arguments: Any = None) -> Optional[str]:
@@ -173,7 +180,7 @@ class Step:
             "name": self.name,
             "source": self.source,
             "tool_calls": [
-                {"name": tc.name, "arguments": tc.arguments, "result": tc.result}
+                {"name": tc.name, "arguments": tc.arguments, "result": tc.result, **({"call_id": tc.call_id} if tc.call_id is not None else {})}
                 for tc in self.tool_calls
             ],
             "tool_results": list(self.tool_results),
@@ -210,6 +217,7 @@ class Step:
                     name=tc["name"],
                     arguments=tc.get("arguments", {}),
                     result=tc.get("result"),
+                    call_id=call_id_or_none(tc.get("call_id")),
                 )
             )
 
@@ -377,6 +385,7 @@ class ExecutionResult:
                         name=tc["name"],
                         arguments=tc.get("arguments", {}),
                         result=tc.get("result"),
+                        call_id=call_id_or_none(tc.get("call_id")),
                     )
                 )
             steps = [Step(index=0, source="llm", tool_calls=legacy_calls)]

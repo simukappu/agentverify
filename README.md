@@ -256,7 +256,7 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 | Key | Type | Description |
 |---|---|---|
 | `steps` | `list[dict]` | Each step dict has `index` (int), `source` (`"llm"` / `"probe"` / `"tool"`), `tool_calls` (list), `tool_results` (list), `tool_results_meta` (list or None, see [Tool Result Assertions](#tool-result-assertions)), `output` (str or None), `input_context` (dict or None), `name` (str or None), `agent` (str or None), `token_usage` (dict or None), `duration_ms` (float or None). See [Step-Level Assertions](#step-level-assertions) |
-| `tool_calls` | `list[dict]` | **Shortcut for single-step cases**: when `steps` is absent, a flat `tool_calls` list is wrapped into a single synthetic step. Used throughout the [Quick Start](#quick-start). Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional) |
+| `tool_calls` | `list[dict]` | **Shortcut for single-step cases**: when `steps` is absent, a flat `tool_calls` list is wrapped into a single synthetic step. Used throughout the [Quick Start](#quick-start). Each dict has `name` (str, required), `arguments` (dict, optional), `result` (any, optional), `call_id` (str, optional) |
 | `token_usage` | `dict` or `None` | `{"input_tokens": int, "output_tokens": int}` |
 | `total_cost_usd` | `float` or `None` | Total cost in USD (must be set manually, not auto-calculated from tokens or populated from cassettes) |
 | `duration_ms` | `float` or `None` | Wall-clock duration in milliseconds (auto-populated by the `cassette` fixture and `MockLLM`) |

@@ -13,7 +13,7 @@ from dataclasses import replace
 from typing import Any
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents, call_id_or_none
 
 
 def _arguments(raw: Any) -> dict[str, Any]:
@@ -49,7 +49,8 @@ def from_crewai(crew_output: Any) -> ExecutionResult:
             if role == "assistant":
                 calls = []
                 for raw_call in _get(message, "tool_calls") or []:
-                    call = ToolCall(_get(_get(raw_call, "function"), "name") or "", _arguments(_get(_get(raw_call, "function"), "arguments")))
+                    function = _get(raw_call, "function")
+                    call = ToolCall(_get(function, "name") or "", _arguments(_get(function, "arguments")), call_id=call_id_or_none(_get(raw_call, "id")))
                     calls.append(call)
                     if _get(raw_call, "id"):
                         call_ids[_get(raw_call, "id")] = call

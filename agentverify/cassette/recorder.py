@@ -22,6 +22,7 @@ from agentverify.cassette.adapters.base import (
     LLMProviderAdapter,
     NormalizedRequest,
     NormalizedResponse,
+    with_call_ids,
 )
 from agentverify.cassette.expiry import MaxAge, check_on_expired, expiry, parse_max_age
 from agentverify.cassette.io import _parse_interactions, load_document, save_cassette
@@ -365,6 +366,9 @@ class LLMCassetteRecorder:
             recorded_req, response = self._interactions[index]
             if self.match_requests:
                 self._verify_request(index, recorded_req, request)
+            # Tool calls recorded without an id get one here, so the framework and ToolCall.call_id agree.
+            response = with_call_ids(response, self._adapter.call_id_prefix)
+            self._interactions[index] = (recorded_req, response)
             self._consume(index)
         return response
 

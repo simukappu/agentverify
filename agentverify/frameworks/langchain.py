@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from agentverify._step_builder import classify_tool_result_error
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, call_id_or_none
 
 
 def from_langchain(
@@ -35,7 +35,7 @@ def from_langchain(
             Step(
                 index=i,
                 source="llm",
-                tool_calls=[ToolCall(name=action.tool, arguments=arguments)],
+                tool_calls=[ToolCall(name=action.tool, arguments=arguments, call_id=call_id_or_none(getattr(action, "tool_call_id", None)))],
                 tool_results=[observation],
                 tool_results_meta=[
                     {"is_error": is_error} if is_error is not None else {}

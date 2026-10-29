@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, handoffs_from_agents, call_id_or_none
 
 
 def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
@@ -47,7 +47,8 @@ def from_langgraph(result: dict[str, Any]) -> ExecutionResult:
                 )
                 if not isinstance(args, dict):
                     args = {}
-                tool_calls.append(ToolCall(name=name, arguments=args))
+                call_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                tool_calls.append(ToolCall(name=name, arguments=args, call_id=call_id_or_none(call_id)))
 
             # Extract token usage.
             step_token_usage = None

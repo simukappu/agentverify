@@ -126,6 +126,8 @@ class ConverseStreamAccumulator(StreamAccumulator):
 class BedrockAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the Amazon Bedrock Converse API (via boto3)."""
 
+    call_id_prefix = "tooluse"
+
     @property
     def name(self) -> str:
         return "bedrock"

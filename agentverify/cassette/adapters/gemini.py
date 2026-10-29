@@ -156,6 +156,8 @@ class GeminiChunkAccumulator(StreamAccumulator):
 class GeminiAdapter(LLMProviderAdapter, StreamingWire):
     """Adapter for the Google Gemini SDK (``google-genai``)."""
 
+    call_id_prefix = None  # Gemini's function calls carry no id unless the caller sets one
+
     @property
     def name(self) -> str:
         return "gemini"

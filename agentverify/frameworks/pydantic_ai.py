@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall
+from agentverify.models import ExecutionResult, Step, TokenUsage, ToolCall, call_id_or_none
 
 
 def _arguments(part: Any) -> dict[str, Any]:
@@ -57,7 +57,7 @@ def from_pydantic_ai(result: Any, agent_name: str | None = None) -> ExecutionRes
         parts = getattr(message, "parts", None) or []
         if kind == "response":
             tool_calls = [
-                ToolCall(p.tool_name, _arguments(p))
+                ToolCall(p.tool_name, _arguments(p), call_id=call_id_or_none(getattr(p, "tool_call_id", None)))
                 for p in parts
                 if getattr(p, "part_kind", None) == "tool-call" and not _output_tool(p.tool_name)
             ]
