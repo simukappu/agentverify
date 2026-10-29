@@ -13,6 +13,11 @@
 - **Strands structured output works on replay**: the tool Strands adds for `structured_output_model` is the agent's answer, not a tool call, and now runs for real when a cassette replays tool results. Before, the replayed result left the answer unset and Strands called the model again, which failed replay. When the agent makes more LLM calls than recorded, the error also suggests `replay_tools=False` to tell whether a replayed tool result is the cause.
 - **`from_strands` reads the Strands `Agent`**: it read the conversation from `AgentResult.state.messages`, which the Strands `AgentResult` does not have, and failed with `AttributeError` on real runs. Pass the agent after the call: `agent(prompt); from_strands(agent)`. Token usage is the last call's, from the agent's `event_loop_metrics`. An `AgentResult` now raises a `TypeError` that says to pass the agent.
 
+### Breaking Changes
+
+- **`from_strands` takes the `Agent`**, and an `AgentResult` raises `TypeError`. Passing the `AgentResult` never worked on a real Strands run (see Bug Fixes).
+- **Generated tool call ids changed form** (`call_replayed_<run>_<n>`, unique across runs) and now appear in `ExecutionResult.to_dict()` as `call_id`. Snapshots of `MockLLM` results that include them change on every run; set ids in `mock_response` where a fixed one matters.
+
 ## 0.7.1 (2026-10-22)
 
 ### Bug Fixes
