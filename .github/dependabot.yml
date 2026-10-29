@@ -3,5 +3,7 @@ updates:
   # Actions are pinned to commit SHAs; this keeps the pins current.
   - package-ecosystem: github-actions
     directory: /
+    # Development happens on develop; main only moves at releases.
+    target-branch: develop
     schedule:
       interval: weekly
