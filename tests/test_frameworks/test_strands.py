@@ -445,6 +445,11 @@ class TestAgent:
         assert result.steps[0].tool_results_meta == [{"is_error": False}]
         assert result.final_output == "It is 3." and result.token_usage == TokenUsage(7, 2)
 
+    def test_token_usage_is_the_last_calls(self):
+        """accumulated_usage adds up every call on the agent; the steps are only the ones in agent.messages."""
+        metrics = SimpleNamespace(latest_agent_invocation=SimpleNamespace(usage={"inputTokens": 5, "outputTokens": 1}), accumulated_usage={"inputTokens": 50, "outputTokens": 10})
+        assert from_strands(SimpleNamespace(messages=self.MESSAGES, event_loop_metrics=metrics)).token_usage == TokenUsage(5, 1)
+
     def test_metrics_without_usage(self):
         agent = SimpleNamespace(messages=self.MESSAGES, event_loop_metrics=SimpleNamespace())
         assert from_strands(agent).token_usage is None

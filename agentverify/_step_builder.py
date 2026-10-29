@@ -9,7 +9,7 @@ import json
 import re
 from typing import Any, Optional
 
-from agentverify.models import Step, TokenUsage, ToolCall
+from agentverify.models import Step, TokenUsage, ToolCall, call_id_or_none
 
 
 # The OpenAI Agents SDK has no error flag on function tool outputs. A failed tool
@@ -119,7 +119,7 @@ def tool_calls_from_response(
                 name=tc["name"],
                 arguments=parse_tool_call_arguments(tc.get("arguments", {})),
                 result=tc.get("result"),
-                call_id=tc["id"] if isinstance(tc.get("id"), str) else None,
+                call_id=call_id_or_none(tc.get("id")),
             )
         )
     return result

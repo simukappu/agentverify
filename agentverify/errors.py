@@ -36,12 +36,10 @@ class ToolCallSequenceError(AgentVerifyError):
         """Format a single tool call for display."""
         name = getattr(tc, "name", str(tc))
         args = getattr(tc, "arguments", {})
-        call_id = getattr(tc, "call_id", None)
-        suffix = f"  [{call_id}]" if call_id else ""
         if args:
             args_str = ", ".join(f'{k}="{v}"' if isinstance(v, str) else f"{k}={v}" for k, v in args.items())
-            return f"{name}({args_str}){suffix}"
-        return f"{name}(){suffix}"
+            return f"{name}({args_str})"
+        return f"{name}()"
 
     def _build_message(self) -> str:
         idx = self.first_mismatch_index

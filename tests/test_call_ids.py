@@ -24,11 +24,18 @@ def test_call_id_is_not_compared_and_round_trips():
     assert legacy.tool_calls[0].call_id == "c2"
 
 
-def test_failures_show_the_id():
-    result = ExecutionResult.from_dict({"steps": [{"index": 0, "tool_calls": [{"name": "add", "arguments": {"a": 1}, "call_id": "c1"}, {"name": "sub", "call_id": "c2"}]}]})
-    with pytest.raises(ToolCallSequenceError, match=r'add\(a=1\)  \[c1\]') as error:
+def test_sequence_failures_leave_ids_out():
+    """Expected calls have no ids, so showing the actual ones would only add noise to the comparison."""
+    result = ExecutionResult.from_dict({"steps": [{"index": 0, "tool_calls": [{"name": "add", "arguments": {"a": 1}, "call_id": "c1"}]}]})
+    with pytest.raises(ToolCallSequenceError) as error:
         assert_tool_calls(result, expected=[ToolCall("mul")])
-    assert "sub()  [c2]" in str(error.value)
+    assert "c1" not in str(error.value)
+
+
+def test_empty_ids_are_none():
+    from agentverify._step_builder import tool_calls_from_response
+
+    assert tool_calls_from_response([{"name": "f", "id": ""}])[0].call_id is None
 
 
 def test_fallback_ids_carry_a_per_process_token():

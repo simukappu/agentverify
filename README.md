@@ -388,7 +388,7 @@ with cassette("weather.yaml", provider="openai", max_age="7d", on_expired="warn"
     ...
 ```
 
-The limit applies when a cassette is replayed. `--cassette-report` also lists the cassettes no test replays, from the `cassettes/` directory next to each collected test file.
+The limit applies when a cassette is replayed. `--cassette-report` also lists the cassettes no test replays, from the `cassettes/` directory next to each collected test file (not a custom `cassette_dir`). Its status column uses the suite or run limit, not a `max_age=` passed to one cassette, and it needs a run without pytest-xdist workers (`-p no:xdist`).
 
 ### Recorded and Unsupported Calls
 
@@ -770,7 +770,7 @@ agentverify ships with built-in adapters for popular agent frameworks. No conver
 |---|---|---|
 | [LangChain](https://github.com/langchain-ai/langchain) | `from agentverify.frameworks.langchain import from_langchain` | Legacy `AgentExecutor.invoke()` dict |
 | [LangGraph](https://github.com/langchain-ai/langgraph) | `from agentverify.frameworks.langgraph import from_langgraph` | `create_react_agent` / `create_supervisor` result dict, and LangChain 1.x `create_agent` result |
-| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | The `Agent` after the call (its `messages` hold the conversation; the `AgentResult` does not) |
+| [Strands Agents](https://github.com/strands-agents/sdk-python) | `from agentverify.frameworks.strands import from_strands` | The `Agent` after the call (its `messages` hold the conversation; the `AgentResult` does not). Token usage is the last call's |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | `from agentverify.frameworks.openai_agents import from_openai_agents` | `RunResult` |
 | [Pydantic AI](https://github.com/pydantic/pydantic-ai) | `from agentverify.frameworks.pydantic_ai import from_pydantic_ai` | `AgentRunResult` (pass `agent_name=` to name the steps' agent) |
 | [Google ADK](https://github.com/google/adk-python) | `from agentverify.frameworks.google_adk import from_google_adk` | The events of `Runner.run()` / `run_async()`, streamed or not |

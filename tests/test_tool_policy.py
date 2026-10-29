@@ -50,6 +50,24 @@ class TestAssertion:
             assert_tool_calls_allowed(ExecutionResult(), ["f"])  # type: ignore[arg-type]
         assert_tool_calls_allowed(ExecutionResult(), {"f": {"title": "t", "description": "d", "default": 1, "examples": [], "$schema": "x", "additionalProperties": {"type": "string"}}})
 
+    @pytest.mark.parametrize(
+        "schema, message",
+        [
+            ({"required": "city"}, "required must be a list of names"),
+            ({"enum": "abc"}, "enum must be a list"),
+            ({"pattern": "("}, "pattern must be a regular expression"),
+            ({"pattern": 3}, "pattern must be a regular expression"),
+            ({"properties": ["x"]}, "properties must be a dict"),
+            ({"minimum": "5"}, "minimum must be a number"),
+            ({"maximum": True}, "maximum must be a number"),
+            ({"maxLength": -1}, "maxLength must be a non-negative integer"),
+            ({"minLength": 1.5}, "minLength must be a non-negative integer"),
+        ],
+    )
+    def test_malformed_keyword_values_raise(self, schema, message):
+        with pytest.raises(ValueError, match=message):
+            assert_tool_calls_allowed(ExecutionResult(), {"f": schema})
+
 
 class TestValues:
     """Agreed with agent-toolgate so the two do not disagree."""
@@ -61,6 +79,9 @@ class TestValues:
     def test_integers_take_no_floats(self):
         assert violations(3.0, {"type": "integer"}) and not violations(3, {"type": "integer"})
         assert not violations(3.5, {"type": "number"}) and not violations(3, {"type": "number"})
+
+    def test_huge_integers_are_numbers(self):
+        assert not violations(10**400, {"type": "number"}) and not violations(10**400, {"type": "integer"})
 
     def test_no_nan_or_infinity(self):
         assert violations(math.nan, {"type": "number"}) and violations(math.inf, {"type": "number"})

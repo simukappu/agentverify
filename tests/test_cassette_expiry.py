@@ -117,6 +117,7 @@ def test_fresh(cassette):
     _cassette(cassettes / "old.yaml", days_ago=40)
     _cassette(cassettes / "fresh.yaml", days_ago=0.5)
     (cassettes / "notes.json").write_text("not json")
+    (cassettes / "legacy.yaml").write_text("metadata: legacy\n")
     return pytester.runpytest_inprocess("-p", "agentverify", *args)
 
 
@@ -142,7 +143,7 @@ class TestPytest:
         assert "status (max age 30d)" in out and "openai" in out
         lines = {line.split()[0]: line for line in out.splitlines() if line.startswith("cassettes/")}
         assert "expired: recorded" in lines["cassettes/old.yaml"] and lines["cassettes/fresh.yaml"].rstrip().endswith("ok")
-        assert "unreadable: " in lines["cassettes/notes.json"]
+        assert "unreadable: " in lines["cassettes/notes.json"] and "unreadable: TypeError" in lines["cassettes/legacy.yaml"]
 
     def test_report_without_a_limit_or_cassettes(self, pytester):
         result = _run(pytester, "--cassette-report", "--cassette-max-age=12h")
@@ -151,7 +152,7 @@ class TestPytest:
         empty = pytester.mkdir("empty")
         (empty / "test_y.py").write_text("def test_y():\n    pass\n")
         result = pytester.runpytest_inprocess("-p", "agentverify", "--cassette-report", str(empty))
-        assert "No cassettes next to the collected tests." in result.stdout.str()
+        assert "No cassettes next to the collected tests." in result.stdout.str() and "xdist" not in result.stdout.str()
         result = _run(pytester, "--cassette-report")
         assert "  status" in result.stdout.str().splitlines()[[i for i, l in enumerate(result.stdout.str().splitlines()) if l.startswith("cassette ")][0]]
 
@@ -166,3 +167,15 @@ def test_paths_outside_the_rootdir_and_an_explicit_on_expired(tmp_path, cassette
     with pytest.warns(UserWarning, match="expired"):
         with cassette("old.yaml", cassette_dir=tmp_path, mode="replay", max_age="30d", on_expired="warn"):
             pass
+
+
+def test_report_under_xdist_says_to_run_without_workers():
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from agentverify.cassette.report import report
+
+    writer = MagicMock()
+    config = SimpleNamespace(getoption=lambda *a, **k: None, getini=lambda name: "", pluginmanager=SimpleNamespace(get_plugin=lambda name: writer, hasplugin=lambda name: name == "dsession"), rootpath=None)
+    report(SimpleNamespace(config=config, items=[]))
+    assert "pytest-xdist" in writer.write_line.call_args[0][0]

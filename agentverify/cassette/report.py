@@ -27,13 +27,16 @@ def report(session: Any) -> None:
     writer.section("agentverify: cassettes")
     files = cassette_files(session)
     if not files:
-        writer.write_line("No cassettes next to the collected tests.")
+        hint = " Under pytest-xdist the report needs a run without workers (-p no:xdist or -n 0)." if config.pluginmanager.hasplugin("dsession") else ""
+        writer.write_line("No cassettes next to the collected tests." + hint)
         return
     now = datetime.now(timezone.utc)
     rows = []
     for path in files:
         try:
             metadata = load_document(path).get("metadata") or {}
+            if not isinstance(metadata, dict):
+                raise TypeError("metadata is not a mapping")
         except Exception as error:  # a file that is not a cassette
             rows.append((path, "-", "-", "-", f"unreadable: {type(error).__name__}"))
             continue

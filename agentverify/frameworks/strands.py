@@ -13,7 +13,7 @@ The conversation lives on the agent, not on the ``AgentResult`` a call returns:
 
 - ``agent.messages``: Conversation history (list of message dicts), including earlier calls on the same agent; clear it between tests (``agent.messages.clear()``) for one run per result.
   Each ``assistant`` message's ``content`` is a list of blocks, which may contain ``{"toolUse": {...}}`` and/or ``{"text": "..."}`` entries. ``user`` messages between two assistant messages often contain ``{"toolResult": {...}}`` blocks that carry tool execution results.
-- ``agent.event_loop_metrics.accumulated_usage``: Token consumption, with ``"inputTokens"`` and ``"outputTokens"`` keys.
+- ``agent.event_loop_metrics.latest_agent_invocation.usage``: Token consumption of the last call, with ``"inputTokens"`` and ``"outputTokens"`` keys.
 
 Step boundary: **each ``assistant`` message becomes one step** (``source="llm"``).  Tool results observed in the next ``user`` message are attached to the previous step's ``tool_results``.
 """
@@ -69,7 +69,9 @@ def _messages(source: Any) -> list[Any]:
 def _usage(metrics: Any) -> dict[str, Any]:
     if isinstance(metrics, dict):
         return metrics
-    usage = getattr(metrics, "accumulated_usage", None)  # EventLoopMetrics
+    # EventLoopMetrics: the last call's usage; accumulated_usage keeps adding up over every call on the agent.
+    latest = getattr(metrics, "latest_agent_invocation", None)
+    usage = getattr(latest, "usage", None) if latest is not None else getattr(metrics, "accumulated_usage", None)
     return usage if isinstance(usage, dict) else {}
 
 

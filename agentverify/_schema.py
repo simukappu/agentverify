@@ -28,6 +28,27 @@ def check_schema(schema: Any, where: str) -> None:
     for name in names:
         if name not in _TYPES:
             raise ValueError(f"{where}: unknown type {name!r}")
+
+    def bad(keyword: str, expected: str) -> ValueError:
+        return ValueError(f"{where}: {keyword} must be {expected}, got {schema[keyword]!r}")
+
+    for keyword in ("minimum", "maximum"):
+        if keyword in schema and (isinstance(schema[keyword], bool) or not isinstance(schema[keyword], (int, float))):
+            raise bad(keyword, "a number")
+    for keyword in ("minLength", "maxLength"):
+        if keyword in schema and (isinstance(schema[keyword], bool) or not isinstance(schema[keyword], int) or schema[keyword] < 0):
+            raise bad(keyword, "a non-negative integer")
+    if "enum" in schema and not isinstance(schema["enum"], list):
+        raise bad("enum", "a list")
+    if "required" in schema and not (isinstance(schema["required"], list) and all(isinstance(n, str) for n in schema["required"])):
+        raise bad("required", "a list of names")
+    if "pattern" in schema:
+        try:
+            re.compile(schema["pattern"])
+        except (re.error, TypeError) as error:
+            raise bad("pattern", f"a regular expression ({error})") from None
+    if "properties" in schema and not isinstance(schema["properties"], dict):
+        raise bad("properties", "a dict of argument names to schemas")
     for name, sub in (schema.get("properties") or {}).items():
         check_schema(sub, f"{where}.{name}")
     extra = schema.get("additionalProperties")
@@ -50,7 +71,7 @@ def _is_type(value: Any, name: str) -> bool:
         return False
     if name == "integer":
         return isinstance(value, int)
-    return isinstance(value, (int, float)) and math.isfinite(value)  # number
+    return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))  # number
 
 
 def _same(a: Any, b: Any) -> bool:
