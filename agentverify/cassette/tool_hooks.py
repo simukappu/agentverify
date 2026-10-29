@@ -160,6 +160,10 @@ def _strands(stack: ExitStack) -> None:
         from strands.tools.tools import PythonAgentTool
     except ImportError:
         return
+    try:
+        from strands.tools.structured_output.structured_output_tool import StructuredOutputTool
+    except ImportError:  # pragma: no cover — a Strands version without structured output
+        StructuredOutputTool = None
     invoke = HookRegistry.invoke_callbacks_async
     # Tool calls running for real, by toolUseId.
     started: dict[Any, int] = {}
@@ -182,6 +186,8 @@ def _strands(stack: ExitStack) -> None:
         tool_use = getattr(event, "tool_use", None) or {}
         if tool_use.get("name") in _STRANDS_CONTROL_TOOLS:
             return outcome  # a Swarm handoff acts on the run, which a replayed result would not
+        if StructuredOutputTool is not None and isinstance(getattr(event, "selected_tool", None), StructuredOutputTool):
+            return outcome  # the agent's structured answer (structured_output_model), not a tool
         if isinstance(event, BeforeToolCallEvent) and event.selected_tool is not None and not event.cancel_tool and not interrupted:
             if session.replaying:
                 execution = session.take(tool_use["name"], tool_use.get("input"))

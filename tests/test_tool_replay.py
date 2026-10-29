@@ -929,3 +929,34 @@ class TestFinalReview:
             rec.discard(failed)
             positions = [(e.step, e.llm_calls) for e in rec._tool_session.recorded]
             assert positions == [(None, []), (0, []), (0, [1]), (2, [])]
+
+    def test_strands_structured_output_tool_runs_for_real(self, tmp_path, fake_modules):
+        class BeforeToolCallEvent:
+            def __init__(self, tool_use, selected_tool):
+                self.tool_use, self.selected_tool, self.cancel_tool = tool_use, selected_tool, False
+
+        class HookRegistry:
+            async def invoke_callbacks_async(self, event):
+                return event, []
+
+        class StructuredOutputTool:
+            pass
+
+        fake_modules(
+            strands=_module("strands"),
+            **{
+                "strands.hooks": _module("strands.hooks", AfterToolCallEvent=type("AfterToolCallEvent", (), {}), BeforeToolCallEvent=BeforeToolCallEvent),
+                "strands.hooks.registry": _module("strands.hooks.registry", HookRegistry=HookRegistry),
+                "strands.tools": _module("strands.tools"),
+                "strands.tools.tools": _module("strands.tools.tools", PythonAgentTool=object),
+                "strands.tools.structured_output": _module("strands.tools.structured_output"),
+                "strands.tools.structured_output.structured_output_tool": _module("strands.tools.structured_output.structured_output_tool", StructuredOutputTool=StructuredOutputTool),
+            },
+        )
+        path = tmp_path / "so.yaml"
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD):
+            pass
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY):
+            event = BeforeToolCallEvent({"name": "Answer", "toolUseId": "s1", "input": {}}, StructuredOutputTool())
+            before, _ = asyncio.run(HookRegistry().invoke_callbacks_async(event))
+        assert isinstance(before.selected_tool, StructuredOutputTool)  # not swapped for a replayed result

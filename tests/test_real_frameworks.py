@@ -550,3 +550,40 @@ def test_from_crewai_on_a_crew_output(monkeypatch):
     result = from_crewai(Crew(agents=[agent], tasks=[Task(description="d", expected_output="e", agent=agent)]).kickoff())
     assert [(c.name, c.arguments) for c in result.tool_calls] == [("lookup", {"key": "k"})]
     assert result.final_output == "done"
+
+
+def test_strands_structured_output_runs_for_real_on_replay(tmp_path):
+    """Strands answers structured_output_model through a tool of its own; a replayed result would not set the answer."""
+    pytest.importorskip("strands")
+    import pydantic
+    from strands import Agent
+    from strands.models.model import Model
+
+    class Answer(pydantic.BaseModel):
+        value: int
+
+    class Fake(Model):
+        def update_config(self, **kwargs):
+            pass
+
+        def get_config(self):
+            return {}
+
+        async def structured_output(self, *args, **kwargs):  # pragma: no cover
+            raise NotImplementedError
+
+        async def stream(self, messages, tool_specs=None, system_prompt=None, **kwargs):
+            yield {"messageStart": {"role": "assistant"}}
+            yield {"contentBlockStart": {"start": {"toolUse": {"toolUseId": "s1", "name": "Answer"}}}}
+            yield {"contentBlockDelta": {"delta": {"toolUse": {"input": '{"value": 3}'}}}}
+            yield {"contentBlockStop": {}}
+            yield {"messageStop": {"stopReason": "tool_use"}}
+
+    def run():
+        return Agent(model=Fake(), callback_handler=None)("what is 1+2?", structured_output_model=Answer).structured_output
+
+    path = tmp_path / "structured.yaml"
+    for mode in (CassetteMode.RECORD, CassetteMode.REPLAY):
+        with LLMCassetteRecorder(path, mode=mode, provider="bedrock"):
+            assert run() == Answer(value=3)
+    assert yaml.safe_load(path.read_text())["tool_executions"] == []
