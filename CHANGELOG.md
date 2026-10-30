@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- **`--cassette-report` leaves out files that are not cassettes**, such as notes kept next to them, instead of listing them as unreadable.
+
+### Documentation
+
+- **Expiry settings apply through the `cassette` fixture**: an `LLMCassetteRecorder` created directly checks only its own `max_age`.
+
 ## 0.8.0 (2026-10-30)
 
 ### Features

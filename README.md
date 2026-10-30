@@ -388,7 +388,9 @@ with cassette("weather.yaml", provider="openai", max_age="7d", on_expired="warn"
     ...
 ```
 
-The limit applies when a cassette is replayed. `--cassette-report` also lists the cassettes no test replays, from the `cassettes/` directory next to each collected test file (not a custom `cassette_dir`). Its status column uses the suite or run limit, not a `max_age=` passed to one cassette, and it needs a run without pytest-xdist workers (`-p no:xdist`).
+The limit applies when a cassette is replayed. `--cassette-report` also lists the cassettes no test replays, from the `cassettes/` directory next to each collected test file (not a custom `cassette_dir`). Its status column uses the suite or run limit, not a `max_age=` passed to one cassette, and it needs a run without pytest-xdist workers (`-p no:xdist`). Files there that are not cassettes are left out.
+
+The ini setting and the command-line options apply to cassettes opened with the `cassette` fixture. An `LLMCassetteRecorder` you create yourself checks only the `max_age` you pass it.
 
 ### Recorded and Unsupported Calls
 

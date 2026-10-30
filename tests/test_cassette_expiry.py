@@ -117,7 +117,9 @@ def test_fresh(cassette):
     _cassette(cassettes / "old.yaml", days_ago=40)
     _cassette(cassettes / "fresh.yaml", days_ago=0.5)
     (cassettes / "notes.json").write_text("not json")
-    (cassettes / "legacy.yaml").write_text("metadata: legacy\n")
+    (cassettes / "legacy.yaml").write_text("interactions: []\nmetadata: legacy\n")
+    (cassettes / "approvals.json").write_text('[{"kind": "digits"}]')  # not a cassette: left out
+    (cassettes / "notes.yaml").write_text("owner: someone\n")  # not a cassette either
     return pytester.runpytest_inprocess("-p", "agentverify", *args)
 
 
@@ -143,7 +145,8 @@ class TestPytest:
         assert "status (max age 30d)" in out and "openai" in out
         lines = {line.split()[0]: line for line in out.splitlines() if line.startswith("cassettes/")}
         assert "expired: recorded" in lines["cassettes/old.yaml"] and lines["cassettes/fresh.yaml"].rstrip().endswith("ok")
-        assert "unreadable: " in lines["cassettes/notes.json"] and "unreadable: TypeError" in lines["cassettes/legacy.yaml"]
+        assert "unreadable: " in lines["cassettes/notes.json"] and "metadata is not a mapping" in lines["cassettes/legacy.yaml"]
+        assert "cassettes/approvals.json" not in lines and "cassettes/notes.yaml" not in lines
 
     def test_report_without_a_limit_or_cassettes(self, pytester):
         result = _run(pytester, "--cassette-report", "--cassette-max-age=12h")
