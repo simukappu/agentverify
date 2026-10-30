@@ -4,19 +4,19 @@
 
 ### Features
 
-- **Cassettes can expire**: replaying a cassette recorded longer ago than `max_age` (the `agentverify_cassette_max_age` setting, `--cassette-max-age`, or `cassette(..., max_age="30d")`) raises `CassetteExpiredError`, or warns with `on_expired="warn"` / `--cassette-expired=warn`. `pytest --cassette-report` lists each cassette's recording date, model, and expiry without running the tests. See [README "Keeping Cassettes Current"](README.md#keeping-cassettes-current).
-- **`assert_tool_calls_allowed`**: every tool call must be to an allowed tool, with arguments within a JSON Schema subset (`type`, `enum`, `const`, bounds, lengths, `pattern`, `required`, `properties`, `additionalProperties`); failures raise `ToolPolicyError` with every offending call. See [README "Allowed Tools"](README.md#allowed-tools).
-- **`ToolCall.call_id`**: the id the provider or framework gave each tool call (`toolUseId`, `tool_call_id`, ...), from cassettes, `MockLLM`, the framework adapters, and `from_otel`. It is not compared, so expected `ToolCall`s match whatever id a call got, and `ToolPolicyError` shows it. Tool calls that have no id (`MockLLM` responses, older cassettes) get one that is unique across runs, and `mock_response(tool_calls=[{"id": ...}])` sets a fixed one.
+- **Cassettes can expire**: replaying a cassette older than `max_age` raises `CassetteExpiredError` (or warns). Set it in `agentverify_cassette_max_age`, `--cassette-max-age`, or `cassette(max_age=...)`. `pytest --cassette-report` lists each cassette's age and model. See [README "Keeping Cassettes Current"](README.md#keeping-cassettes-current).
+- **`assert_tool_calls_allowed`**: fails on calls to tools outside an allow list, or with arguments outside a JSON Schema subset. See [README "Allowed Tools"](README.md#allowed-tools).
+- **`ToolCall.call_id`**: the provider's or framework's id for each tool call, from cassettes, `MockLLM`, the adapters, and `from_otel`. Not compared in assertions.
 
 ### Bug Fixes
 
-- **Strands structured output works on replay**: the tool Strands adds for `structured_output_model` is the agent's answer, not a tool call, and now runs for real when a cassette replays tool results. Before, the replayed result left the answer unset and Strands called the model again, which failed replay. When the agent makes more LLM calls than recorded, the error also suggests `replay_tools=False` to tell whether a replayed tool result is the cause.
-- **`from_strands` reads the Strands `Agent`**: it read the conversation from `AgentResult.state.messages`, which the Strands `AgentResult` does not have, and failed with `AttributeError` on real runs. Pass the agent after the call: `agent(prompt); from_strands(agent)`. Token usage is the last call's, from the agent's `event_loop_metrics`. An `AgentResult` now raises a `TypeError` that says to pass the agent.
+- **`from_strands` works on real Strands runs**: it takes the `Agent`, since the `AgentResult` has no conversation.
+- **Strands structured output works on replay**: the tool behind `structured_output_model` now runs for real.
 
 ### Breaking Changes
 
-- **`from_strands` takes the `Agent`**, and an `AgentResult` raises `TypeError`. Passing the `AgentResult` never worked on a real Strands run (see Bug Fixes).
-- **Generated tool call ids changed form** (`call_replayed_<run>_<n>`, unique across runs) and now appear in `ExecutionResult.to_dict()` as `call_id`. Snapshots of `MockLLM` results that include them change on every run; set ids in `mock_response` where a fixed one matters.
+- **`from_strands(agent_result)` raises `TypeError`**; pass the agent.
+- **Generated tool call ids are unique across runs** and appear in `to_dict()`; set fixed ones with `mock_response(tool_calls=[{"id": ...}])`.
 
 ## 0.7.1 (2026-10-22)
 
