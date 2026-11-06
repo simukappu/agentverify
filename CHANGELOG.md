@@ -4,6 +4,7 @@
 
 ### Features
 
+- **Drift**: `drift="warn"` / `"fail"` (or `agentverify_cassette_drift`, `--cassette-drift`) compares replayed tool results, message roles, and parameters with the recording, and lists or fails on the places that differ. Off by default. See [README "Stale Cassette Detection"](README.md#stale-cassette-detection).
 - **`assert_no_credential_urls`**: fails when a URL in a request the model was sent carries a token, key, or signature (presigned links, `access_token`, `X-Amz-Signature`, JWTs), without printing the values. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
 - **`iter_request_texts`**: every text a request sends the model (system prompt, messages, tool arguments and results, tool definitions, parameters), with where it sits, for any provider. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
 - **`--cassette-mode=record-missing`**: records only the cassettes that do not exist yet and replays the rest. pytest lists the new ones.

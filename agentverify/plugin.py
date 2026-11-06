@@ -41,6 +41,17 @@ def pytest_addoption(parser):  # type: ignore[no-untyped-def]
         default=False,
         help="List the cassettes next to the collected tests (recorded when, with which model, expired or not) instead of running the tests.",
     )
+    parser.addoption(
+        "--cassette-drift",
+        default=None,
+        choices=["off", "warn", "fail"],
+        help="Compare replayed tool results, messages, and parameters with the recording: off (default), warn, or fail. Overrides the agentverify_cassette_drift ini setting.",
+    )
+    parser.addini(
+        "agentverify_cassette_drift",
+        default="",
+        help="Compare replayed tool results, messages, and parameters with the recording: off (default), warn, or fail.",
+    )
     parser.addini(
         "agentverify_cassette_max_age",
         default="",
@@ -141,8 +152,9 @@ def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
     terminalreporter.section("agentverify: stale cassettes")
     for path, (fields, tests) in stale.items():
         shown = _shown(path, root)
-        changed = [f for f in sorted(fields) if not f.startswith("expired")]
-        reasons = ([f"{', '.join(changed)} changed"] if changed else []) + [f for f in sorted(fields) if f.startswith("expired")]
+        verbatim = ("expired", "drift")
+        changed = [f for f in sorted(fields) if not f.startswith(verbatim)]
+        reasons = ([f"{', '.join(changed)} changed"] if changed else []) + [f for f in sorted(fields) if f.startswith(verbatim)]
         terminalreporter.write_line(f"{shown}  ({'; '.join(reasons)})")
     every_test = sorted(set().union(*(tests for _, tests in stale.values())))
     if every_test:

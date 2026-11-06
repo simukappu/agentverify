@@ -28,9 +28,10 @@ def test_pytest_addoption_registers_cassette_mode():
         "--cassette-max-age",
         "--cassette-expired",
         "--cassette-report",
+        "--cassette-drift",
         "--agentverify-live",
     }
-    parser.addini.assert_called_once()
+    assert {c.args[0] for c in parser.addini.call_args_list} == {"agentverify_cassette_max_age", "agentverify_cassette_drift"}
 
     # First call: --cassette-mode
     first_call = parser.addoption.call_args_list[0]

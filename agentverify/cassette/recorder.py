@@ -24,6 +24,7 @@ from agentverify.cassette.adapters.base import (
     NormalizedResponse,
     with_call_ids,
 )
+from agentverify.cassette.drift import check_drift, compile_ignore, describe, drift
 from agentverify.cassette.expiry import MaxAge, check_on_expired, expiry, parse_max_age
 from agentverify.cassette.io import _parse_interactions, load_document, save_cassette
 from agentverify.cassette.sanitize import (
@@ -146,8 +147,12 @@ class LLMCassetteRecorder:
         match_ignore: list[str] | None = None,
         max_age: MaxAge = None,
         on_expired: str = "error",
+        drift: str = "off",
+        drift_ignore: list[str] | None = None,
     ) -> None:
         self.cassette_path = Path(cassette_path)
+        self.drift = check_drift(drift)
+        self._drift_ignore = compile_ignore(drift_ignore)
         self.max_age = parse_max_age(max_age)
         self.on_expired = check_on_expired(on_expired)
         self.replay_tools = replay_tools
@@ -431,6 +436,18 @@ class LLMCassetteRecorder:
             self._request_errors.append(error)
             _stale_cassettes.append((str(self.cassette_path), self.test_id, error.field))
             raise
+        if self.drift == "off":
+            return
+        places = drift(recorded, actual, index, self._drift_ignore, self._ignore)
+        if not places:
+            return
+        _stale_cassettes.append((str(self.cassette_path), self.test_id, f"drift: {describe(places)}"))
+        if self.drift == "fail":
+            from agentverify.errors import CassetteDriftError
+
+            error = CassetteDriftError(str(self.cassette_path), index, places)
+            self._request_errors.append(error)  # type: ignore[arg-type]
+            raise error
 
     def _compare(self, index: int, recorded: NormalizedRequest, actual: NormalizedRequest) -> None:
         # Check model name

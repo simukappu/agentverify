@@ -360,6 +360,20 @@ with cassette("my_test.yaml", provider="openai", match_ignore=[r"\d{4}-\d{2}-\d{
 
 To turn matching off (e.g., during migration), pass `match_requests=False`, or `--no-cassette-match-requests` for all tests.
 
+Matching leaves tool results alone, since a tool that runs for real may return something new. To notice a cassette that still replays but no longer shows what the agent sends, turn on drift: it compares the tool results (key by key, when they are JSON), the number and roles of the messages, and the provider's other parameters.
+
+```toml
+[tool.pytest.ini_options]
+agentverify_cassette_drift = "warn"   # off (default) | warn | fail; or --cassette-drift=...
+```
+
+```python
+with cassette("privacy_check.yaml", drift="fail", drift_ignore=["request[*].message[*].tool_result[*].now"]) as rec:
+    ...
+```
+
+`warn` adds the cassette and the places that differ (never the values) to the stale list at the end of the run; `fail` raises `CassetteDriftError`. `drift_ignore` takes globs over the places as `iter_request_texts` names them, with or without the `(role)` and `(tool)` parts, and `match_ignore` applies too.
+
 ### Keeping Cassettes Current
 
 Cassettes drift when your prompts, tool schemas, or model versions change, and [stale detection](#stale-cassette-detection) tells you which ones. In practice:
@@ -966,7 +980,7 @@ LatencyBudgetError: Latency budget exceeded
   Exceeded by: 450.0 ms (15.0%)
 ```
 
-Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure. The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), and `CassetteUnsupportedCallError`.
+Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure. The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), `CassetteDriftError` (a replayed request that differs, with `drift="fail"`), `CredentialURLError` (from `assert_no_credential_urls`), and `CassetteUnsupportedCallError`.
 
 ## Examples
 

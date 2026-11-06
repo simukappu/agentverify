@@ -76,6 +76,8 @@ def cassette(request):
         match_ignore: Union[list[str], None] = None,
         max_age: Union[str, timedelta, None, object] = _MODE_NOT_SET,
         on_expired: Union[str, None] = None,
+        drift: Union[str, None] = None,
+        drift_ignore: Union[list[str], None] = None,
     ) -> LLMCassetteRecorder:
         # Resolve mode: explicit arg > CLI option > default AUTO
         if mode is _MODE_NOT_SET:
@@ -102,6 +104,9 @@ def cassette(request):
             max_age = request.config.getoption("--cassette-max-age", default=None) or _ini(request.config, "agentverify_cassette_max_age")
         if on_expired is None:
             on_expired = request.config.getoption("--cassette-expired", default=None) or "error"
+        # Resolve drift: explicit arg > --cassette-drift > the agentverify_cassette_drift ini setting > off
+        if drift is None:
+            drift = request.config.getoption("--cassette-drift", default=None) or _ini(request.config, "agentverify_cassette_drift") or "off"
 
         from agentverify.live import live_settings
 
@@ -136,6 +141,8 @@ def cassette(request):
             match_ignore=match_ignore,
             max_age=max_age,  # type: ignore[arg-type]
             on_expired=on_expired,
+            drift=drift,
+            drift_ignore=drift_ignore,
         )
         recorder.test_id = request.node.nodeid
         return recorder

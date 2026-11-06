@@ -166,6 +166,21 @@ class CassetteExpiredError(AgentVerifyError):
     pass
 
 
+class CassetteDriftError(AgentVerifyError):
+    """Raised with ``drift="fail"`` when a replayed request's tool results, messages, or parameters differ from the recording.
+
+    ``index`` is the request's position in the cassette, ``places`` the ``where`` of each difference (no values).
+    """
+
+    def __init__(self, cassette: str, index: int, places: list[str]) -> None:
+        self.cassette = cassette
+        self.index = index
+        self.places = places
+        lines = [f"{cassette}: request {index} differs from the recording", ""] + [f"  {p}" for p in places]
+        lines += ["", "Re-record it with --cassette-mode=record, or leave the places that change on every run out with drift_ignore."]
+        super().__init__("\n".join(lines))
+
+
 class CassetteUnsupportedCallError(AgentVerifyError):
     """Raised when an LLM call inside a cassette cannot be recorded or replayed.
 

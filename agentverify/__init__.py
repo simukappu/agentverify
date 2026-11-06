@@ -52,6 +52,7 @@ from agentverify.cassette.texts import iter_request_texts
 from agentverify.credentials import assert_no_credential_urls
 from agentverify.cassette.tools import cassette_tool
 from agentverify.errors import (
+    CassetteDriftError,
     CassetteExpiredError,
     CassetteMissingRequestError,
     CassetteRequestMismatchError,
@@ -113,6 +114,7 @@ __all__ = [
     # Cassette
     "LLMCassetteRecorder",
     "CassetteMode",
+    "CassetteDriftError",
     "CassetteExpiredError",
     "CassetteMissingRequestError",
     "CassetteRequestMismatchError",

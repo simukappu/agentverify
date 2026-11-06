@@ -6,6 +6,7 @@ For checks that must see all of it (personal data, secrets, credential URLs): th
 from __future__ import annotations
 
 import json
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Union
 
@@ -16,6 +17,8 @@ _SKIP_KEYS = frozenset({"id", "toolUseId", "tool_use_id", "tool_call_id", "call_
 _SYSTEM_KEYS = ("system", "system_instruction", "instructions")
 
 Source = Union[str, Path, NormalizedRequest, Any]
+# Drift compares nulls too (a new "description": null is a change); text checks have no use for them.
+_NULLS: ContextVar[bool] = ContextVar("agentverify_texts_nulls", default=False)
 
 
 def _requests(source: Source) -> list[NormalizedRequest]:
@@ -56,6 +59,8 @@ def _leaves(value: Any, where: str) -> Iterator[tuple[str, str]]:
             yield where, value
     elif isinstance(value, (bool, int, float)):
         yield where, str(value)
+    elif value is None and _NULLS.get():
+        yield where, "null"
 
 
 def _tool_names(request: NormalizedRequest) -> dict[str, str]:
