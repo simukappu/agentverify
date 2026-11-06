@@ -15,7 +15,7 @@ def pytest_addoption(parser):  # type: ignore[no-untyped-def]
     parser.addoption(
         "--cassette-mode",
         default=None,
-        choices=["auto", "record", "replay"],
+        choices=["auto", "record", "replay", "record-missing"],
         help="Override cassette mode for all tests (auto, record, replay).",
     )
     parser.addoption(
@@ -90,8 +90,8 @@ def pytest_runtest_protocol(item, nextitem):  # type: ignore[no-untyped-def]
 
 
 def pytest_runtest_logreport(report):  # type: ignore[no-untyped-def]
-    from agentverify.cassette.recorder import _stale_cassettes
-    from agentverify.fixtures import STALE_PROPERTY
+    from agentverify.cassette.recorder import _new_cassettes, _stale_cassettes
+    from agentverify.fixtures import NEW_PROPERTY, STALE_PROPERTY
     from agentverify.live import collect
 
     collect(report)
@@ -99,14 +99,35 @@ def pytest_runtest_logreport(report):  # type: ignore[no-untyped-def]
         for name, value in report.user_properties:
             if name == STALE_PROPERTY:
                 _stale_cassettes.extend(tuple(entry) for entry in value)
+            elif name == NEW_PROPERTY:
+                _new_cassettes.extend(tuple(entry) for entry in value)
+
+
+def _shown(path: str, root: Path) -> str:
+    try:
+        return str(Path(path).relative_to(root))
+    except ValueError:
+        return path
+
+
+def _new_summary(terminalreporter, new):  # type: ignore[no-untyped-def]
+    """The cassettes record-missing recorded in this run, to review and commit."""
+    if not new:
+        return
+    terminalreporter.section("agentverify: new cassettes")
+    root = terminalreporter.config.rootpath
+    for path in dict.fromkeys(path for path, _ in new):
+        terminalreporter.write_line(_shown(path, root))
+    new.clear()
 
 
 def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
     """List the cassettes that no longer match the requests the agent makes, with the command to re-record them, and the pass rates of live runs."""
-    from agentverify.cassette.recorder import _stale_cassettes
+    from agentverify.cassette.recorder import _new_cassettes, _stale_cassettes
     from agentverify.live import summary
 
     summary(terminalreporter)
+    _new_summary(terminalreporter, _new_cassettes)
 
     if not _stale_cassettes:
         return
@@ -119,10 +140,7 @@ def pytest_terminal_summary(terminalreporter):  # type: ignore[no-untyped-def]
             tests.add(test_id)
     terminalreporter.section("agentverify: stale cassettes")
     for path, (fields, tests) in stale.items():
-        try:
-            shown = str(Path(path).relative_to(root))
-        except ValueError:
-            shown = path
+        shown = _shown(path, root)
         changed = [f for f in sorted(fields) if not f.startswith("expired")]
         reasons = ([f"{', '.join(changed)} changed"] if changed else []) + [f for f in sorted(fields) if f.startswith("expired")]
         terminalreporter.write_line(f"{shown}  ({'; '.join(reasons)})")

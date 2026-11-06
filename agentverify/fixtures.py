@@ -17,6 +17,7 @@ from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder, OnM
 from agentverify.cassette.sanitize import SanitizePattern
 
 STALE_PROPERTY = "agentverify_stale_cassettes"
+NEW_PROPERTY = "agentverify_new_cassettes"
 
 #: Sentinel value to distinguish "caller didn't pass mode" from "caller
 #: explicitly passed CassetteMode.AUTO".
@@ -51,14 +52,15 @@ def cassette(request):
 
     By default the cassette file is stored in a ``cassettes/`` directory next to the test file.  Override with the *cassette_dir* parameter.
     """
-    from agentverify.cassette.recorder import _stale_cassettes
+    from agentverify.cassette.recorder import _new_cassettes, _stale_cassettes
 
     def _report_stale() -> None:
-        # The test's stale cassettes travel on its report, so the summary lists them under pytest-xdist too.
-        mine = [entry for entry in _stale_cassettes if entry[1] == request.node.nodeid]
-        if mine:
-            _stale_cassettes[:] = [entry for entry in _stale_cassettes if entry[1] != request.node.nodeid]
-            request.node.user_properties.append((STALE_PROPERTY, mine))
+        # The test's stale and newly recorded cassettes travel on its report, so the summary lists them under pytest-xdist too.
+        for entries, name in ((_stale_cassettes, STALE_PROPERTY), (_new_cassettes, NEW_PROPERTY)):
+            mine = [entry for entry in entries if entry[1] == request.node.nodeid]
+            if mine:
+                entries[:] = [entry for entry in entries if entry[1] != request.node.nodeid]
+                request.node.user_properties.append((name, mine))
 
     request.addfinalizer(_report_stale)
 

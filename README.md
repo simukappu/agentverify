@@ -300,13 +300,14 @@ pytest
 
 Cassettes are human-readable YAML (or JSON). Commit them to git, review in PRs.
 
-agentverify supports three cassette modes:
+agentverify supports four cassette modes:
 
 | Mode | Behavior |
 |---|---|
 | `AUTO` (default) | If cassette file exists → REPLAY. Otherwise → call real LLM API but don't save (no cassette file is created). |
 | `RECORD` | Always call real LLM API and save to cassette file. |
 | `REPLAY` | Always replay from cassette file. Raises error if file is missing. |
+| `RECORD_MISSING` (`--cassette-mode=record-missing`) | If cassette file exists → REPLAY. Otherwise → RECORD. Adds new cassettes without re-recording (and paying for) the others; pytest lists the new ones at the end of the run. |
 
 ### Tool Calls
 

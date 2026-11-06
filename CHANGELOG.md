@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- **`--cassette-mode=record-missing`**: records only the cassettes that do not exist yet and replays the rest. pytest lists the new ones.
+
 ### Bug Fixes
 
 - **`--cassette-report` leaves out files that are not cassettes**, such as notes kept next to them, instead of listing them as unreadable.

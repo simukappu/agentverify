@@ -44,6 +44,8 @@ class CassetteMode(Enum):
     RECORD = "record"
     REPLAY = "replay"
     AUTO = "auto"
+    #: Replay the cassette if its file exists, else record it (call the real API and save).
+    RECORD_MISSING = "record-missing"
 
 
 def _request_to_context(request: NormalizedRequest | None) -> dict[str, Any] | None:
@@ -166,8 +168,11 @@ class LLMCassetteRecorder:
         else:
             self._sanitize_patterns = sanitize
 
-        # Resolve AUTO mode based on file existence.
-        if mode == CassetteMode.AUTO:
+        # Resolve AUTO and RECORD_MISSING based on file existence.
+        if mode == CassetteMode.RECORD_MISSING:
+            self._auto_passthrough = False
+            self.mode = CassetteMode.REPLAY if self.cassette_path.exists() else CassetteMode.RECORD
+        elif mode == CassetteMode.AUTO:
             if self.cassette_path.exists():
                 self.mode = CassetteMode.REPLAY
             else:
@@ -302,6 +307,8 @@ class LLMCassetteRecorder:
                 provider=self._adapter.name,
                 tool_executions=tools,
             )
+            if self._requested_mode == CassetteMode.RECORD_MISSING:
+                _new_cassettes.append((str(self.cassette_path), self.test_id))
         # A mismatch raised inside the agent may have been caught by the framework
         # (and a tool error turned into a message for the model); fail the test here instead.
         if args[0] is None and self._request_errors:
@@ -808,6 +815,8 @@ def _tool_calls_in(message: Any) -> list[tuple[str, Any]]:
 
 # (cassette path, test id, field) for each stale cassette found in this run, for the pytest summary.
 _stale_cassettes: list[tuple[str, str | None, str]] = []
+# (cassette path, test id) for each cassette that record-missing recorded in this run, for the pytest summary.
+_new_cassettes: list[tuple[str, str | None]] = []
 
 
 # How agentverify before 0.7.0 recorded google-genai Content objects: their repr.
