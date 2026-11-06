@@ -10,7 +10,7 @@
 
 agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls and the agent's tool calls once, and replay them in CI with zero cost, or run against a live LLM with flexible matchers that tolerate prompt variation. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
 
-![agentverify failure output showing the exact mismatch between expected and actual tool calls](docs/screenshot-error-output.png)
+![agentverify failure output: a supervisor that skipped the research agent, and a math step that ignored the previous step's result](docs/screenshots/multi-agent.png)
 
 Specifically:
 
@@ -252,13 +252,7 @@ Tools are recorded through every built-in framework and MCP's `ClientSession.cal
 
 Replay checks that the agent still sends what was recorded: the model, the tool names and schemas, the system prompt, and the user's text ([details](docs/cassettes.md#request-matching)). A change raises `CassetteRequestMismatchError` with a diff, even if the agent's framework caught it, and pytest lists the stale cassettes and the command that re-records them:
 
-```
-=================== agentverify: stale cassettes ===================
-tests/cassettes/weather_agent.yaml  (system prompt changed)
-
-Re-record them with (from /path/to/project):
-  pytest --cassette-mode=record tests/test_agent.py::test_weather_agent
-```
+![A one-line system prompt change failing replay with a diff, and the stale cassettes summary with the command that re-records them](docs/screenshots/stale-cassette.png)
 
 Text that changes on every run, such as today's date in a prompt, can be left out with `match_ignore`, a list of regular expressions. `match_requests=False` (or `--no-cassette-match-requests`) turns matching off.
 
@@ -394,6 +388,8 @@ assert_tool_calls_allowed(result, allowed={
     "say_hello": None,  # any arguments
 })
 ```
+
+![An MCP agent's tool calls outside the allow list: a list_issues call with state 'all', and a get_issue call on another repository](docs/screenshots/safety.png)
 
 The conditions are a small part of JSON Schema, as tool parameter schemas use it: `type`, `enum`, `const`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `required`, `properties`, and `additionalProperties`. Any other keyword raises `ValueError` rather than being ignored. Values are compared strictly: booleans are never numbers, `number` takes no NaN or infinity, `enum` and `const` compare types (`True` is not `1`), and, unlike JSON Schema, `integer` takes no float such as `3.0`. A failure (`ToolPolicyError`) lists each call outside the policy with its position, `call_id`, and reasons.
 
