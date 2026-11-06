@@ -25,25 +25,28 @@ def report(session: Any) -> None:
     max_age = parse_max_age(config.getoption("--cassette-max-age", default=None) or _ini(config, "agentverify_cassette_max_age"))
     writer = config.pluginmanager.get_plugin("terminalreporter")
     writer.section("agentverify: cassettes")
-    files = cassette_files(session)
-    if not files:
-        hint = " Under pytest-xdist the report needs a run without workers (-p no:xdist or -n 0)." if config.pluginmanager.hasplugin("dsession") else ""
-        writer.write_line("No cassettes next to the collected tests." + hint)
-        return
     now = datetime.now(timezone.utc)
     rows = []
-    for path in files:
+    for path in cassette_files(session):
         try:
-            metadata = load_document(path).get("metadata") or {}
-            if not isinstance(metadata, dict):
-                raise TypeError("metadata is not a mapping")
-        except Exception as error:  # a file that is not a cassette
+            document = load_document(path)
+        except Exception as error:  # a broken file
             rows.append((path, "-", "-", "-", f"unreadable: {type(error).__name__}"))
+            continue
+        if not isinstance(document, dict) or "interactions" not in document:
+            continue  # another file kept next to the cassettes, not a cassette
+        metadata = document.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            rows.append((path, "-", "-", "-", "unreadable: metadata is not a mapping"))
             continue
         stamp = recorded_at(metadata)
         recorded = f"{stamp.date().isoformat()} ({(now - stamp).days}d ago)" if stamp else "-"
         status = "-" if max_age is None else (expiry(metadata, max_age, now) or "ok")
         rows.append((path, recorded, str(metadata.get("provider", "-")), str(metadata.get("model", "-")), status))
+    if not rows:
+        hint = " Under pytest-xdist the report needs a run without workers (-p no:xdist or -n 0)." if config.pluginmanager.hasplugin("dsession") else ""
+        writer.write_line("No cassettes next to the collected tests." + hint)
+        return
     root = config.rootpath
     shown = [(_relative(p, root), *rest) for p, *rest in rows]
     header = ("cassette", "recorded", "provider", "model", "status" if max_age is None else f"status (max age {_format(max_age)})")
