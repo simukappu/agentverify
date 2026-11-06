@@ -117,3 +117,11 @@ def test_strict(cassette):
     result = pytester.runpytest_inprocess("-p", "agentverify", "--cassette-drift=off", "-k", "default")
     result.assert_outcomes(passed=1)
     assert "stale cassettes" not in result.stdout.str()
+
+
+def test_drift_works_without_request_matching(tmp_path):
+    path = tmp_path / "c.yaml"
+    save_cassette(path, [(RECORDED, NormalizedResponse(content="ok"))], provider="openai")
+    with pytest.raises(CassetteDriftError):
+        with LLMCassetteRecorder(path, mode=CassetteMode.REPLAY, match_requests=False, drift="fail") as rec:
+            rec.lookup(_request('{"events": [], "now": "10:00"}', model="other", temperature=0))

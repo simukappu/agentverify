@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from typing import Iterable, Optional
 from urllib.parse import parse_qsl, urlsplit
@@ -21,10 +22,23 @@ _URL = re.compile(r"https?://[^\s\"'<>\\]+", re.IGNORECASE)
 _JWT = re.compile(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 
 
+def _split(url: str) -> tuple[str, str, str, str]:
+    """(host, path, query, fragment); a URL urlsplit rejects (a bracketed placeholder host) is split by hand."""
+    try:
+        parts = urlsplit(url)
+        return parts.hostname or "?", parts.path, parts.query, parts.fragment
+    except ValueError:
+        rest, _, fragment = url.partition("#")
+        rest, _, query = rest.partition("?")
+        return "?", rest, query, fragment
+
+
 def _reasons(url: str, names: frozenset[str], extra: list[re.Pattern[str]]) -> list[str]:
-    parts = urlsplit(url)
-    reasons = sorted({name for name, _ in parse_qsl(parts.query, keep_blank_values=True) if name.lower() in names})
-    if _JWT.search(parts.path) or _JWT.search(parts.query):
+    _, path, query, fragment = _split(url)
+    # The query, and the fragment where implicit OAuth flows put access_token.
+    found = {name for part in (query, fragment) for name, _ in parse_qsl(part, keep_blank_values=True) if name.lower() in names}
+    reasons = sorted(found)
+    if any(_JWT.search(part) for part in (path, query, fragment)):
         reasons.append("JWT")
     reasons += [f"pattern {pattern.pattern!r}" for pattern in extra if pattern.search(url)]
     return reasons
@@ -47,9 +61,9 @@ def assert_no_credential_urls(source: Source, extra_patterns: Optional[Iterable[
     extra = [re.compile(pattern) for pattern in extra_patterns or []]
     found = []
     for where, text in iter_request_texts(source):
-        for url in _URL.findall(text):
+        for url in _URL.findall(html.unescape(text)):  # &amp; in HTML a tool returned separates parameters too
             reasons = _reasons(url, names, extra)
             if reasons:
-                found.append({"where": where, "host": urlsplit(url).hostname or "?", "reasons": reasons})
+                found.append({"where": where, "host": _split(url)[0], "reasons": reasons})
     if found:
         raise CredentialURLError(violations=found)

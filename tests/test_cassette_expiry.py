@@ -120,6 +120,7 @@ def test_fresh(cassette):
     (cassettes / "legacy.yaml").write_text("interactions: []\nmetadata: legacy\n")
     (cassettes / "approvals.json").write_text('[{"kind": "digits"}]')  # not a cassette: left out
     (cassettes / "notes.yaml").write_text("owner: someone\n")  # not a cassette either
+    (cassettes / "empty.yaml").write_text("")  # a cassette cut short
     return pytester.runpytest_inprocess("-p", "agentverify", *args)
 
 
@@ -147,6 +148,7 @@ class TestPytest:
         assert "expired: recorded" in lines["cassettes/old.yaml"] and lines["cassettes/fresh.yaml"].rstrip().endswith("ok")
         assert "unreadable: " in lines["cassettes/notes.json"] and "metadata is not a mapping" in lines["cassettes/legacy.yaml"]
         assert "cassettes/approvals.json" not in lines and "cassettes/notes.yaml" not in lines
+        assert "unreadable: empty" in lines["cassettes/empty.yaml"]
 
     def test_report_without_a_limit_or_cassettes(self, pytester):
         result = _run(pytester, "--cassette-report", "--cassette-max-age=12h")

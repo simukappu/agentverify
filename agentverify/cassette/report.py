@@ -33,6 +33,9 @@ def report(session: Any) -> None:
         except Exception as error:  # a broken file
             rows.append((path, "-", "-", "-", f"unreadable: {type(error).__name__}"))
             continue
+        if not document:
+            rows.append((path, "-", "-", "-", "unreadable: empty"))
+            continue
         if not isinstance(document, dict) or "interactions" not in document:
             continue  # another file kept next to the cassettes, not a cassette
         metadata = document.get("metadata") or {}

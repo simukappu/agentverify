@@ -42,3 +42,14 @@ def test_tool_definitions_are_searched_and_options_apply():
     assert_no_credential_urls(_request("https://app.example/callback?code=xyz"))  # code is not in the defaults
     with pytest.raises(CredentialURLError, match=r"\?"):
         assert_no_credential_urls(_request("http://?token=1"))  # no host
+
+
+def test_review_fixes():
+    """Fragments, HTML-escaped separators, and hosts urlsplit rejects."""
+    with pytest.raises(CredentialURLError, match=r"app\.example \(access_token\)"):
+        assert_no_credential_urls(_request("https://app.example/cb#access_token=ya29&token_type=bearer"))
+    with pytest.raises(CredentialURLError, match=r"x\.blob\.core\.windows\.net \(sig\)"):
+        assert_no_credential_urls(_request("<a href='https://x.blob.core.windows.net/c/f?sv=2022&amp;sig=S'>"))
+    assert_no_credential_urls(_request("template: http://[placeholder]/path"))  # no crash, nothing to flag
+    with pytest.raises(CredentialURLError, match=r": \? \(token\)"):
+        assert_no_credential_urls(_request("http://[placeholder]/p?token=1#frag"))

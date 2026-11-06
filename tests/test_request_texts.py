@@ -103,3 +103,24 @@ def test_sources(tmp_path):
 def test_malformed_tool_calls_are_skipped():
     request = NormalizedRequest(model="m", messages=[{"role": "assistant", "tool_calls": ["bad", {"function": "x"}], "content": ["text", 3]}])
     assert _texts(request) == {"request[0].message[0](assistant).content[0]": "text", "request[0].message[0](assistant).content[1]": "3"}
+
+
+def test_review_fixes():
+    """Payload keys named like envelope fields, SDK objects, and OpenAI tool messages with parts."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class Part:
+        type: str
+        text: str
+
+    request = NormalizedRequest(model="m", messages=[
+        {"role": "assistant", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "dl", "arguments": '{"id": 7}'}}]},
+        {"role": "tool", "tool_call_id": "c1", "content": [{"type": "text", "text": '{"data": {"download": "https://s3/x?sig=1"}}'}]},
+        {"role": "user", "content": [Part("text", "from an SDK object")]},
+    ], tools=[{"name": "dl", "parameters": {"properties": {"id": {"type": "string"}}}}])
+    texts = _texts(request)
+    assert texts["request[0].message[0](assistant).tool_call[0](dl).arguments.id"] == "7"
+    assert texts["request[0].message[1](tool).tool_result[0](dl)[0].text.data.download"] == "https://s3/x?sig=1"
+    assert texts["request[0].message[2](user).content[0].text"] == "from an SDK object"
+    assert texts["request[0].tool[dl].schema.properties.id.type"] == "string"

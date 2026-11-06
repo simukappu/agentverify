@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Union
 
 from agentverify.cassette.adapters.base import NormalizedRequest
+from agentverify.cassette.sanitize import _as_plain
 
 # Not text the agent sent: provider ids, reasoning signatures, encrypted reasoning, and binary payloads.
 _SKIP_KEYS = frozenset({"id", "toolUseId", "tool_use_id", "tool_call_id", "call_id", "signature", "encrypted_content", "redactedContent", "data", "bytes"})
@@ -44,16 +45,19 @@ def _parsed(value: Any) -> Any:
     return value
 
 
-def _leaves(value: Any, where: str) -> Iterator[tuple[str, str]]:
-    """Each text, number, and boolean inside *value*, with its path."""
-    value = _parsed(value)
+def _leaves(value: Any, where: str, payload: bool = False) -> Iterator[tuple[str, str]]:
+    """Each text, number, and boolean inside *value*, with its path.
+
+    In the provider's envelope, ids, signatures, and binary fields are left out. Inside a *payload* (tool arguments and results, tool schemas) every key is the agent's or the tool's own, so none is.
+    """
+    value = _parsed(_as_plain(value))
     if isinstance(value, dict):
         for key, item in value.items():
-            if key not in _SKIP_KEYS:
-                yield from _leaves(item, f"{where}.{key}")
+            if payload or key not in _SKIP_KEYS:
+                yield from _leaves(item, f"{where}.{key}", payload)
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _leaves(item, f"{where}[{index}]")
+            yield from _leaves(item, f"{where}[{index}]", payload)
     elif isinstance(value, str):
         if value and not value.startswith("data:"):  # an embedded image or file, not text
             yield where, value
@@ -66,14 +70,14 @@ def _leaves(value: Any, where: str) -> Iterator[tuple[str, str]]:
 def _tool_names(request: NormalizedRequest) -> dict[str, str]:
     """Tool call id to tool name, from the calls in the request's history."""
     names: dict[str, str] = {}
-    for message in request.messages or []:
+    for message in map(_as_plain, request.messages or []):
         if not isinstance(message, dict):
             continue
-        for call in message.get("tool_calls") or []:  # OpenAI / LiteLLM
+        for call in map(_as_plain, message.get("tool_calls") or []):  # OpenAI / LiteLLM
             if isinstance(call, dict) and isinstance(call.get("function"), dict):
                 names[str(call.get("id"))] = str(call["function"].get("name"))
         content = message.get("content")
-        for block in content if isinstance(content, list) else []:
+        for block in map(_as_plain, content) if isinstance(content, list) else []:
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use":  # Anthropic
@@ -86,6 +90,7 @@ def _tool_names(request: NormalizedRequest) -> dict[str, str]:
 
 
 def _message(message: Any, where: str, names: dict[str, str]) -> Iterator[tuple[str, str]]:
+    message = _as_plain(message)
     if not isinstance(message, dict):
         yield from _leaves(message, where)
         return
@@ -97,41 +102,41 @@ def _message(message: Any, where: str, names: dict[str, str]) -> Iterator[tuple[
         if key in ("role", "type") or key in _SKIP_KEYS:
             continue
         if key == "tool_calls" and isinstance(value, list):  # OpenAI / LiteLLM
-            for call in value:
-                function = call.get("function") if isinstance(call, dict) else None
+            for call in map(_as_plain, value):
+                function = _as_plain(call.get("function")) if isinstance(call, dict) else None
                 if isinstance(function, dict):
-                    yield from _leaves(function.get("arguments"), f"{where}.tool_call[{calls}]({function.get('name')}).arguments")
+                    yield from _leaves(function.get("arguments"), f"{where}.tool_call[{calls}]({function.get('name')}).arguments", payload=True)
                     calls += 1
+        elif key == "content" and role == "tool":  # OpenAI tool message, text or a list of parts
+            yield from _leaves(value, f"{where}.tool_result[0]({names.get(str(message.get('tool_call_id')), '?')})", payload=True)
         elif key in ("content", "parts") and isinstance(value, list):
-            for index, block in enumerate(value):
+            for index, block in enumerate(map(_as_plain, value)):
                 if not isinstance(block, dict):
                     yield from _leaves(block, f"{where}.content[{index}]")
                     continue
                 if block.get("type") == "tool_use" or isinstance(block.get("toolUse"), dict):
                     use = block.get("toolUse") or block
-                    yield from _leaves(use.get("input"), f"{where}.tool_call[{calls}]({use.get('name')}).arguments")
+                    yield from _leaves(use.get("input"), f"{where}.tool_call[{calls}]({use.get('name')}).arguments", payload=True)
                     calls += 1
                 elif isinstance(block.get("function_call") or block.get("functionCall"), dict):  # Gemini
                     call = block.get("function_call") or block.get("functionCall")
-                    yield from _leaves(call.get("args"), f"{where}.tool_call[{calls}]({call.get('name')}).arguments")
+                    yield from _leaves(call.get("args"), f"{where}.tool_call[{calls}]({call.get('name')}).arguments", payload=True)
                     calls += 1
                 elif block.get("type") == "tool_result" or isinstance(block.get("toolResult"), dict):
                     result = block.get("toolResult") or block
                     name = names.get(str(result.get("toolUseId") or result.get("tool_use_id")), "?")
-                    yield from _leaves(result.get("content"), f"{where}.tool_result[{results}]({name})")
+                    yield from _leaves(result.get("content"), f"{where}.tool_result[{results}]({name})", payload=True)
                     results += 1
                 elif isinstance(block.get("function_response") or block.get("functionResponse"), dict):  # Gemini
                     response = block.get("function_response") or block.get("functionResponse")
-                    yield from _leaves(response.get("response"), f"{where}.tool_result[{results}]({response.get('name')})")
+                    yield from _leaves(response.get("response"), f"{where}.tool_result[{results}]({response.get('name')})", payload=True)
                     results += 1
                 else:
                     yield from _leaves({k: v for k, v in block.items() if k != "type"}, f"{where}.content[{index}]")
-        elif key == "content" and role == "tool":  # OpenAI tool message
-            yield from _leaves(value, f"{where}.tool_result[0]({names.get(str(message.get('tool_call_id')), '?')})")
         elif key == "output" and role == "function_call_output":  # Responses API
-            yield from _leaves(value, f"{where}.tool_result[0]({names.get(str(message.get('call_id')), '?')})")
+            yield from _leaves(value, f"{where}.tool_result[0]({names.get(str(message.get('call_id')), '?')})", payload=True)
         elif key == "arguments" and role == "function_call":
-            yield from _leaves(value, f"{where}.tool_call[0]({message.get('name')}).arguments")
+            yield from _leaves(value, f"{where}.tool_call[0]({message.get('name')}).arguments", payload=True)
         elif key == "content" and isinstance(value, str):
             yield f"{where}.text", value
         elif not (key == "name" and role == "function_call"):
@@ -139,6 +144,7 @@ def _message(message: Any, where: str, names: dict[str, str]) -> Iterator[tuple[
 
 
 def _tool(tool: Any, where: str) -> Iterator[tuple[str, str]]:
+    tool = _as_plain(tool)
     if not isinstance(tool, dict):
         yield from _leaves(tool, where)
         return
@@ -148,7 +154,7 @@ def _tool(tool: Any, where: str) -> Iterator[tuple[str, str]]:
         if key == "name":
             yield f"{where}[{name}].name", str(value)
         elif key in ("parameters", "input_schema", "inputSchema"):
-            yield from _leaves(value, f"{where}[{name}].schema")
+            yield from _leaves(value, f"{where}[{name}].schema", payload=True)
         else:
             yield from _leaves(value, f"{where}[{name}].{key}")
 

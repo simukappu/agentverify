@@ -52,3 +52,12 @@ def test_one(cassette):
     second = pytester.runpytest_inprocess("-p", "agentverify", "--cassette-mode=record-missing")
     second.assert_outcomes(passed=1)
     assert "new cassettes" not in second.stdout.str()
+
+
+def test_a_failed_recording_is_not_kept(tmp_path):
+    path = tmp_path / "cut.yaml"
+    with pytest.raises(RuntimeError):
+        with LLMCassetteRecorder(path, mode=CassetteMode.RECORD_MISSING) as rec:
+            rec.record(NormalizedRequest(messages=[], model="m"), NormalizedResponse(content="half"))
+            raise RuntimeError("rate limited")
+    assert not path.exists() and _new_cassettes == []

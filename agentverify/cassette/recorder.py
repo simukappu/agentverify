@@ -25,6 +25,7 @@ from agentverify.cassette.adapters.base import (
     with_call_ids,
 )
 from agentverify.cassette.drift import check_drift, compile_ignore, describe, drift
+from agentverify.cassette.texts import _SYSTEM_KEYS
 from agentverify.cassette.expiry import MaxAge, check_on_expired, expiry, parse_max_age
 from agentverify.cassette.io import _parse_interactions, load_document, save_cassette
 from agentverify.cassette.sanitize import (
@@ -300,7 +301,9 @@ class LLMCassetteRecorder:
             fill_in()
         self._pending_streams = []
 
-        if self.mode == CassetteMode.RECORD:
+        # record-missing would replay a recording cut short by an error on every later run, so it keeps none.
+        failed_new = self._requested_mode == CassetteMode.RECORD_MISSING and args[0] is not None
+        if self.mode == CassetteMode.RECORD and not failed_new:
             interactions = self._interactions
             tools = None if self._tool_session is None else [e.to_dict() for e in self._tool_session.recorded]
             if self._sanitize_patterns is not None:
@@ -376,7 +379,7 @@ class LLMCassetteRecorder:
                 return None  # no more recorded interactions
             index = next((i for i in unused if self._recorded_key(i) == key), unused[0])
             recorded_req, response = self._interactions[index]
-            if self.match_requests:
+            if self.match_requests or self.drift != "off":
                 self._verify_request(index, recorded_req, request)
             # Tool calls recorded without an id get one here, so the framework and ToolCall.call_id agree.
             response = with_call_ids(response, self._adapter.call_id_prefix)
@@ -426,16 +429,17 @@ class LLMCassetteRecorder:
         recorded: NormalizedRequest,
         actual: NormalizedRequest,
     ) -> None:
-        """Compare recorded and actual requests, raising on mismatch."""
+        """Compare recorded and actual requests: match (when match_requests) and drift (when drift is on)."""
         if self._sanitize_patterns is not None:
             # The recording was sanitized when saved; compare like with like.
             actual = sanitize_interactions([(actual, NormalizedResponse())], self._sanitize_patterns)[0][0]
-        try:
-            self._compare(index, recorded, actual)
-        except CassetteRequestMismatchError as error:
-            self._request_errors.append(error)
-            _stale_cassettes.append((str(self.cassette_path), self.test_id, error.field))
-            raise
+        if self.match_requests:
+            try:
+                self._compare(index, recorded, actual)
+            except CassetteRequestMismatchError as error:
+                self._request_errors.append(error)
+                _stale_cassettes.append((str(self.cassette_path), self.test_id, error.field))
+                raise
         if self.drift == "off":
             return
         places = drift(recorded, actual, index, self._drift_ignore, self._ignore)
@@ -895,7 +899,7 @@ def _system_texts(request: NormalizedRequest) -> list[str]:
     from agentverify.cassette.sanitize import _as_plain
 
     texts = _message_texts(request, ("system", "developer"))
-    for key in ("system", "system_instruction", "instructions"):
+    for key in _SYSTEM_KEYS:
         value = _as_plain(request.parameters.get(key))
         texts += _texts(value.get("parts")) if isinstance(value, dict) else _texts(value)
     return texts
