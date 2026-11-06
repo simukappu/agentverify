@@ -446,7 +446,18 @@ for where, text in iter_request_texts("tests/cassettes/weather_agent.yaml"):
     assert not EMPLOYEE_ID.search(text), where
 ```
 
-Messages carry their role in `where`, so `(assistant)` picks out the model's own answers; tool results carry the tool's name. JSON tool arguments and results are read key by key, and numbers come as text. Provider ids (`toolUseId`, `tool_call_id`), reasoning signatures, and embedded images or files are left out. A saved cassette holds the sanitized request; pass the recorder before the block ends to see the request as sent.
+`assert_no_credential_urls` uses it to fail when a URL the model was sent carries a credential: a presigned download link a tool returned, `?access_token=`, `X-Amz-Signature`, an Azure SAS `sig`, or a JWT in the path. The error names where each URL was and its host, never the value:
+
+```python
+from agentverify import assert_no_credential_urls
+
+assert_no_credential_urls("tests/cassettes/camera_history.yaml")
+assert_no_credential_urls(rec, extra_patterns=[r"[?&]code="], ignore=["key"])  # OAuth codes too; `key` is an ordinary value here
+```
+
+The default query names (`agentverify.credentials.CREDENTIAL_QUERY_NAMES`) include `token`, `access_token`, `api_key`, `key`, `secret`, `password`, `sig`, `signature`, and the AWS and Google signature names. `key` gives false alarms on APIs that use it for ordinary values; drop it with `ignore=["key"]`.
+
+Messages carry their role in `where`, so `(assistant)` picks out the model's own answers; tool results carry the tool's name. JSON tool arguments and results are read key by key, and numbers come as text. Provider ids (`toolUseId`, `tool_call_id`), reasoning signatures, and embedded images or files are left out. A saved cassette holds the sanitized request; while recording, the recorder keeps the request as sent.
 
 ### Cassette Sanitization
 

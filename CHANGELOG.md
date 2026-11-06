@@ -4,6 +4,7 @@
 
 ### Features
 
+- **`assert_no_credential_urls`**: fails when a URL in a request the model was sent carries a token, key, or signature (presigned links, `access_token`, `X-Amz-Signature`, JWTs), without printing the values. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
 - **`iter_request_texts`**: every text a request sends the model (system prompt, messages, tool arguments and results, tool definitions, parameters), with where it sits, for any provider. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
 - **`--cassette-mode=record-missing`**: records only the cassettes that do not exist yet and replays the rest. pytest lists the new ones.
 

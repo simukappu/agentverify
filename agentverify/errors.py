@@ -477,3 +477,22 @@ class ToolPolicyError(AgentVerifyError):
             lines.append(f"  #{v['position']} {v['tool_name']}({_truncate_repr(v['arguments'])}){call_id}")
             lines.extend(f"    {reason}" for reason in v["reasons"])
         return "\n".join(lines)
+
+
+class CredentialURLError(AgentVerifyError):
+    """Raised by :func:`assert_no_credential_urls` when a request the model was sent holds a URL that carries a credential.
+
+    ``violations`` lists each URL as a dict with ``where``, ``host``, and ``reasons`` (the credential query names, ``JWT``, or the extra pattern that matched). The values themselves are never included.
+    """
+
+    def __init__(self, violations: list[dict[str, Any]]) -> None:
+        self.violations = violations
+        super().__init__(self._build_message())
+
+    def _build_message(self) -> str:
+        n = len(self.violations)
+        lines = [f"{n} URL{'s' if n != 1 else ''} with a credential sent to the model", ""]
+        for v in self.violations:
+            lines.append(f"  {v['where']}: {v['host']} ({', '.join(v['reasons'])})")
+        return "\n".join(lines)
+

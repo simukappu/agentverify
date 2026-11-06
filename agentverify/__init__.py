@@ -49,12 +49,14 @@ from agentverify.assertions import (
 from agentverify.cassette.recorder import CassetteMode, LLMCassetteRecorder
 from agentverify.cassette.sanitize import DEFAULT_PATTERNS, SanitizePattern
 from agentverify.cassette.texts import iter_request_texts
+from agentverify.credentials import assert_no_credential_urls
 from agentverify.cassette.tools import cassette_tool
 from agentverify.errors import (
     CassetteExpiredError,
     CassetteMissingRequestError,
     CassetteRequestMismatchError,
     CassetteToolMismatchError,
+    CredentialURLError,
     CassetteUnsupportedCallError,
     HandoffError,
     RetryBudgetError,
@@ -116,8 +118,10 @@ __all__ = [
     "CassetteRequestMismatchError",
     "CassetteUnsupportedCallError",
     "CassetteToolMismatchError",
+    "CredentialURLError",
     "cassette_tool",
     "iter_request_texts",
+    "assert_no_credential_urls",
     "SanitizePattern",
     "DEFAULT_PATTERNS",
     # Mocking
