@@ -7,7 +7,7 @@ Uses the http_request tool to fetch weather data from the National Weather Servi
 
 from strands import Agent
 from strands.models.bedrock import BedrockModel
-from strands_tools import http_request
+from strands.vended_tools import http_request
 
 WEATHER_SYSTEM_PROMPT = """You are a weather assistant with HTTP capabilities. You can:
 1. Make HTTP requests to the National Weather Service API

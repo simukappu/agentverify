@@ -16,6 +16,7 @@
 ### Documentation
 
 - **Expiry settings apply through the `cassette` fixture**: an `LLMCassetteRecorder` created directly checks only its own `max_age`.
+- **The Strands example uses `strands.vended_tools.http_request`**, as the official sample now does (strands-agents-tools 0.9 removed its own), on a re-recorded cassette.
 
 ## 0.8.0 (2026-10-30)
 

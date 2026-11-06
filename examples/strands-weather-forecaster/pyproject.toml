@@ -8,8 +8,7 @@ version = "0.1.0"
 description = "Strands Weather Forecaster example for agentverify"
 requires-python = ">=3.10"
 dependencies = [
-    "strands-agents",
-    "strands-agents-tools",  # http_request
+    "strands-agents>=1.61",  # http_request is one of its vended tools (strands-agents-tools 0.9 dropped its own)
     "agentverify",
 ]
 
