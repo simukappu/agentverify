@@ -12,6 +12,7 @@
 ### Bug Fixes
 
 - **`--cassette-report` leaves out files that are not cassettes.**
+- **Failures point at the test**: pytest no longer shows agentverify's own frames when an assertion or a cassette fails, and `assert_all` indents each failure under its number.
 
 ### Documentation
 

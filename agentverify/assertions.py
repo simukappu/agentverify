@@ -1,6 +1,8 @@
 """Assertion engine for agentverify.
 
 Provides assertion functions for verifying tool call sequences, cost/token budgets, safety guardrails, and batch assertion execution.
+
+Each assertion sets ``__tracebackhide__``, so pytest shows a failure at the test's own line rather than inside agentverify.
 """
 
 from __future__ import annotations
@@ -68,6 +70,7 @@ def assert_tool_calls(
     Raises:
         ToolCallSequenceError: When a mismatch is detected.
     """
+    __tracebackhide__ = True
     actual = result.tool_calls
 
     if order == OrderMode.EXACT:
@@ -86,6 +89,7 @@ def _assert_exact(
     partial_args: bool,
 ) -> None:
     """EXACT mode: same length and same tool calls at each position."""
+    __tracebackhide__ = True
     if len(expected) != len(actual):
         # first_mismatch_index is the first position that differs,
         # or min(len(expected), len(actual)) if one list is shorter.
@@ -118,6 +122,7 @@ def _assert_in_order(
 
     Uses a two-pointer approach: walk through actual looking for each expected element in order.
     """
+    __tracebackhide__ = True
     if not expected:
         return
 
@@ -143,6 +148,7 @@ def _assert_any_order(
     partial_args: bool,
 ) -> None:
     """ANY_ORDER mode: all expected tool calls must exist in actual."""
+    __tracebackhide__ = True
     for i, exp_tc in enumerate(expected):
         found = any(
             _tool_call_matches(exp_tc, act_tc, partial_args)
@@ -173,6 +179,7 @@ def assert_cost(
     Raises:
         CostBudgetError: When budget is exceeded or when strict=True and the required data is missing.
     """
+    __tracebackhide__ = True
     if max_tokens is not None:
         if result.token_usage is not None:
             actual_tokens = result.token_usage.total_tokens
@@ -222,6 +229,7 @@ def assert_latency(
     Raises:
         LatencyBudgetError: When latency exceeds the threshold or when strict=True and duration_ms is None.
     """
+    __tracebackhide__ = True
     if result.duration_ms is not None:
         if result.duration_ms > max_ms:
             raise LatencyBudgetError(
@@ -254,6 +262,7 @@ def assert_tool_calls_allowed(
         ToolPolicyError: When a call is to a tool not in *allowed*, or its arguments miss the conditions.
         ValueError: When *allowed* holds a schema keyword this assertion does not check.
     """
+    __tracebackhide__ = True
     from agentverify._schema import check_schema, violations as schema_violations
     from agentverify.errors import ToolPolicyError
 
@@ -292,6 +301,7 @@ def assert_no_tool_call(
     Raises:
         SafetyRuleViolationError: When forbidden tool calls are detected.
     """
+    __tracebackhide__ = True
     forbidden_set = set(forbidden_tools)
     violations: list[dict] = []
 
@@ -357,6 +367,7 @@ def assert_final_output(
     Raises:
         FinalOutputError: When the final output does not meet expectations.
     """
+    __tracebackhide__ = True
     if contains is None and equals is None and matches is None:
         raise ValueError(
             "assert_final_output requires at least one of: contains, equals, matches"
@@ -414,6 +425,7 @@ def assert_all(
     Raises:
         MultipleAssertionError: When one or more assertions fail.
     """
+    __tracebackhide__ = True
     errors: list[AgentVerifyError] = []
 
     for assertion in assertions:
@@ -493,6 +505,7 @@ def assert_step(
         ToolCallSequenceError: the step's tool calls don't match.
         StepAgentError: the step's agent doesn't match.
     """
+    __tracebackhide__ = True
     if agent is not None and expected_tool is None and expected_tools is None:
         resolved_step = _resolve_step(result, step, name)
         _assert_step_agent(resolved_step, agent)
@@ -522,6 +535,7 @@ def assert_step(
 
 
 def _assert_step_agent(step_obj: Any, agent: Any) -> None:
+    __tracebackhide__ = True
     from agentverify.errors import StepAgentError
 
     if not _agent_matches(agent, step_obj.agent):
@@ -529,6 +543,7 @@ def _assert_step_agent(step_obj: Any, agent: Any) -> None:
 
 
 def _assert_step_exact(step_obj, expected, actual, partial_args) -> None:
+    __tracebackhide__ = True
     if len(expected) != len(actual):
         mismatch = min(len(expected), len(actual))
         for i in range(mismatch):
@@ -554,6 +569,7 @@ def _assert_step_exact(step_obj, expected, actual, partial_args) -> None:
 
 
 def _assert_step_in_order(step_obj, expected, actual, partial_args) -> None:
+    __tracebackhide__ = True
     if not expected:
         return
     exp_idx = 0
@@ -573,6 +589,7 @@ def _assert_step_in_order(step_obj, expected, actual, partial_args) -> None:
 
 
 def _assert_step_any_order(step_obj, expected, actual, partial_args) -> None:
+    __tracebackhide__ = True
     for i, exp_tc in enumerate(expected):
         if not any(_tool_call_matches(exp_tc, a, partial_args) for a in actual):
             raise ToolCallSequenceError(
@@ -597,6 +614,7 @@ def assert_step_output(
 
     Exactly one of ``step`` or ``name`` must be provided.  At least one of ``contains``, ``equals``, or ``matches`` must be provided.  ``contains`` and ``case_sensitive`` behave as in :func:`assert_final_output`.
     """
+    __tracebackhide__ = True
     from agentverify.errors import StepOutputError
 
     if contains is None and equals is None and matches is None:
@@ -664,6 +682,7 @@ def assert_step_uses_result_from(
         depends_on: Step that should produce data.  Same specifier rules.
         via: One of ``"tool_result"``, ``"output"``, or ``"any"``. Restricts which channel of produced values is checked.
     """
+    __tracebackhide__ = True
     from agentverify.errors import StepDependencyError
 
     if via not in ("tool_result", "output", "any"):
@@ -905,6 +924,7 @@ def assert_tool_invocation_succeeded(
     Raises:
         ToolInvocationError: When any tool result at the step is a known error.
     """
+    __tracebackhide__ = True
     resolved = _resolve_step(result, step, name)
     violations: list[dict] = []
     for i in range(len(resolved.tool_results)):
@@ -931,6 +951,7 @@ def assert_no_tool_errors(result: ExecutionResult) -> None:
     Raises:
         ToolInvocationError: When any tool result in the run is a known error.
     """
+    __tracebackhide__ = True
     violations: list[dict] = []
     for resolved in result.steps:
         for i in range(len(resolved.tool_results)):
@@ -974,6 +995,7 @@ def assert_tool_result_matches(
     Raises:
         ToolResultMatchError: When no tool result matches, or the step has no tool results to match against.
     """
+    __tracebackhide__ = True
     if (contains is None) == (matches is None):
         raise ValueError(
             "assert_tool_result_matches requires exactly one of: contains, matches"
@@ -1043,6 +1065,7 @@ def assert_retry_count(
     Raises:
         RetryBudgetError: When the observed retry count exceeds ``max``.
     """
+    __tracebackhide__ = True
     if not isinstance(max, int) or isinstance(max, bool) or max < 0:
         raise ValueError(
             f"assert_retry_count requires max to be a non-negative int, got {max!r}"
@@ -1104,6 +1127,7 @@ def assert_handoffs(
     Raises:
         HandoffError: When the handoffs do not match.
     """
+    __tracebackhide__ = True
     actual = result.handoffs
     if order == OrderMode.EXACT:
         ok = len(expected) == len(actual) and all(_handoff_matches(e, a) for e, a in zip(expected, actual))
@@ -1128,6 +1152,7 @@ def assert_no_handoff(
     Raises:
         HandoffError: When a matching handoff happened.
     """
+    __tracebackhide__ = True
     if to_agent is None and from_agent is None:
         raise ValueError("assert_no_handoff requires at least one of: to_agent, from_agent")
     found = [

@@ -36,7 +36,7 @@ from agentverify.cassette.sanitize import (
     sanitize_tool_executions,
 )
 from agentverify.cassette.tools import ToolExecution, ToolSession
-from agentverify.errors import CassetteRequestMismatchError
+from agentverify.errors import CassetteRequestMismatchError, _own_error
 from agentverify.models import ExecutionResult, TokenUsage, ToolCall, attribute_agents, handoff_target
 
 
@@ -372,6 +372,7 @@ class LLMCassetteRecorder:
             The next :class:`NormalizedResponse`, or ``None`` if all
             interactions have been consumed.
         """
+        __tracebackhide__ = _own_error
         key = self._key(request)
         with self._lock:
             unused = [i for i in range(len(self._interactions)) if i not in self._used]
@@ -430,6 +431,7 @@ class LLMCassetteRecorder:
         actual: NormalizedRequest,
     ) -> None:
         """Compare recorded and actual requests: match (when match_requests) and drift (when drift is on)."""
+        __tracebackhide__ = _own_error
         if self._sanitize_patterns is not None:
             # The recording was sanitized when saved; compare like with like.
             actual = sanitize_interactions([(actual, NormalizedResponse())], self._sanitize_patterns)[0][0]
@@ -454,6 +456,7 @@ class LLMCassetteRecorder:
             raise error
 
     def _compare(self, index: int, recorded: NormalizedRequest, actual: NormalizedRequest) -> None:
+        __tracebackhide__ = _own_error
         # Check model name
         if recorded.model and actual.model and recorded.model != actual.model:
             raise CassetteRequestMismatchError(

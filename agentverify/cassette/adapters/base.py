@@ -16,6 +16,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING, Any, Callable, Generator
 
+from agentverify.errors import _own_error
 from agentverify.models import TokenUsage
 
 if TYPE_CHECKING:
@@ -543,6 +544,7 @@ def _replay_or_miss(
     replayed: Callable[[NormalizedResponse], Any] | None,
 ) -> Any:
     """Return the replayed response, or ``_REPLAY_MISS`` when the real API should be called."""
+    __tracebackhide__ = _own_error
     from agentverify.cassette.recorder import CassetteMode, OnMissingRequest
     from agentverify.errors import CassetteMissingRequestError
 
@@ -637,6 +639,7 @@ def call_sync(
     Streaming requests are recorded and replayed when the wire format is a :class:`StreamingWire`, and raise otherwise (or pass straight through in AUTO passthrough). Replay mode returns the recorded response, built by *replayed* (default: ``adapter.denormalize_response``); a miss calls the real API with ``on_missing=FALLBACK`` and raises otherwise. Record mode and AUTO passthrough call the real API and record the normalized response.
     A call made while another intercepted call is reaching the real API in the same task or thread (litellm fallbacks, a tool that calls the model during Gemini automatic function calling) is part of that outer call: it runs unrecorded, because replaying the outer call never makes it.
     """
+    __tracebackhide__ = _own_error
     if _live_call_allowed.get():
         return call_real()
     streaming = _streaming(adapter, kwargs)
@@ -661,6 +664,7 @@ async def call_async(
     replayed: Callable[[NormalizedResponse], Any] | None = None,
 ) -> Any:
     """Async counterpart of :func:`call_sync`; *call_real* returns an awaitable."""
+    __tracebackhide__ = _own_error
     if _live_call_allowed.get():
         return await call_real()
     streaming = _streaming(adapter, kwargs)

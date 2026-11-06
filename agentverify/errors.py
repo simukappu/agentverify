@@ -143,7 +143,10 @@ class MultipleAssertionError(AgentVerifyError):
         n = len(self.errors)
         lines = [f"{n} assertion{'s' if n != 1 else ''} failed:", ""]
         for i, err in enumerate(self.errors, start=1):
-            lines.append(f"  [{i}] {type(err).__name__}: {err}")
+            first, *rest = str(err).split("\n")
+            lines.append(f"  [{i}] {type(err).__name__}: {first}")
+            # Each failure's own lines sit under its number.
+            lines.extend(f"      {line}" if line else "" for line in rest)
             lines.append("")
         return "\n".join(lines)
 
@@ -510,4 +513,9 @@ class CredentialURLError(AgentVerifyError):
         for v in self.violations:
             lines.append(f"  {v['where']}: {v['host']} ({', '.join(v['reasons'])})")
         return "\n".join(lines)
+
+
+def _own_error(excinfo: Any) -> bool:
+    """For ``__tracebackhide__``: hide agentverify's frames when it raised one of its own errors, and keep them for anything else (a bug to report)."""
+    return bool(excinfo.errisinstance(AgentVerifyError))
 
