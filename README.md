@@ -434,6 +434,20 @@ Async clients of OpenAI, Anthropic, Gemini, LiteLLM, and Bedrock (`aiobotocore` 
 
 Calls may overlap (`asyncio.gather`, threads). Replay matches each request to its recording on the model, tool names, system prompt, user text, and history length, so calls that finish in another order than when recorded still get their own responses; requests identical in all of these replay in recorded order. Concurrent agents keep their own `step_probe` steps and tool results.
 
+### Checking What the Model Was Sent
+
+`iter_request_texts` walks every text the agent sent the model, with where it sits, for checks of your own (personal data, internal ids). It reads a cassette path, an `LLMCassetteRecorder` or `MockLLM` after the run, or one request, and covers the system prompt, each message, tool call arguments and tool results, the tool definitions (including `enum` values), and the provider's other parameters, in every provider's shape:
+
+```python
+from agentverify import iter_request_texts
+
+for where, text in iter_request_texts("tests/cassettes/weather_agent.yaml"):
+    # where: request[1].message[3](tool).tool_result[0](get_weather).temp, request[0].tool[get_weather].schema.properties.unit.enum[0], ...
+    assert not EMPLOYEE_ID.search(text), where
+```
+
+Messages carry their role in `where`, so `(assistant)` picks out the model's own answers; tool results carry the tool's name. JSON tool arguments and results are read key by key, and numbers come as text. Provider ids (`toolUseId`, `tool_call_id`), reasoning signatures, and embedded images or files are left out. A saved cassette holds the sanitized request; pass the recorder before the block ends to see the request as sent.
+
 ### Cassette Sanitization
 
 Cassettes are sanitized by default when recording. Before saving, agentverify redacts:

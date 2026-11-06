@@ -4,6 +4,7 @@
 
 ### Features
 
+- **`iter_request_texts`**: every text a request sends the model (system prompt, messages, tool arguments and results, tool definitions, parameters), with where it sits, for any provider. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
 - **`--cassette-mode=record-missing`**: records only the cassettes that do not exist yet and replays the rest. pytest lists the new ones.
 
 ### Bug Fixes
