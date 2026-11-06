@@ -12,7 +12,7 @@ Two LLM calls, one piece of data flowing between them: the simplest shape of a R
 - `assert_step` for per-step tool verification
 - `assert_step_uses_result_from` to verify that step 1 actually consumes step 0's result
 
-The main README's [Real-World Examples](../../README.md#real-world-examples) section walks through the tests in detail. This README covers setup and execution only.
+The main README's [Real-World Examples](../../README.md#real-world-example) section walks through the tests in detail. This README covers setup and execution only.
 
 ## Prerequisites
 

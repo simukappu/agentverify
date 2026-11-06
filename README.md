@@ -8,20 +8,22 @@
 
 **pytest for AI agents.** Assert agent actions, not vibes.
 
-agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls once and replay them in CI with zero cost, or run against a live LLM with flexible matchers that tolerate prompt variation. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
+agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls and the agent's tool calls once, and replay them in CI with zero cost, or run against a live LLM with flexible matchers that tolerate prompt variation. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
 
 ![agentverify failure output showing the exact mismatch between expected and actual tool calls](docs/screenshot-error-output.png)
 
 Specifically:
 
-- **Tool call sequences**: exact order, subsequence, or set membership, with regex / wildcard argument matching
+- **Tool call sequences**: exact order, subsequence, or set membership, with regex / wildcard argument matching, and an allow list with argument conditions
 - **Step-level execution**: each LLM call is a step; assert what tool was called at step N, what the step's output was, and that step N's input references data produced by step M
 - **Tool outcomes**: whether each tool call actually returned a usable result (vs. errored, timed out, or came back empty), what the result contained, and how many times a flaky tool was retried
 - **Multi-agent routing**: which agent handed off to which, and which agent acted at each step
 - **Budgets**: token counts, cost in USD, end-to-end latency
-- **Safety**: a list of tools that must never be called, no matter what the LLM decides
+- **What the model was sent**: no credential URLs, and your own checks on every text in the requests
+- **Cassettes that stay honest**: replay fails when the prompt or a tool schema changed, or when a cassette is past its age limit
+- **Production traces**: the same assertions on OpenTelemetry traces
 
-Built-in adapters cover LangChain, LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, and CrewAI, and agents may be sync or async, streamed or not. A small [custom converter](#custom-converters) plugs in anything else, including pure-Python ReAct loops, the Anthropic / OpenAI SDK directly, and frameworks not listed above. LLM providers supported: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM. Cassettes are human-readable YAML. Commit them to git, review in PRs, run in CI without an API key.
+Adapters cover LangChain, LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, and CrewAI; a small [custom converter](#custom-converters) plugs in anything else. LLM providers: OpenAI (Chat Completions and Responses), Amazon Bedrock, Google Gemini, Anthropic, and LiteLLM, sync or async, streamed or not. Cassettes are human-readable YAML: commit them to git, review them in PRs, run them in CI without an API key.
 
 ## Why I built this
 
@@ -95,11 +97,9 @@ test_agent.py::test_safety PASSED
 test_agent.py::test_output PASSED
 ```
 
-> **Using a real agent framework?** See the [Real-World Examples](#real-world-examples) below, or the [Examples](#examples) table for every runnable sample.
+> **Using a real agent framework?** See the [Real-World Example](#real-world-example) below, or the [Examples](#examples) table for every runnable sample.
 
-## Real-World Examples
-
-End-to-end examples that showcase different agent patterns and testing angles. All run with pre-recorded cassettes, no API keys needed.
+## Real-World Example
 
 ### Strands Weather Forecaster — Two-Step ReAct
 
@@ -168,80 +168,7 @@ def test_weather_agent_steps(cassette):
     assert_step_uses_result_from(result, step=1, depends_on=0)
 ```
 
-`MATCHES(pattern)` is a regex matcher. See [Assertion Modes](#assertion-modes) for details on `ANY`, `MATCHES`, `OrderMode`, and `partial_args`. Step assertions are covered in [Step-Level Assertions](#step-level-assertions).
-
-### OpenAI Agents SDK LLM as a Judge — Freezing a Probabilistic Refinement Loop
-
-Test the [OpenAI Agents SDK `agent_patterns/llm_as_a_judge.py`](https://github.com/openai/openai-agents-python/blob/main/examples/agent_patterns/llm_as_a_judge.py) sample: a generator writes a story outline, an evaluator grades it with a structured `{feedback, score}` verdict, and the loop re-runs the generator with that feedback until the evaluator accepts the draft. Everything about this agent is probabilistic: how many rounds it takes, what the feedback says, whether the rewrite incorporates it. Recording one run freezes all of it into a deterministic test.
-
-The headline assertion is the feedback chain: round 2's generator must actually consume round 1's evaluator feedback, not silently regenerate the same outline.
-
-```python
-import pytest
-from agentverify import assert_step_uses_result_from, assert_step_output
-
-# Import the judge loop from the example
-# (see examples/openai-agents-llm-as-a-judge/)
-from agent import run_judge_loop_sync
-
-
-@pytest.mark.agentverify
-def test_generator_consumes_evaluator_feedback(cassette):
-    """Round 2's regeneration must reference the evaluator's round 1 feedback."""
-    with cassette("detective_in_space.yaml", provider="openai") as rec:
-        run_judge_loop_sync("A detective story in space.", max_rounds=3)
-    result = rec.to_execution_result()
-
-    # Step 1 is the evaluator's first verdict; it must reject on the first try.
-    assert_step_output(
-        result, step=1, matches=r'"score"\s*:\s*"(needs_improvement|fail)"'
-    )
-    # Step 2 (generator, round 2) must actually consume step 1's feedback.
-    # This catches "agent regenerated but ignored the judge" bugs.
-    assert_step_uses_result_from(result, step=2, depends_on=1)
-```
-
-`assert_step_uses_result_from` matches across JSON-serialization boundaries. The multi-line evaluator feedback is found inside the next step's user message even when newlines are escaped during serialization.
-
-Because each `Runner.run` call is recorded individually and the workflow spans several runs, the test builds the `ExecutionResult` straight off the cassette recorder rather than the single-run `from_openai_agents` adapter. The cassette layer is the natural single source of truth when a test covers multiple agent runs.
-
-See [`examples/openai-agents-llm-as-a-judge/`](examples/openai-agents-llm-as-a-judge/) for the full loop, the cassette, and the remaining flat + step-level assertions (budget, safety, pass-verdict reached).
-
-### OpenAI Agents SDK on LiteLLM — An Async Agent
-
-Test the [OpenAI Agents SDK `model_providers/litellm_provider.py`](https://github.com/openai/openai-agents-python/blob/main/examples/model_providers/litellm_provider.py) sample. `Runner.run` is async and `LitellmModel` calls `litellm.acompletion`, so the cassette is opened inside a coroutine:
-
-```python
-import asyncio
-import pytest
-from agentverify import ToolCall, assert_step_uses_result_from, assert_tool_calls
-
-from agent import run_agent  # examples/openai-agents-litellm-provider/
-
-
-@pytest.mark.agentverify
-def test_answer_uses_the_weather_tool(cassette):
-    async def main():
-        with cassette("weather_tokyo.yaml", provider="litellm") as rec:
-            await run_agent("What's the weather in Tokyo?")
-        return rec.to_execution_result()
-
-    result = asyncio.run(main())
-    assert_tool_calls(result, expected=[ToolCall("get_weather", {"city": "Tokyo"})])
-    # The answer step must read the tool's result, not guess the weather.
-    assert_step_uses_result_from(result, step=1, depends_on=0, via="tool_result")
-```
-
-See [`examples/openai-agents-litellm-provider/`](examples/openai-agents-litellm-provider/) for the agent, the cassette, and the remaining assertions.
-
-### LangGraph + LangChain — Multi-Agent Handoff and MCP Tool Loops
-
-Full-depth examples for the LangChain ecosystem live under [`examples/`](examples/):
-
-- **[LangGraph multi-agent supervisor](examples/langgraph-multi-agent-supervisor/)**: a supervisor routes to a research expert and a math expert; each `add` in the math chain must consume the previous `add`'s result. `assert_step_uses_result_from` matches the numeric running total (`"231317.0"` produced as a string, consumed as `231317` int/float) across type boundaries, with digit-boundary checks that keep `"231"` from falsely appearing inside `1231`.
-- **[LangChain GitHub issue triage](examples/langchain-issue-triage/)**: a LangChain agent drives a GitHub MCP server to list issues, read them, and propose labels. The step-level tests verify that the `issue_number` passed to `get_issue` actually came from the preceding `list_issues` response, that the GitHub reads returned usable results (`assert_no_tool_errors`, `assert_tool_result_matches`), and that destructive tools like `close_issue` are never called.
-
-Each example ships with its own pre-recorded cassette, a detailed `README.md`, and a full test file.
+`MATCHES(pattern)` is a regex matcher. See [Assertion Modes](#assertion-modes) for `ANY`, `MATCHES`, `OrderMode`, and `partial_args`, and [Step-Level Assertions](#step-level-assertions) for the step API. More agents, from an LLM-as-a-judge loop to an ADK agent team, are in the [Examples](#examples).
 
 ## Build an ExecutionResult
 
@@ -298,9 +225,7 @@ pytest --cassette-mode=record
 pytest
 ```
 
-Cassettes are human-readable YAML (or JSON). Commit them to git, review in PRs.
-
-agentverify supports four cassette modes:
+Cassettes are YAML (or JSON). There are four modes:
 
 | Mode | Behavior |
 |---|---|
@@ -311,7 +236,7 @@ agentverify supports four cassette modes:
 
 ### Tool Calls
 
-The cassette records the agent's tool calls too. Replay returns each tool's recorded result instead of running the tool, so a replayed test makes no tool requests, needs no tool credentials, and leaves no side effects (MCP servers still start, since the agent lists their tools):
+The cassette records the agent's tool calls too. Replay returns each tool's recorded result instead of running the tool, so a replayed test makes no tool requests, needs no tool credentials, and leaves no side effects:
 
 ```yaml
 tool_executions:
@@ -321,27 +246,11 @@ tool_executions:
   result: {status: success, content: [{text: ...}]}
 ```
 
-- Tools are recorded through LangChain / LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, CrewAI, and MCP's `ClientSession.call_tool`, including agents created before the cassette.
-- For a hand-written agent, decorate the tool function with `@cassette_tool`.
-- Calls match on the tool name and arguments, in any order. A call with no recorded match raises `CassetteToolMismatchError`, and fails the test when the cassette closes, even if the framework passed the error to the model. Re-record the cassette when the agent's tool calls change.
-- A tool error replays as it was recorded: the error result the framework made of it, or the same exception type and message (`agentverify.cassette.tools.ReplayedToolError` when the type cannot be rebuilt from its message).
-- A few calls run for real on replay too, marked `run_on_replay` in the cassette: results that do not survive YAML (a LangGraph `Command`, binary content), and CrewAI tools with `result_as_answer`.
-- A replayed tool that called the LLM while recording (an agent used as a tool) skips those LLM calls on replay, so the outer agent's calls stay in step.
-- Replay returns the recorded result only. What a tool does to the agent's own state is not replayed: Google ADK `tool_context.state`, Pydantic AI `deps`, an OpenAI Agents SDK context object, or anything else the tool changes in the process. LangChain tool callbacks (`on_tool_start` / `on_tool_end`) do not fire for a replayed call either. Pass `replay_tools=False` when a test depends on these.
-- Tool arguments and results go through [sanitization](#cassette-sanitization) like the rest of the cassette.
-- Cassettes recorded before 0.7.0 have no `tool_executions`, and their tools run for real. Pass `replay_tools=False` to run the real tools always, for example to test a tool's side effects.
+Tools are recorded through every built-in framework and MCP's `ClientSession.call_tool`; for a hand-written agent, decorate the tool function with `@cassette_tool`. Calls match on the tool name and arguments; a call with no recording raises `CassetteToolMismatchError`. Replay does not restore what a tool changed in the process (Google ADK `tool_context.state`, Pydantic AI `deps`), so pass `replay_tools=False` when a test depends on that or on a tool's side effects. Which calls still run for real, and the other details, are in [docs/cassettes.md](docs/cassettes.md#tool-replay).
 
 ### Stale Cassette Detection
 
-Replay checks that the agent still sends what was recorded, so a prompt or tool change fails the test instead of replaying old responses. Each request is compared with the recorded one:
-- **Model name** (an empty model on either side skips the check)
-- **Tool names**, and each tool's **parameter schema** (a request with no tools on either side skips the check)
-- **System prompt**: system and developer messages, and the providers' `system` / `instructions` parameters
-- **User message text**. Tool results in their own messages or blocks are not compared, since a tool running for real may return something new.
-
-A field the cassette did not record (no system prompt, or a cassette from an older version) is not compared. The request is sanitized like the cassette before comparing.
-
-A difference raises `CassetteRequestMismatchError` with a diff, and fails the test when the cassette closes even if the agent's framework caught it. At the end of the run, pytest lists the stale cassettes and the command that re-records them:
+Replay checks that the agent still sends what was recorded: the model, the tool names and schemas, the system prompt, and the user's text ([details](docs/cassettes.md#request-matching)). A change raises `CassetteRequestMismatchError` with a diff, even if the agent's framework caught it, and pytest lists the stale cassettes and the command that re-records them:
 
 ```
 =================== agentverify: stale cassettes ===================
@@ -351,87 +260,41 @@ Re-record them with (from /path/to/project):
   pytest --cassette-mode=record tests/test_agent.py::test_weather_agent
 ```
 
-Text that changes on every run, such as today's date in a prompt, can be left out of the comparison with `match_ignore`, a list of regular expressions:
+Text that changes on every run, such as today's date in a prompt, can be left out with `match_ignore`, a list of regular expressions. `match_requests=False` (or `--no-cassette-match-requests`) turns matching off.
 
 ```python
 with cassette("my_test.yaml", provider="openai", match_ignore=[r"\d{4}-\d{2}-\d{2}"]) as rec:
     run_my_agent("What's the weather?")
 ```
 
-To turn matching off (e.g., during migration), pass `match_requests=False`, or `--no-cassette-match-requests` for all tests.
-
-Matching leaves tool results alone, since a tool that runs for real may return something new. To notice a cassette that still replays but no longer shows what the agent sends, turn on drift: it compares the tool results (key by key, when they are JSON), the number and roles of the messages, and the provider's other parameters.
-
-```toml
-[tool.pytest.ini_options]
-agentverify_cassette_drift = "warn"   # off (default) | warn | fail; or --cassette-drift=...
-```
-
-```python
-with cassette("privacy_check.yaml", drift="fail", drift_ignore=["request[*].message[*].tool_result[*].now"]) as rec:
-    ...
-```
-
-`warn` adds the cassette and the places that differ (never the values) to the stale list at the end of the run; `fail` raises `CassetteDriftError`. `drift_ignore` takes globs over the places as `iter_request_texts` names them, with or without the `(role)` and `(tool)` parts, and `match_ignore` applies too.
+Matching leaves tool results alone, since a tool that runs for real may return something new. To also notice changed tool results, message roles, or parameters, turn on [drift](docs/cassettes.md#drift): `agentverify_cassette_drift = "warn"` in the pytest settings, or `cassette(drift="fail")` for the cassettes that matter most. It raises `CassetteDriftError` or lists the places that differ, never the values.
 
 ### Keeping Cassettes Current
 
-Cassettes drift when your prompts, tool schemas, or model versions change, and [stale detection](#stale-cassette-detection) tells you which ones. In practice:
-
 - Re-record a cassette in the same PR as the prompt or tool change that made it stale
-- Pin model versions (a dated snapshot, not a moving alias) in your agent code so cassettes don't silently shift underneath you
+- Pin model versions (a dated snapshot, not a moving alias) so cassettes don't silently shift underneath you
 - Treat cassette diffs as part of the PR review. A YAML diff next to the prompt diff is a feature, not noise
-- Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments, so small wording changes in LLM outputs don't cascade into test failures
-- Set an expiry, so that cassettes nobody re-records fail instead of drifting away from the live model unnoticed
-
-Replaying a cassette recorded longer ago than `max_age` raises `CassetteExpiredError` before the agent runs, and the cassette joins the stale list at the end of the run. The age comes from the cassette's `metadata.recorded_at` (a value without a time zone is UTC); a cassette without one counts as expired. Set the limit for the whole suite, per run, or per cassette (the later ones win):
+- Use `MATCHES` and `partial_args=True` to assert on the stable parts of tool arguments
+- Set an expiry, so that cassettes nobody re-records fail instead of drifting away from the live model unnoticed:
 
 ```toml
 # pyproject.toml
 [tool.pytest.ini_options]
-agentverify_cassette_max_age = "30d"   # or "12h"
+agentverify_cassette_max_age = "30d"   # replaying an older cassette raises CassetteExpiredError
 ```
 
 ```bash
-pytest --cassette-max-age=30d            # overrides the setting for this run
-pytest --cassette-expired=warn           # warn instead of failing, when there is no time to re-record
-pytest --cassette-report                 # list the cassettes: recorded when, with which model, expired or not; runs no tests
+pytest --cassette-max-age=7d         # this run only; cassette(max_age=...) sets one cassette
+pytest --cassette-expired=warn       # warn instead of failing, when there is no time to re-record
+pytest --cassette-report             # list the cassettes: recorded when, with which model, expired or not
+pytest --cassette-mode=record-missing  # record only the cassettes that do not exist yet
 ```
 
-```python
-with cassette("weather.yaml", provider="openai", max_age="7d", on_expired="warn") as rec:
-    ...
-```
-
-The limit applies when a cassette is replayed. `--cassette-report` also lists the cassettes no test replays, from the `cassettes/` directory next to each collected test file (not a custom `cassette_dir`). Its status column uses the suite or run limit, not a `max_age=` passed to one cassette, and it needs a run without pytest-xdist workers (`-p no:xdist`). Files there that are not cassettes are left out.
-
-The ini setting and the command-line options apply to cassettes opened with the `cassette` fixture. An `LLMCassetteRecorder` you create yourself checks only the `max_age` you pass it.
-
-### Recorded and Unsupported Calls
-
-Cassettes record chat calls, streamed or not, sync or async: OpenAI `chat.completions.create` and `responses.create` (and their `stream()` helpers), Anthropic `messages.create` and `messages.stream()`, Gemini `models.generate_content` and `generate_content_stream`, Bedrock `Converse` and `ConverseStream`, and LiteLLM `completion` / `acompletion`. Inside a cassette or `MockLLM`, other LLM calls are handled as follows.
-
-These raise `CassetteUnsupportedCallError`:
-- Other streaming calls (OpenAI `responses.connect()` WebSocket sessions, Anthropic `messages.stream(output_format=...)`, Bedrock `InvokeModelWithResponseStream`, ...), in record and replay mode.
-- In replay mode, every other request through an OpenAI, Anthropic, or Gemini SDK client (`parse()`, embeddings, beta resources, ...), Bedrock operations that generate (`InvokeModel`, `InvokeAgent`, `RetrieveAndGenerate`, ...), and LiteLLM `text_completion` and `responses`.
-
-These reach the real API:
-- In record mode, those other requests. `parse()`, the Bedrock operations, and the LiteLLM calls warn that the cassette will not contain them; embeddings, beta resources, and WebSocket APIs do not. Replay then fails at that call.
-- With no cassette file (`AUTO` passthrough), every call. Nothing is saved.
-
-### Streaming
-
-A streamed call is stored as the same response as a non-streamed one, so a cassette recorded either way replays either way. Frameworks that stream by default (Strands' `BedrockModel`, `Runner.run_streamed` in the OpenAI Agents SDK, LangChain's `stream()`) need no change. Replay yields the text in one chunk and each tool call in one chunk, not in the recorded chunk sizes. A stream the agent stops reading early is recorded with what it read.
-
-### OpenAI Responses API
-
-`responses.create` is recorded in the same `provider="openai"` cassette as Chat Completions, including the `with_raw_response` path that langchain-openai uses. The OpenAI Agents SDK uses it by default. Tool results sent back as `function_call_output` items become the step's `tool_results`, so `assert_step_uses_result_from` works the same way. Only function tools are recorded: a response with a client-executed computer, shell, apply-patch, or custom tool call raises `CassetteUnsupportedCallError`.
-
-With `previous_response_id` or `conversation`, the API keeps earlier turns on the server and each request carries only the new input. The cassette then misses those turns, and agentverify warns. Pass `store=False` and send the full input instead.
+The rules for ages, the report, and the calls cassettes cannot record are in [docs/cassettes.md](docs/cassettes.md).
 
 ### Async Agents
 
-The cassette is a plain context manager, so it works around `await` calls too, either in a sync test that runs the agent with `asyncio.run()` or inside your own async test (agentverify does not depend on `pytest-asyncio` or `anyio`; use whichever you already have):
+The cassette is a plain context manager, so it works around `await` calls too, in a sync test that runs the agent with `asyncio.run()` or inside your own async test. Async clients of every provider are recorded, and calls that overlap (`asyncio.gather`, threads) replay with their own responses:
 
 ```python
 def test_async_agent(cassette):
@@ -444,48 +307,13 @@ def test_async_agent(cassette):
     assert_final_output(result, contains="detective")
 ```
 
-Async clients of OpenAI, Anthropic, Gemini, LiteLLM, and Bedrock (`aiobotocore` / `aioboto3`) are recorded and replayed.
-
-Calls may overlap (`asyncio.gather`, threads). Replay matches each request to its recording on the model, tool names, system prompt, user text, and history length, so calls that finish in another order than when recorded still get their own responses; requests identical in all of these replay in recorded order. Concurrent agents keep their own `step_probe` steps and tool results.
-
-### Checking What the Model Was Sent
-
-`iter_request_texts` walks every text the agent sent the model, with where it sits, for checks of your own (personal data, internal ids). It reads a cassette path, an `LLMCassetteRecorder` or `MockLLM` after the run, or one request, and covers the system prompt, each message, tool call arguments and tool results, the tool definitions (including `enum` values), and the provider's other parameters, in every provider's shape:
-
-```python
-from agentverify import iter_request_texts
-
-for where, text in iter_request_texts("tests/cassettes/weather_agent.yaml"):
-    # where: request[1].message[3](tool).tool_result[0](get_weather).temp, request[0].tool[get_weather].schema.properties.unit.enum[0], ...
-    assert not EMPLOYEE_ID.search(text), where
-```
-
-`assert_no_credential_urls` uses it to fail when a URL the model was sent carries a credential: a presigned download link a tool returned, `?access_token=`, `X-Amz-Signature`, an Azure SAS `sig`, or a JWT in the path. The error names where each URL was and its host, never the value:
-
-```python
-from agentverify import assert_no_credential_urls
-
-assert_no_credential_urls("tests/cassettes/camera_history.yaml")
-assert_no_credential_urls(rec, extra_patterns=[r"[?&]code="], ignore=["key"])  # OAuth codes too; `key` is an ordinary value here
-```
-
-The default query names (`agentverify.credentials.CREDENTIAL_QUERY_NAMES`) include `token`, `access_token`, `api_key`, `key`, `secret`, `password`, `sig`, `signature`, and the AWS and Google signature names. `key` gives false alarms on APIs that use it for ordinary values; drop it with `ignore=["key"]`.
-
-Messages carry their role in `where`, so `(assistant)` picks out the model's own answers; tool results carry the tool's name. JSON tool arguments and results are read key by key, and numbers come as text. Provider ids (`toolUseId`, `tool_call_id`), reasoning signatures, and embedded images or files are left out. A saved cassette holds the sanitized request; while recording, the recorder keeps the request as sent.
-
 ### Cassette Sanitization
 
 Cassettes are sanitized by default when recording. Before saving, agentverify redacts:
 - values that match a built-in key pattern, anywhere in the cassette
 - call arguments and headers under a credential key, whatever their format: `api_key`, `authorization`, `x-api-key`, `cookie`, and names ending in `token`, `secret`, `password`, and similar (for example in `extra_headers`)
 
-Built-in patterns (`DEFAULT_PATTERNS`) cover:
-- OpenAI and Anthropic API keys (`sk-...`, `sk-ant-...`)
-- AWS access keys (`AKIA...`, `ASIA...`)
-- Amazon Bedrock API keys (`ABSK...`, `bedrock-api-key-...`)
-- Google API keys (`AIza...`)
-- GitHub tokens (`ghp_...`, `github_pat_...`)
-- Bearer tokens (`Bearer ...`)
+Built-in patterns (`DEFAULT_PATTERNS`) cover OpenAI and Anthropic API keys (`sk-...`, `sk-ant-...`), AWS access keys (`AKIA...`, `ASIA...`), Amazon Bedrock API keys (`ABSK...`, `bedrock-api-key-...`), Google API keys (`AIza...`), GitHub tokens (`ghp_...`, `github_pat_...`), and Bearer tokens.
 
 A custom list replaces the built-in patterns, so extend `DEFAULT_PATTERNS` to keep them. Credential keys in call arguments are redacted either way:
 
@@ -569,87 +397,27 @@ assert_tool_calls_allowed(result, allowed={
 
 The conditions are a small part of JSON Schema, as tool parameter schemas use it: `type`, `enum`, `const`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `required`, `properties`, and `additionalProperties`. Any other keyword raises `ValueError` rather than being ignored. Values are compared strictly: booleans are never numbers, `number` takes no NaN or infinity, `enum` and `const` compare types (`True` is not `1`), and, unlike JSON Schema, `integer` takes no float such as `3.0`. A failure (`ToolPolicyError`) lists each call outside the policy with its position, `call_id`, and reasons.
 
-### Cost Assertions
+### Budgets and Final Output
 
-`assert_cost()` enforces token and dollar budgets on an agent run. Either bound is optional. Pass `max_tokens` only, `max_cost_usd` only, or both together:
-
-```python
-from agentverify import assert_cost
-
-# Token budget only
-assert_cost(result, max_tokens=500)
-
-# Dollar budget only
-assert_cost(result, max_cost_usd=0.01)
-
-# Both: fail if either is exceeded
-assert_cost(result, max_tokens=500, max_cost_usd=0.01)
-```
-
-`result.token_usage` is populated automatically by the `cassette` fixture, `MockLLM`, and every built-in framework adapter. `result.total_cost_usd` must be set manually (see [Build an ExecutionResult](#build-an-executionresult)). agentverify does not compute dollar costs from tokens, since the pricing table would need per-model maintenance and get stale quickly.
-
-### Latency Assertions
-
-`assert_latency()` enforces a response time SLA on your agent. When you use the `cassette` fixture, wall-clock duration is captured automatically on context exit and exposed as `ExecutionResult.duration_ms`:
+`token_usage` and `duration_ms` are filled in by the `cassette` fixture, `MockLLM`, and every adapter; `total_cost_usd` is yours to set, since a pricing table would go stale. Replay measures replay time, so check latency on a recording or a live run.
 
 ```python
-from agentverify import assert_latency
+from agentverify import assert_cost, assert_final_output, assert_latency
 
-@pytest.mark.agentverify
-def test_weather_agent_latency(cassette):
-    with cassette("weather_seattle.yaml", provider="bedrock") as rec:
-        weather_agent("What's the weather in Seattle?")
+assert_cost(result, max_tokens=500, max_cost_usd=0.01)   # either bound is optional
+assert_latency(result, max_ms=3000)
 
-    result = rec.to_execution_result()
-    # Fail if the whole agent run took more than 3 seconds
-    assert_latency(result, max_ms=3000)
+assert_final_output(result, contains="Tokyo")             # or equals=..., matches=r"\d+°C"
+assert_final_output(result, contains=["Tokyo", "22°C"], case_sensitive=False)
 ```
 
-During cassette **replay**, the measured duration reflects replay time (typically milliseconds), not the original call time. Capture latency data during **record** mode, or set `duration_ms` manually via [`ExecutionResult.from_dict()`](#build-an-executionresult).
-
-### Final Output Assertions
-
-`assert_final_output()` verifies the agent's final text response. Use `contains` for substring checks, `equals` for exact match, or `matches` for regex:
-
-```python
-from agentverify import assert_final_output
-
-# Substring check
-assert_final_output(result, contains="Tokyo")
-
-# Exact match
-assert_final_output(result, equals="The weather in Tokyo is sunny, 22°C.")
-
-# Regex match
-assert_final_output(result, matches=r"\d+°C")
-```
-
-`contains` also accepts a list; every substring must appear. `case_sensitive=False` ignores case in `contains` only; for a case-insensitive regex, put `(?i)` in the pattern. `assert_step_output` and `assert_tool_result_matches` accept the same options:
-
-```python
-assert_final_output(result, contains=["Tokyo", "22°C"])
-assert_final_output(result, contains="tokyo", case_sensitive=False)
-```
-
-### Strict Mode
-
-`assert_cost()` and `assert_latency()` silently pass when the underlying data (`token_usage`, `total_cost_usd`, `duration_ms`) is `None`, which keeps them usable on cassette replay where some data may be missing. Pass `strict=True` to require the data to be present:
-
-```python
-# Fails if token_usage or total_cost_usd is None
-assert_cost(result, max_tokens=500, max_cost_usd=0.01, strict=True)
-
-# Fails if duration_ms is None
-assert_latency(result, max_ms=3000, strict=True)
-```
+`assert_cost` and `assert_latency` pass when their data is missing; `strict=True` requires it. `assert_step_output` and `assert_tool_result_matches` take the same `contains` / `equals` / `matches` options as `assert_final_output`.
 
 ## Step-Level Assertions
 
 For agents that make multiple LLM calls per execution (ReAct, Plan-and-Execute, multi-hop retrieval, workflow-style), agentverify exposes the full step structure, not just a flat list of tool calls.
 
 `ExecutionResult.steps` is the single source of truth; `result.tool_calls` remains as a derived flat view for simpler cases.
-
-> The [Real-World Examples](#real-world-examples) above show `assert_step` and `assert_step_uses_result_from` in action on Strands and the OpenAI Agents SDK; the LangGraph, LangChain, and pure-Python custom-converter examples linked from there exercise the same API on different agent shapes. This section covers the full API.
 
 ```python
 from agentverify import assert_step, assert_step_output, ToolCall, MATCHES
@@ -750,7 +518,7 @@ Plain-string names compare as handoff tools spell them: `"Billing Agent"` matche
 
 ## Tool Result Assertions
 
-Knowing the agent *called* the right tool is not the same as knowing the call *worked*. A tool can return a 5xx, time out, or hand back an empty body, and the LLM will often smooth that over in its final reply. These assertions check the result a tool handed back, not just which tool was called and with what arguments.
+Knowing the agent *called* the right tool is not the same as knowing the call *worked*. A tool can return a 5xx, time out, or hand back an empty body, and the LLM will often smooth that over in its final reply. These assertions check the result a tool handed back:
 
 ```python
 from agentverify import (
@@ -776,13 +544,24 @@ assert_tool_result_matches(result, step=1, contains=["temp", "unit"], case_sensi
 assert_retry_count(result, tool_name="http_request", max=2)
 ```
 
-agentverify reads a per-result error signal that the built-in adapters populate from each framework's native tool-error convention (LangGraph `ToolMessage.status == "error"`, Strands `toolResult` status, OpenAI Agents SDK default failure and timeout messages, Pydantic AI retry prompts and tool return outcomes, CrewAI `tool_failures`, error-shaped results such as ADK's `{"status": "error"}`), and that cassette replay reconstructs from the recorded tool messages (OpenAI tool messages, Anthropic `is_error`, Bedrock `toolResult` status).
+The adapters and cassette replay read each framework's own tool-error convention, and a result is a known error, a known success, or unknown; the assertions fail only on a known error, so a test gives the same verdict live and on replay ([details](docs/tool-results.md)). `assert_no_tool_errors` is a blanket gate: if the agent is meant to recover from a failure (a 429 then a retry), assert the steps that must succeed with `assert_tool_invocation_succeeded(step=N)` instead.
 
-The signal is three-valued: a result is a **known error**, a **known success**, or **unknown** (for example, a plain-string tool output on cassette replay where no structured status survived). `assert_tool_invocation_succeeded` and `assert_no_tool_errors` fail only on a *known* error; unknown and absent results pass, so the same test gives the same verdict whether it runs against a live agent or a replayed cassette. To require that a result is actually present and well-formed, use `assert_tool_result_matches`, which fails when the step has no tool result at all.
+## Checking What the Model Was Sent
 
-`assert_no_tool_errors` is a blanket gate, so reach for it only when every tool in the run is expected to succeed. If your agent's correct behaviour includes recovering from a failure (a 429 then a retry, a primary tool then a fallback), that trajectory contains an expected error, and the blanket gate would flag it. In that case assert success on the specific steps that must succeed with `assert_tool_invocation_succeeded(step=N)` instead.
+`iter_request_texts` walks every text the agent sent the model, with where it sits: the system prompt, each message with its role, tool call arguments and tool results with the tool's name, the tool definitions (including `enum` values), and the provider's other parameters, in every provider's shape. Use it for checks of your own (personal data, internal ids):
 
-If you build an `ExecutionResult` by hand or with a custom converter, set the signal yourself via the `tool_results_meta` field on each `Step`: a list positionally aligned with `tool_results`, where entry `i` is `{"is_error": True}`, `{"is_error": False}`, or `{}` (unknown). With `step_probe`, pass it through `handle.set_tool_result(result, is_error=True)`.
+```python
+from agentverify import assert_no_credential_urls, iter_request_texts
+
+for where, text in iter_request_texts("tests/cassettes/weather_agent.yaml"):
+    # where: request[1].message[3](tool).tool_result[0](get_weather).temp, ...
+    assert not EMPLOYEE_ID.search(text), where
+
+# Fails on a presigned link a tool returned, ?access_token=, X-Amz-Signature, a JWT, ...
+assert_no_credential_urls("tests/cassettes/camera_history.yaml")
+```
+
+`assert_no_credential_urls` names where each URL was and its host, never the value. It also takes a recorder after the run; `extra_patterns` and `ignore` adjust what counts ([details](docs/cassettes.md#checking-what-the-model-was-sent)).
 
 ## Production Traces
 
@@ -818,30 +597,23 @@ agentverify ships with built-in adapters for popular agent frameworks. No conver
 | [Google ADK](https://github.com/google/adk-python) | `from agentverify.frameworks.google_adk import from_google_adk` | The events of `Runner.run()` / `run_async()`, streamed or not |
 | [CrewAI](https://github.com/crewAIInc/crewAI) | `from agentverify.frameworks.crewai import from_crewai` | `CrewOutput` from `crew.kickoff()` (token usage is the crew total) |
 
-LangChain 1.x `create_agent` returns a LangGraph graph, so pass its result to `from_langgraph`. For a legacy `AgentExecutor`, pass the conversation history `messages` list as a second argument to `from_langchain` to capture token usage:
+LangChain 1.x `create_agent` returns a LangGraph graph, so pass its result to `from_langgraph`.
 
 ```python
 from agentverify.frameworks.langchain import from_langchain
-
-execution_result = from_langchain(result, messages=memory.chat_memory.messages)
-```
-
-LangGraph and OpenAI Agents adapters take the raw agent output directly, and the Strands adapter takes the agent:
-
-```python
 from agentverify.frameworks.langgraph import from_langgraph
-from agentverify.frameworks.strands import from_strands
 from agentverify.frameworks.openai_agents import from_openai_agents
+from agentverify.frameworks.strands import from_strands
 
-# LangGraph: create_react_agent / create_supervisor / LangChain create_agent result
 execution_result = from_langgraph(app.invoke({"messages": [...]}))
+execution_result = from_openai_agents(Runner.run_sync(agent, "your prompt"))
 
 # Strands: the agent after the call (its messages include earlier calls; clear them between tests)
 weather_agent("What's the weather in Seattle?")
 execution_result = from_strands(weather_agent)
 
-# OpenAI Agents SDK: Runner.run_sync() / await Runner.run() result
-execution_result = from_openai_agents(Runner.run_sync(agent, "your prompt"))
+# Legacy AgentExecutor: pass the history to capture token usage
+execution_result = from_langchain(result, messages=memory.chat_memory.messages)
 ```
 
 ### Custom Converters
@@ -849,6 +621,8 @@ execution_result = from_openai_agents(Runner.run_sync(agent, "your prompt"))
 For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/custom-converter-python-agent/`](examples/custom-converter-python-agent/) for a complete reference: an Anthropic SDK ReAct agent paired with a ~80-line `converter.py`, a recorded cassette, and step-level tests.
 
 ## Supported LLM Providers
+
+Install the extra for the SDK your agent uses:
 
 | Provider | Extra |
 |---|---|
@@ -859,13 +633,7 @@ For other frameworks, build an `ExecutionResult` from your agent's output using 
 | LiteLLM | `pip install "agentverify[litellm]"` |
 | All providers | `pip install "agentverify[all]"` |
 
-OpenAI models on Amazon Bedrock can be reached three ways; record each with the provider that owns the client:
-
-| Route | Cassette provider |
-|---|---|
-| boto3 `bedrock-runtime` `converse` | `"bedrock"` |
-| OpenAI SDK with `base_url="https://bedrock-runtime.<region>.amazonaws.com/openai/v1"` (`chat.completions.create`, `responses.create`) | `"openai"` |
-| boto3 `invoke_model` | not recorded; raises in replay mode |
+OpenAI models on Bedrock can be reached through boto3 or the OpenAI SDK; see [docs/cassettes.md](docs/cassettes.md#recorded-and-unsupported-calls) for which provider records each route.
 
 ## LLM Mocking with MockLLM
 
@@ -893,19 +661,12 @@ def test_agent_routes_to_weather_tool():
 `mock_response()` accepts:
 
 - `content`: the final text message the LLM should return.
-- `tool_calls`: a list of `(name, arguments)` tuples or `{"name": ..., "arguments": ...}` dicts.
+- `tool_calls`: a list of `(name, arguments)` tuples or `{"name": ..., "arguments": ...}` dicts; add `"id"` for a fixed tool call id (otherwise each call gets a unique one).
 - `input_tokens` / `output_tokens`: optional token usage to report.
 
 Provide one `mock_response(...)` per LLM call your agent is expected to make. If your agent makes more calls than you've queued, `MockLLM` raises [`CassetteMissingRequestError`](#error-messages) so under-specified tests fail loudly.
 
-### When to Use MockLLM vs Cassettes
-
-| Use MockLLM when | Use cassettes when |
-|---|---|
-| You haven't recorded a cassette yet | You want fidelity with real LLM output |
-| You want to test hypothetical scenarios (errors, edge cases) | You want to catch prompt-regression bugs |
-| You're doing behavior-driven tests of routing | You're regression-testing full agent runs |
-| You want each LLM response visible in the test code | You've already got recordings to replay |
+Use `MockLLM` for routing logic and hypothetical responses written in the test; use cassettes for fidelity with real LLM output and to catch prompt regressions.
 
 ## Live Runs and Pass Rates
 
@@ -964,23 +725,7 @@ Actual:
   [1] search_web(query="Tokyo weather")  ← actual
 ```
 
-```
-CostBudgetError: Token budget exceeded
-
-  Actual:  1,100 tokens
-  Limit:   1,000 tokens
-  Exceeded by: 100 tokens (10.0%)
-```
-
-```
-LatencyBudgetError: Latency budget exceeded
-
-  Actual:  3,450.0 ms
-  Limit:   3,000.0 ms
-  Exceeded by: 450.0 ms (15.0%)
-```
-
-Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure. The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), `CassetteDriftError` (a replayed request that differs, with `drift="fail"`), `CredentialURLError` (from `assert_no_credential_urls`), and `CassetteUnsupportedCallError`.
+Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure ([all errors](docs/reference.md#errors)). The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), `CassetteDriftError` (a replayed request that differs, with `drift="fail"`), `CredentialURLError` (from `assert_no_credential_urls`), and `CassetteUnsupportedCallError`.
 
 ## Examples
 
@@ -988,12 +733,12 @@ The [`examples/`](examples/) directory contains end-to-end examples with real ag
 
 | Example | Framework | Description |
 |---|---|---|
-| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI | Triages GitHub issues via GitHub MCP, step-level data flow for the discovered issue number, tool-result outcome checks |
-| [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff with running-total data flow |
-| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it |
-| [`openai-agents-llm-as-a-judge`](examples/openai-agents-llm-as-a-judge/) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test with feedback-chain data flow |
+| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it (the [Real-World Example](#real-world-example)) |
+| [`openai-agents-llm-as-a-judge`](examples/openai-agents-llm-as-a-judge/) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test: round 2 must consume round 1's feedback |
 | [`openai-agents-litellm-provider`](examples/openai-agents-litellm-provider/) | OpenAI Agents SDK + LiteLLM + Bedrock | Async agent (`Runner.run` → `litellm.acompletion`) with a weather tool, cassette opened inside a coroutine |
 | [`google-adk-agent-team`](examples/google-adk-agent-team/) | Google ADK + LiteLLM + Bedrock | The ADK tutorial's agent team: a weather agent delegating greetings and farewells to sub-agents, with the delegation route and each agent's tools asserted |
+| [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff; each `add` must consume the previous running total, across string and number types |
+| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI + MCP | Triages GitHub issues via a GitHub MCP server: the `issue_number` read must come from the listing, the reads must succeed, and `close_issue` is never called |
 | [`custom-converter-python-agent`](examples/custom-converter-python-agent/) | Anthropic SDK (no framework) | Reference for writing a custom converter: a hand-rolled ReAct loop calling the Anthropic Messages API directly |
 | [`mcp-server`](examples/mcp-server/) | (shared utility) | Mock GitHub MCP server for token-free testing |
 
@@ -1017,6 +762,10 @@ See each example's README for what its tests check and how to re-record its cass
 We want agentverify to become the way people regression-test agents in CI: tests that live next to the agent code, in git, reviewed in PRs alongside the prompt and tool changes that affect them.
 
 - MCP testing helpers: pin an MCP server's tool schemas, so a server upgrade that changes them fails a test
+
+## Reference
+
+[docs/reference.md](docs/reference.md) is the API reference: every public name and pytest option, with where it is described, plus what this README only mentions (`LLMCassetteRecorder` without the fixture, `on_missing`, `@cassette_tool`, `step_probe`, the result objects, every error). [docs/cassettes.md](docs/cassettes.md) and [docs/tool-results.md](docs/tool-results.md) hold the details behind the cassette and tool result sections.
 
 ## Changelog
 

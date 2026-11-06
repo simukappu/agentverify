@@ -4,18 +4,19 @@
 
 ### Features
 
-- **Drift**: `drift="warn"` / `"fail"` (or `agentverify_cassette_drift`, `--cassette-drift`) compares replayed tool results, message roles, and parameters with the recording, and lists or fails on the places that differ. Off by default. See [README "Stale Cassette Detection"](README.md#stale-cassette-detection).
-- **`assert_no_credential_urls`**: fails when a URL in a request the model was sent carries a token, key, or signature (presigned links, `access_token`, `X-Amz-Signature`, JWTs), without printing the values. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
-- **`iter_request_texts`**: every text a request sends the model (system prompt, messages, tool arguments and results, tool definitions, parameters), with where it sits, for any provider. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
-- **`--cassette-mode=record-missing`**: records only the cassettes that do not exist yet and replays the rest. pytest lists the new ones.
+- **`--cassette-mode=record-missing`**: records only the cassettes that do not exist yet and replays the rest.
+- **`iter_request_texts`**: every text a request sent the model, with where it sits, for any provider. See [README "Checking What the Model Was Sent"](README.md#checking-what-the-model-was-sent).
+- **`assert_no_credential_urls`**: fails when a URL sent to the model carries a token, key, or signature. Values are never printed.
+- **Cassette drift**: `drift="warn"` or `"fail"` also compares replayed tool results, message roles, and parameters with the recording. Off by default. See [README "Stale Cassette Detection"](README.md#stale-cassette-detection).
 
 ### Bug Fixes
 
-- **`--cassette-report` leaves out files that are not cassettes**, such as notes kept next to them, instead of listing them as unreadable.
+- **`--cassette-report` leaves out files that are not cassettes.**
 
 ### Documentation
 
-- **Expiry settings apply through the `cassette` fixture**: an `LLMCassetteRecorder` created directly checks only its own `max_age`.
+- **A shorter README**: the details move to [docs/cassettes.md](docs/cassettes.md), [docs/tool-results.md](docs/tool-results.md), and the [API reference](docs/reference.md), which indexes every public name.
+- **Expiry settings apply through the `cassette` fixture**, not to an `LLMCassetteRecorder` created directly.
 - **The Strands example uses `strands.vended_tools.http_request`**, as the official sample now does (strands-agents-tools 0.9 removed its own), on a re-recorded cassette.
 
 ## 0.8.0 (2026-10-30)
@@ -74,7 +75,7 @@
 ### Features
 
 - **Async agents**: the async clients of Anthropic, Gemini, and LiteLLM are recorded and replayed, as OpenAI's already were.
-- **OpenAI Responses API** is recorded and replayed, so the OpenAI Agents SDK works on its default model. See [README "OpenAI Responses API"](README.md#openai-responses-api).
+- **OpenAI Responses API** is recorded and replayed, so the OpenAI Agents SDK works on its default model. See [README "OpenAI Responses API"](docs/cassettes.md#openai-responses-api).
 - **Multi-agent handoff assertions**: `assert_handoffs`, `assert_no_handoff`, and `assert_step(agent=...)`, via `ExecutionResult.handoffs` and `Step.agent`. See [README "Multi-Agent Handoffs"](README.md#multi-agent-handoffs).
 
 ### Bug Fixes
@@ -97,7 +98,7 @@
 
 ### Bug Fixes
 
-- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See [README "Recorded and Unsupported Calls"](README.md#recorded-and-unsupported-calls).
+- **Replay no longer reaches the real API.** Calls a cassette cannot replay, such as streaming, the Responses API, embeddings, or async Anthropic and Gemini clients, now raise `CassetteUnsupportedCallError` instead of calling the provider. See [README "Recorded and Unsupported Calls"](docs/cassettes.md#recorded-and-unsupported-calls).
 - **Credentials passed as call arguments are redacted from cassettes**, such as `api_key=` or an `x-api-key` header. Default patterns also cover Google, Bedrock, AWS temporary, and GitHub keys. See [README "Cassette Sanitization"](README.md#cassette-sanitization).
 - **OpenAI Agents SDK tool failures are detected**, so `assert_no_tool_errors` and `assert_tool_invocation_succeeded` no longer pass on them.
 
