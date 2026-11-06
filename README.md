@@ -4,13 +4,13 @@
 [![Downloads](https://img.shields.io/pepy/dt/agentverify)](https://pepy.tech/projects/agentverify)
 [![CI](https://github.com/simukappu/agentverify/actions/workflows/ci.yml/badge.svg)](https://github.com/simukappu/agentverify/actions/workflows/ci.yml)
 [![Coverage](https://coveralls.io/repos/github/simukappu/agentverify/badge.svg?branch=main)](https://coveralls.io/github/simukappu/agentverify?branch=main)
-[![License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](LICENSE)
+[![License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat)](https://github.com/simukappu/agentverify/blob/main/LICENSE)
 
 **pytest for AI agents.** Assert agent actions, not vibes.
 
 agentverify is a pytest plugin for deterministic testing of AI agent actions. Record real LLM calls and the agent's tool calls once, and replay them in CI with zero cost, or run against a live LLM with flexible matchers that tolerate prompt variation. Either way, assert exactly what your agent did: which tools it called, what data flowed between steps, how much it cost, and whether it stayed within your safety rules.
 
-![agentverify failure output: a supervisor that skipped the research agent, and a math step that ignored the previous step's result](docs/screenshots/multi-agent.png)
+![agentverify failure output: a supervisor that skipped the research agent, and a math step that ignored the previous step's result](https://raw.githubusercontent.com/simukappu/agentverify/main/docs/screenshots/multi-agent.png)
 
 Specifically:
 
@@ -176,7 +176,7 @@ Every agentverify assertion takes an `ExecutionResult`. You can build one three 
 
 1. **From a dict**: convenient for quick tests and fixtures, as in the [Quick Start](#quick-start).
 2. **From a built-in adapter**: one-liner for LangChain, LangGraph, Strands Agents, OpenAI Agents SDK, Pydantic AI, Google ADK, and CrewAI. See [Framework Integration](#framework-integration).
-3. **From a custom converter**: for frameworks or pure-Python agents not covered by a built-in adapter, map your output to the schema below. See [`examples/custom-converter-python-agent/`](examples/custom-converter-python-agent/) for a complete walkthrough with an Anthropic SDK agent, including a pre-recorded cassette and step-level tests.
+3. **From a custom converter**: for frameworks or pure-Python agents not covered by a built-in adapter, map your output to the schema below. See [`examples/custom-converter-python-agent/`](https://github.com/simukappu/agentverify/tree/main/examples/custom-converter-python-agent) for a complete walkthrough with an Anthropic SDK agent, including a pre-recorded cassette and step-level tests.
 
 `ExecutionResult.from_dict()` accepts these keys:
 
@@ -246,13 +246,13 @@ tool_executions:
   result: {status: success, content: [{text: ...}]}
 ```
 
-Tools are recorded through every built-in framework and MCP's `ClientSession.call_tool`; for a hand-written agent, decorate the tool function with `@cassette_tool`. Calls match on the tool name and arguments; a call with no recording raises `CassetteToolMismatchError`. Replay does not restore what a tool changed in the process (Google ADK `tool_context.state`, Pydantic AI `deps`), so pass `replay_tools=False` when a test depends on that or on a tool's side effects. Which calls still run for real, and the other details, are in [docs/cassettes.md](docs/cassettes.md#tool-replay).
+Tools are recorded through every built-in framework and MCP's `ClientSession.call_tool`; for a hand-written agent, decorate the tool function with `@cassette_tool`. Calls match on the tool name and arguments; a call with no recording raises `CassetteToolMismatchError`. Replay does not restore what a tool changed in the process (Google ADK `tool_context.state`, Pydantic AI `deps`), so pass `replay_tools=False` when a test depends on that or on a tool's side effects. Which calls still run for real, and the other details, are in [docs/cassettes.md](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md#tool-replay).
 
 ### Stale Cassette Detection
 
-Replay checks that the agent still sends what was recorded: the model, the tool names and schemas, the system prompt, and the user's text ([details](docs/cassettes.md#request-matching)). A change raises `CassetteRequestMismatchError` with a diff, even if the agent's framework caught it, and pytest lists the stale cassettes and the command that re-records them:
+Replay checks that the agent still sends what was recorded: the model, the tool names and schemas, the system prompt, and the user's text ([details](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md#request-matching)). A change raises `CassetteRequestMismatchError` with a diff, even if the agent's framework caught it, and pytest lists the stale cassettes and the command that re-records them:
 
-![A one-line system prompt change failing replay with a diff, and the stale cassettes summary with the command that re-records them](docs/screenshots/stale-cassette.png)
+![A one-line system prompt change failing replay with a diff, and the stale cassettes summary with the command that re-records them](https://raw.githubusercontent.com/simukappu/agentverify/main/docs/screenshots/stale-cassette.png)
 
 Text that changes on every run, such as today's date in a prompt, can be left out with `match_ignore`, a list of regular expressions. `match_requests=False` (or `--no-cassette-match-requests`) turns matching off.
 
@@ -261,7 +261,7 @@ with cassette("my_test.yaml", provider="openai", match_ignore=[r"\d{4}-\d{2}-\d{
     run_my_agent("What's the weather?")
 ```
 
-Matching leaves tool results alone, since a tool that runs for real may return something new. To also notice changed tool results, message roles, or parameters, turn on [drift](docs/cassettes.md#drift): `agentverify_cassette_drift = "warn"` in the pytest settings, or `cassette(drift="fail")` for the cassettes that matter most. It raises `CassetteDriftError` or lists the places that differ, never the values.
+Matching leaves tool results alone, since a tool that runs for real may return something new. To also notice changed tool results, message roles, or parameters, turn on [drift](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md#drift): `agentverify_cassette_drift = "warn"` in the pytest settings, or `cassette(drift="fail")` for the cassettes that matter most. It raises `CassetteDriftError` or lists the places that differ, never the values.
 
 ### Keeping Cassettes Current
 
@@ -284,7 +284,7 @@ pytest --cassette-report             # list the cassettes: recorded when, with w
 pytest --cassette-mode=record-missing  # record only the cassettes that do not exist yet
 ```
 
-The rules for ages, the report, and the calls cassettes cannot record are in [docs/cassettes.md](docs/cassettes.md).
+The rules for ages, the report, and the calls cassettes cannot record are in [docs/cassettes.md](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md).
 
 ### Async Agents
 
@@ -389,7 +389,7 @@ assert_tool_calls_allowed(result, allowed={
 })
 ```
 
-![An MCP agent's tool calls outside the allow list: a list_issues call with state 'all', and a get_issue call on another repository](docs/screenshots/safety.png)
+![An MCP agent's tool calls outside the allow list: a list_issues call with state 'all', and a get_issue call on another repository](https://raw.githubusercontent.com/simukappu/agentverify/main/docs/screenshots/safety.png)
 
 The conditions are a small part of JSON Schema, as tool parameter schemas use it: `type`, `enum`, `const`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`, `required`, `properties`, and `additionalProperties`. Any other keyword raises `ValueError` rather than being ignored. Values are compared strictly: booleans are never numbers, `number` takes no NaN or infinity, `enum` and `const` compare types (`True` is not `1`), and, unlike JSON Schema, `integer` takes no float such as `3.0`. A failure (`ToolPolicyError`) lists each call outside the policy with its position, `call_id`, and reasons.
 
@@ -450,7 +450,7 @@ assert_step_uses_result_from(result, step=2, depends_on=1, via="tool_result")
 
 The check searches for any produced value (step M's `tool_results`, `tool_calls[*].result`, or `output`) inside step N's `input_context` or `tool_calls[*].arguments`. Strings are substring-matched; primitives (numbers, booleans) are matched structurally inside containers; JSON-encoded tool results are descended automatically.
 
-To see this concretely with a different example: if step 0's `list_issues` tool returned `[{"number": 1}, {"number": 2}]` and step 1 called `get_issue(issue_number=2)`, the check finds that the number `2` produced by step 0 shows up in step 1's arguments. Data flows correctly. This is exactly the pattern the [LangChain GitHub issue triage example](examples/langchain-issue-triage/) verifies.
+To see this concretely with a different example: if step 0's `list_issues` tool returned `[{"number": 1}, {"number": 2}]` and step 1 called `get_issue(issue_number=2)`, the check finds that the number `2` produced by step 0 shows up in step 1's arguments. Data flows correctly. This is exactly the pattern the [LangChain GitHub issue triage example](https://github.com/simukappu/agentverify/tree/main/examples/langchain-issue-triage) verifies.
 
 This works on cassette replay: each step's tool results are read from the request that continues its conversation, where the agent sent them back to the model, for every provider.
 
@@ -540,7 +540,7 @@ assert_tool_result_matches(result, step=1, contains=["temp", "unit"], case_sensi
 assert_retry_count(result, tool_name="http_request", max=2)
 ```
 
-The adapters and cassette replay read each framework's own tool-error convention, and a result is a known error, a known success, or unknown; the assertions fail only on a known error, so a test gives the same verdict live and on replay ([details](docs/tool-results.md)). `assert_no_tool_errors` is a blanket gate: if the agent is meant to recover from a failure (a 429 then a retry), assert the steps that must succeed with `assert_tool_invocation_succeeded(step=N)` instead.
+The adapters and cassette replay read each framework's own tool-error convention, and a result is a known error, a known success, or unknown; the assertions fail only on a known error, so a test gives the same verdict live and on replay ([details](https://github.com/simukappu/agentverify/blob/main/docs/tool-results.md)). `assert_no_tool_errors` is a blanket gate: if the agent is meant to recover from a failure (a 429 then a retry), assert the steps that must succeed with `assert_tool_invocation_succeeded(step=N)` instead.
 
 ## Checking What the Model Was Sent
 
@@ -557,7 +557,7 @@ for where, text in iter_request_texts("tests/cassettes/weather_agent.yaml"):
 assert_no_credential_urls("tests/cassettes/camera_history.yaml")
 ```
 
-`assert_no_credential_urls` names where each URL was and its host, never the value. It also takes a recorder after the run; `extra_patterns` and `ignore` adjust what counts ([details](docs/cassettes.md#checking-what-the-model-was-sent)).
+`assert_no_credential_urls` names where each URL was and its host, never the value. It also takes a recorder after the run; `extra_patterns` and `ignore` adjust what counts ([details](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md#checking-what-the-model-was-sent)).
 
 ## Production Traces
 
@@ -614,7 +614,7 @@ execution_result = from_langchain(result, messages=memory.chat_memory.messages)
 
 ### Custom Converters
 
-For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/custom-converter-python-agent/`](examples/custom-converter-python-agent/) for a complete reference: an Anthropic SDK ReAct agent paired with a ~80-line `converter.py`, a recorded cassette, and step-level tests.
+For other frameworks, build an `ExecutionResult` from your agent's output using a small converter function. See [`examples/custom-converter-python-agent/`](https://github.com/simukappu/agentverify/tree/main/examples/custom-converter-python-agent) for a complete reference: an Anthropic SDK ReAct agent paired with a ~80-line `converter.py`, a recorded cassette, and step-level tests.
 
 ## Supported LLM Providers
 
@@ -629,7 +629,7 @@ Install the extra for the SDK your agent uses:
 | LiteLLM | `pip install "agentverify[litellm]"` |
 | All providers | `pip install "agentverify[all]"` |
 
-OpenAI models on Bedrock can be reached through boto3 or the OpenAI SDK; see [docs/cassettes.md](docs/cassettes.md#recorded-and-unsupported-calls) for which provider records each route.
+OpenAI models on Bedrock can be reached through boto3 or the OpenAI SDK; see [docs/cassettes.md](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md#recorded-and-unsupported-calls) for which provider records each route.
 
 ## LLM Mocking with MockLLM
 
@@ -721,22 +721,22 @@ Actual:
   [1] search_web(query="Tokyo weather")  ← actual
 ```
 
-Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure ([all errors](docs/reference.md#errors)). The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), `CassetteDriftError` (a replayed request that differs, with `drift="fail"`), `CredentialURLError` (from `assert_no_credential_urls`), and `CassetteUnsupportedCallError`.
+Every assertion error follows the same pattern and inherits from `AgentVerifyError`, which extends `AssertionError` so pytest treats it as a normal test failure ([all errors](https://github.com/simukappu/agentverify/blob/main/docs/reference.md#errors)). The cassette errors too: `CassetteRequestMismatchError` (stale cassette), `CassetteMissingRequestError` (cassette or MockLLM ran out of responses), `CassetteToolMismatchError` (a tool call with no recorded result), `CassetteExpiredError` (a cassette past its `max_age`), `CassetteDriftError` (a replayed request that differs, with `drift="fail"`), `CredentialURLError` (from `assert_no_credential_urls`), and `CassetteUnsupportedCallError`.
 
 ## Examples
 
-The [`examples/`](examples/) directory contains end-to-end examples with real agent frameworks and MCP servers. Each example ships with pre-recorded cassettes, so tests run without any API keys.
+The [`examples/`](https://github.com/simukappu/agentverify/tree/main/examples) directory contains end-to-end examples with real agent frameworks and MCP servers. Each example ships with pre-recorded cassettes, so tests run without any API keys.
 
 | Example | Framework | Description |
 |---|---|---|
-| [`strands-weather-forecaster`](examples/strands-weather-forecaster/) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it (the [Real-World Example](#real-world-example)) |
-| [`openai-agents-llm-as-a-judge`](examples/openai-agents-llm-as-a-judge/) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test: round 2 must consume round 1's feedback |
-| [`openai-agents-litellm-provider`](examples/openai-agents-litellm-provider/) | OpenAI Agents SDK + LiteLLM + Bedrock | Async agent (`Runner.run` → `litellm.acompletion`) with a weather tool, cassette opened inside a coroutine |
-| [`google-adk-agent-team`](examples/google-adk-agent-team/) | Google ADK + LiteLLM + Bedrock | The ADK tutorial's agent team: a weather agent delegating greetings and farewells to sub-agents, with the delegation route and each agent's tools asserted |
-| [`langgraph-multi-agent-supervisor`](examples/langgraph-multi-agent-supervisor/) | LangGraph + OpenAI | Research + math multi-agent handoff; each `add` must consume the previous running total, across string and number types |
-| [`langchain-issue-triage`](examples/langchain-issue-triage/) | LangChain + OpenAI + MCP | Triages GitHub issues via a GitHub MCP server: the `issue_number` read must come from the listing, the reads must succeed, and `close_issue` is never called |
-| [`custom-converter-python-agent`](examples/custom-converter-python-agent/) | Anthropic SDK (no framework) | Reference for writing a custom converter: a hand-rolled ReAct loop calling the Anthropic Messages API directly |
-| [`mcp-server`](examples/mcp-server/) | (shared utility) | Mock GitHub MCP server for token-free testing |
+| [`strands-weather-forecaster`](https://github.com/simukappu/agentverify/tree/main/examples/strands-weather-forecaster) | Strands Agents + Bedrock | Two-step ReAct that discovers a forecast URL, then calls it (the [Real-World Example](#real-world-example)) |
+| [`openai-agents-llm-as-a-judge`](https://github.com/simukappu/agentverify/tree/main/examples/openai-agents-llm-as-a-judge) | OpenAI Agents SDK | Probabilistic generator ↔ evaluator refinement loop, frozen into a deterministic test: round 2 must consume round 1's feedback |
+| [`openai-agents-litellm-provider`](https://github.com/simukappu/agentverify/tree/main/examples/openai-agents-litellm-provider) | OpenAI Agents SDK + LiteLLM + Bedrock | Async agent (`Runner.run` → `litellm.acompletion`) with a weather tool, cassette opened inside a coroutine |
+| [`google-adk-agent-team`](https://github.com/simukappu/agentverify/tree/main/examples/google-adk-agent-team) | Google ADK + LiteLLM + Bedrock | The ADK tutorial's agent team: a weather agent delegating greetings and farewells to sub-agents, with the delegation route and each agent's tools asserted |
+| [`langgraph-multi-agent-supervisor`](https://github.com/simukappu/agentverify/tree/main/examples/langgraph-multi-agent-supervisor) | LangGraph + OpenAI | Research + math multi-agent handoff; each `add` must consume the previous running total, across string and number types |
+| [`langchain-issue-triage`](https://github.com/simukappu/agentverify/tree/main/examples/langchain-issue-triage) | LangChain + OpenAI + MCP | Triages GitHub issues via a GitHub MCP server: the `issue_number` read must come from the listing, the reads must succeed, and `close_issue` is never called |
+| [`custom-converter-python-agent`](https://github.com/simukappu/agentverify/tree/main/examples/custom-converter-python-agent) | Anthropic SDK (no framework) | Reference for writing a custom converter: a hand-rolled ReAct loop calling the Anthropic Messages API directly |
+| [`mcp-server`](https://github.com/simukappu/agentverify/tree/main/examples/mcp-server) | (shared utility) | Mock GitHub MCP server for token-free testing |
 
 To run one, install agentverify and the example from a clone of this repository, then run its tests:
 
@@ -751,7 +751,7 @@ See each example's README for what its tests check and how to re-record its cass
 
 ## Benchmark
 
-[`benchmarks/execution-model-trajectory/`](benchmarks/execution-model-trajectory/) measures the same tool-trajectory assertion written three ways for CI (agentverify in pytest, DeepEval, and an AgentCore Evaluations code-based evaluator), recording lines of code, wall time, API calls, cost, and CI secrets for each.
+[`benchmarks/execution-model-trajectory/`](https://github.com/simukappu/agentverify/tree/main/benchmarks/execution-model-trajectory) measures the same tool-trajectory assertion written three ways for CI (agentverify in pytest, DeepEval, and an AgentCore Evaluations code-based evaluator), recording lines of code, wall time, API calls, cost, and CI secrets for each.
 
 ## Roadmap
 
@@ -761,19 +761,19 @@ We want agentverify to become the way people regression-test agents in CI: tests
 
 ## Reference
 
-[docs/reference.md](docs/reference.md) is the API reference: every public name and pytest option, with where it is described, plus what this README only mentions (`LLMCassetteRecorder` without the fixture, `on_missing`, `@cassette_tool`, `step_probe`, the result objects, every error). [docs/cassettes.md](docs/cassettes.md) and [docs/tool-results.md](docs/tool-results.md) hold the details behind the cassette and tool result sections.
+[docs/reference.md](https://github.com/simukappu/agentverify/blob/main/docs/reference.md) is the API reference: every public name and pytest option, with where it is described, plus what this README only mentions (`LLMCassetteRecorder` without the fixture, `on_missing`, `@cassette_tool`, `step_probe`, the result objects, every error). [docs/cassettes.md](https://github.com/simukappu/agentverify/blob/main/docs/cassettes.md) and [docs/tool-results.md](https://github.com/simukappu/agentverify/blob/main/docs/tool-results.md) hold the details behind the cassette and tool result sections.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for release history.
+See [CHANGELOG.md](https://github.com/simukappu/agentverify/blob/main/CHANGELOG.md) for release history.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/simukappu/agentverify/blob/main/LICENSE)
 
 ## Contributing
 
-Contributions welcome. Please open an issue first to discuss what you'd like to change. See [CONTRIBUTING.md](CONTRIBUTING.md) for commit, CHANGELOG, and coverage conventions.
+Contributions welcome. Please open an issue first to discuss what you'd like to change. See [CONTRIBUTING.md](https://github.com/simukappu/agentverify/blob/main/CONTRIBUTING.md) for commit, CHANGELOG, and coverage conventions.
 
 Development setup:
 
